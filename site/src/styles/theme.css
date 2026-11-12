@@ -1,0 +1,171 @@
+/* The docs in the site's look: paper, ink, Bricolage, no rules. One theme only (see ThemeProvider). */
+:root,
+:root[data-theme='light'] {
+	--sl-font: 'Bricolage Grotesque Variable', system-ui, sans-serif;
+	--sl-font-mono: ui-monospace, 'Cascadia Code', Consolas, monospace;
+
+	--sl-color-accent-low: #ebe6da;
+	--sl-color-accent: #0b0b0f;
+	--sl-color-accent-high: #0b0b0f;
+	--sl-color-text-accent: #0b0b0f;
+	--sl-color-white: #0b0b0f;
+	--sl-color-gray-1: #24221e;
+	--sl-color-gray-2: #3e3b35;
+	--sl-color-gray-3: #57534a;
+	--sl-color-gray-4: #8c877c;
+	--sl-color-gray-5: #e2dccd;
+	--sl-color-gray-6: #ebe6da;
+	--sl-color-gray-7: #f0ece3;
+	--sl-color-black: #f4f1ea;
+
+	--sl-color-bg-nav: #f4f1ea;
+	--sl-color-bg-sidebar: #f4f1ea;
+	--sl-color-hairline-light: transparent;
+	--sl-color-hairline: transparent;
+	--sl-color-hairline-shade: transparent;
+
+	--sl-nav-height: 4.75rem;
+	--sl-content-width: 46rem;
+	--sl-text-base: 1.0625rem;
+	--sl-text-h2: 1.875rem;
+	--sl-text-h3: 1.375rem;
+
+	--spring: linear(0, 0.037, 0.128, 0.244, 0.381, 0.513, 0.643, 0.755, 0.854, 0.93, 0.992, 1.034, 1.063, 1.079, 1.086, 1.085, 1.079, 1.07, 1.058, 1.047, 1.035, 1.025, 1.016, 1.009, 1.003, 0.998, 0.995, 0.994, 0.993, 0.993, 0.993, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.999, 1, 1, 1);
+	--settle: cubic-bezier(0.22, 1, 0.36, 1);
+	color-scheme: light;
+}
+
+body {
+	font-optical-sizing: auto;
+}
+
+/* Titles */
+.content-panel h1#_top {
+	font-size: clamp(2.5rem, 1.6rem + 3vw, 4rem);
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: -0.045em;
+}
+.sl-markdown-content :is(h2, h3) {
+	font-weight: 600;
+	letter-spacing: -0.03em;
+	line-height: 1.1;
+}
+.sl-markdown-content h2 {
+	margin-top: 3rem;
+}
+.sl-markdown-content {
+	line-height: 1.65;
+}
+.sl-markdown-content a {
+	text-underline-offset: 0.18em;
+	text-decoration-thickness: 1px;
+}
+
+/* Sidebar: quiet labels, the current page as a small island. */
+.sidebar-content .group-label .large {
+	font-size: 0.9375rem;
+	font-weight: 500;
+	color: var(--sl-color-gray-3);
+}
+.sidebar-content a {
+	border-radius: 999px;
+	padding-inline: 0.875rem;
+	font-size: 1rem;
+	transition: background 0.2s var(--settle);
+}
+.sidebar-content a:hover {
+	background: var(--sl-color-gray-6);
+}
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover {
+	background: #0b0b0f;
+	color: #f4f1ea;
+	font-weight: 500;
+}
+
+/* Notes are set in ink, like the island. */
+.starlight-aside {
+	border: 0;
+	border-radius: 20px;
+	padding: 1.25rem 1.5rem;
+	background: #0b0b0f;
+	color: #e9e5dc;
+}
+.starlight-aside__title,
+.starlight-aside__icon {
+	color: #f4f1ea;
+}
+.starlight-aside a {
+	color: #f4f1ea;
+}
+
+/* Tables and code: tone steps instead of lines. */
+.sl-markdown-content table {
+	border-collapse: separate;
+	border-spacing: 0;
+}
+.sl-markdown-content :is(th, td) {
+	border: 0;
+	padding: 0.75rem 1rem;
+}
+.sl-markdown-content tr:nth-child(odd) td {
+	background: #ebe6da;
+}
+.sl-markdown-content code:not(pre code) {
+	padding: 0.1em 0.4em;
+	border-radius: 6px;
+	background: #ebe6da;
+}
+
+/* Previous / next */
+.pagination-links a {
+	border: 0;
+	border-radius: 20px;
+	background: #ebe6da;
+	box-shadow: none;
+	transition: scale 0.5s var(--spring);
+}
+.pagination-links a:hover {
+	scale: 1.02;
+}
+
+/* On this page */
+starlight-toc a[aria-current='true'] {
+	color: #0b0b0f;
+	font-weight: 600;
+}
+
+/* Mobile menu button, in ink. */
+starlight-menu-button button {
+	border-radius: 999px;
+	background: #0b0b0f;
+	color: #f4f1ea;
+	box-shadow: none;
+}
+
+/* Imported repository files keep their own first heading out: the page title already says it. */
+.imported > h1:first-child {
+	display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.sl-markdown-content > * {
+		animation: rise 0.7s var(--settle) both;
+	}
+	.sl-markdown-content > :nth-child(2) {
+		animation-delay: 40ms;
+	}
+	.sl-markdown-content > :nth-child(3) {
+		animation-delay: 80ms;
+	}
+	.sl-markdown-content > :nth-child(n + 4) {
+		animation-delay: 120ms;
+	}
+	@keyframes rise {
+		from {
+			opacity: 0;
+			translate: 0 12px;
+		}
+	}
+}
