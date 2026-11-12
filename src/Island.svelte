@@ -1,4 +1,22 @@
-<div class="island"></div>
+<script lang="ts">
+  import { invoke, isTauri } from '@tauri-apps/api/core'
+
+  let island: HTMLDivElement
+
+  // The Rust side lets clicks through everywhere except over this rectangle.
+  $effect(() => {
+    if (!isTauri()) return
+    const report = () => {
+      const { x, y, width, height } = island.getBoundingClientRect()
+      invoke('set_island_rect', { rect: { x, y, width, height } })
+    }
+    const observer = new ResizeObserver(report)
+    observer.observe(island)
+    return () => observer.disconnect()
+  })
+</script>
+
+<div class="island" bind:this={island}></div>
 
 <style>
   .island {
