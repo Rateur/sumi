@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/logo.png" width="112" height="112" alt="">
+  <img src=".github/assets/logo.svg" width="112" height="112" alt="">
   <h1>Sumi</h1>
   <p>Une île gratuite et open source en haut de votre écran Windows.</p>
   <p>
