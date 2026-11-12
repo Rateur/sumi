@@ -42,7 +42,7 @@ No account, no paid tier, no telemetry. Everything runs on your PC. The only net
 
 ## Contributing
 
-Code lands on the `dev` branch first. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and [docs/design.md](docs/design.md) for how the island behaves. Ideas and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
+Code lands on the `dev` branch first. Read [the contributing guide](.github/CONTRIBUTING.md) before opening a pull request, and [docs/design.md](docs/design.md) for how the island behaves. Ideas and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## License
 
