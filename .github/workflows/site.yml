@@ -28,7 +28,11 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            site/package-lock.json
+      # The site imports files from the repository root, which resolve against the app's TypeScript config.
+      - run: npm ci
       - run: npm ci
         working-directory: site
       - run: npm run build
