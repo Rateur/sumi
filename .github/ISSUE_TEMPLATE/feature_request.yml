@@ -1,0 +1,22 @@
+name: Feature idea
+description: Something the island could do.
+labels: ["enhancement", "needs triage"]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What would you use it for?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What should the island show or do?
+      description: A sketch or a screenshot from another app helps.
+  - type: checkboxes
+    id: free
+    attributes:
+      label: Sumi stays free and local
+      options:
+        - label: This works without a paid API, an account or a server.
+          required: true
