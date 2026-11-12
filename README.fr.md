@@ -1,5 +1,5 @@
 <div align="center">
-  <img src=".github/assets/logo.png" width="112" height="112" alt="">
+  <img src=".github/assets/logo.svg" width="112" height="112" alt="">
   <h1>Sumi</h1>
   <p>Une île gratuite et open source en haut de votre écran Windows.</p>
   <p>
@@ -34,7 +34,7 @@ Pas de compte, pas de version payante, pas de télémétrie. Tout tourne sur vot
 
 ## Contribuer
 
-Le code arrive d'abord sur la branche `dev`. Idées et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
+Le code arrive d'abord sur la branche `dev`. Lisez [CONTRIBUTING.md](CONTRIBUTING.md) avant d'ouvrir une pull request, et [docs/design.md](docs/design.md) pour le comportement de l'île (en anglais). Idées et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## Licence
 

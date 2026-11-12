@@ -1,0 +1,48 @@
+name: Bug report
+description: Something doesn't work as it should.
+labels: ["bug", "needs triage"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: And what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Play a song in Spotify
+        2. Click the island
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Sumi version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Press Win+R and run `winver`.
+      placeholder: "Windows 11 24H2 (26100.2033)"
+    validations:
+      required: true
+  - type: input
+    id: displays
+    attributes:
+      label: Displays
+      description: How many screens, and their scale (Settings → Display).
+      placeholder: "2 screens, 150 % and 100 %"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste the latest log if you have one. Logs never contain your notifications or clipboard.
+      render: text
