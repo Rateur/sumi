@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and draft the release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Check the tag matches the version, read the notes
+        id: notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [ "$version" = "$(node -p "require('./package.json').version")" ] || { echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json"; exit 1; }
+          notes=$(awk -v v="[$version]" '/^## \[/ { p = index($0, v) > 0; next } /^\[/ { p = 0 } p' CHANGELOG.md)
+          [ -n "$notes" ] || { echo "::error::No CHANGELOG.md section for $version"; exit 1; }
+          { echo "body<<EOF"; echo "$notes"; echo "EOF"; } >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: src-tauri
+          key: release
+
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Sumi ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
+
+      # A fixed name makes …/releases/latest/download/Sumi-setup.exe always point to the newest installer.
+      - name: Attach Sumi-setup.exe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp src-tauri/target/release/bundle/nsis/*-setup.exe Sumi-setup.exe
+          gh release upload "$GITHUB_REF_NAME" Sumi-setup.exe
