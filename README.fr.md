@@ -38,8 +38,6 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [ ] Elle se masque quand un jeu ou une vidéo est en plein écran
 - [ ] Les réglages, les mises à jour automatiques et un installateur signé
 
-Après la 1.0 : notifications, Bluetooth, agenda, historique du presse-papiers, texte depuis une capture d'écran, étagère à fichiers et statut de Claude Code.
-
 ## Comment c'est fait
 
 <p>
@@ -52,9 +50,9 @@ Après la 1.0 : notifications, Bluetooth, agenda, historique du presse-papiers, 
 
 Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec Windows : il place la fenêtre, laisse passer les clics, et lira bientôt l'état des médias, du micro et de la batterie. Une interface en [Svelte 5](https://svelte.dev) et TypeScript dessine l'île dans WebView2, le moteur de navigateur déjà intégré à Windows : Sumi n'embarque donc pas son propre navigateur, et l'installateur reste léger.
 
-## Gratuit et privé
+## Confidentialité
 
-Pas de compte, pas de version payante, pas de télémétrie. Tout tourne sur votre PC. Les seules requêtes réseau sont celles que vous activez : météo, agenda et mises à jour.
+Sumi ne collecte rien. Les fonctions qui ont besoin du réseau resteront désactivées tant que vous ne les activez pas.
 
 ## Contribuer
 
@@ -62,4 +60,4 @@ Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](.g
 
 ## Licence
 
-[MIT](LICENSE). Sumi n'est affilié ni à Apple ni à Microsoft.
+[MIT](LICENSE).

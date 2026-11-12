@@ -21,6 +21,18 @@ updates:
       - dependency-name: typescript
         update-types: ["version-update:semver-major"]
 
+  - package-ecosystem: npm
+    directory: /site
+    target-branch: dev
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      site:
+        update-types: [minor, patch]
+
   - package-ecosystem: cargo
     directory: /src-tauri
     target-branch: dev
