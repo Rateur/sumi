@@ -1,0 +1,89 @@
+---
+import LanguageSelect from '@astrojs/starlight/components/LanguageSelect.astro';
+import Search from '@astrojs/starlight/components/Search.astro';
+import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+
+const { lang } = Astro.locals.starlightRoute;
+const download = lang === 'fr' ? 'Télécharger' : 'Download';
+---
+
+<div class="island-header">
+	<div class="island">
+		<SiteTitle />
+		<div class="island-search"><Search /></div>
+		<div class="island-end sl-hidden md:sl-flex">
+			<LanguageSelect />
+			<a class="island-download" href="https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe">{download}</a>
+		</div>
+	</div>
+</div>
+
+<style>
+	.island-header {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		height: 100%;
+	}
+	.island {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		height: 48px;
+		padding: 0 6px 0 16px;
+		border-radius: 24px;
+		background: #0b0b0f;
+		color: #f4f1ea;
+		box-shadow: 0 12px 32px rgb(11 11 15 / 0.2);
+	}
+	.island :global(.site-title) {
+		color: #f4f1ea;
+		font-size: 15px;
+		font-weight: 600;
+		gap: 8px;
+	}
+	.island :global(.site-title img) {
+		height: 18px;
+		width: auto;
+	}
+	.island-search :global(button[data-open-modal]) {
+		height: 36px;
+		min-width: min(260px, 40vw);
+		border: 0;
+		border-radius: 18px;
+		background: rgb(255 255 255 / 0.08);
+		color: #d9d5cc;
+		box-shadow: none;
+	}
+	.island-search :global(button[data-open-modal]:hover) {
+		background: rgb(255 255 255 / 0.14);
+		color: #fff;
+	}
+	.island-search :global(kbd) {
+		background: transparent;
+		color: #a8a397;
+	}
+	.island-end {
+		align-items: center;
+		gap: 4px;
+	}
+	.island-end :global(starlight-lang-select select) {
+		color: #d9d5cc;
+	}
+	.island-end :global(starlight-lang-select svg) {
+		color: #d9d5cc;
+	}
+	.island-download {
+		display: flex;
+		align-items: center;
+		height: 36px;
+		padding: 0 16px;
+		border-radius: 18px;
+		background: #f4f1ea;
+		color: #0b0b0f;
+		font-size: 15px;
+		font-weight: 600;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+</style>

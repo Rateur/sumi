@@ -1,3 +1,5 @@
+# Minor and patch updates come grouped, one PR per ecosystem.
+# Major updates come one by one, because they can break things and are judged case by case.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -10,7 +12,26 @@ updates:
       include: scope
     groups:
       npm:
-        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # Follows the Node version in .node-version.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # shortcut: typescript-eslint and svelte-check don't support TypeScript 7 yet; remove when they do.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: npm
+    directory: /site
+    target-branch: dev
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      site:
+        update-types: [minor, patch]
 
   - package-ecosystem: cargo
     directory: /src-tauri
@@ -22,7 +43,7 @@ updates:
       include: scope
     groups:
       cargo:
-        patterns: ["*"]
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
@@ -33,4 +54,4 @@ updates:
       prefix: ci
     groups:
       actions:
-        patterns: ["*"]
+        update-types: [minor, patch]

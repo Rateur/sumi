@@ -23,3 +23,8 @@ src-tauri/gen/schemas/
 *.swp
 Thumbs.db
 .DS_Store
+
+# Local tooling
+.claude/
+.astro/
+.taste-skill/

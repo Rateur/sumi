@@ -6,7 +6,6 @@
     <a href="https://github.com/Rateur/sumi/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Rateur/sumi?style=flat-square&color=0B0B0F"></a>
     <a href="https://github.com/Rateur/sumi/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Rateur/sumi/ci.yml?branch=dev&style=flat-square&label=CI"></a>
     <img alt="Windows 10 et 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat-square">
-    <img alt="Fait avec Tauri 2" src="https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?style=flat-square&logo=tauri&logoColor=white">
     <a href="LICENSE"><img alt="Licence MIT" src="https://img.shields.io/github/license/Rateur/sumi?style=flat-square&color=8B5CF6"></a>
   </p>
   <p><a href="README.md">English</a> · <b>Français</b></p>
@@ -39,11 +38,21 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [ ] Elle se masque quand un jeu ou une vidéo est en plein écran
 - [ ] Les réglages, les mises à jour automatiques et un installateur signé
 
-Après la 1.0 : notifications, Bluetooth, agenda, historique du presse-papiers, texte depuis une capture d'écran, étagère à fichiers et statut de Claude Code.
+## Comment c'est fait
 
-## Gratuit et privé
+<p>
+  <img alt="Rust" src="https://img.shields.io/badge/Rust-000000?style=flat-square&logo=rust&logoColor=white">
+  <img alt="Tauri 2" src="https://img.shields.io/badge/Tauri_2-24C8DB?style=flat-square&logo=tauri&logoColor=white">
+  <img alt="Svelte 5" src="https://img.shields.io/badge/Svelte_5-FF3E00?style=flat-square&logo=svelte&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white">
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white">
+</p>
 
-Pas de compte, pas de version payante, pas de télémétrie. Tout tourne sur votre PC. Les seules requêtes réseau sont celles que vous activez : météo, agenda et mises à jour.
+Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec Windows : il place la fenêtre, laisse passer les clics, et lira bientôt l'état des médias, du micro et de la batterie. Une interface en [Svelte 5](https://svelte.dev) et TypeScript dessine l'île dans WebView2, le moteur de navigateur déjà intégré à Windows : Sumi n'embarque donc pas son propre navigateur, et l'installateur reste léger.
+
+## Confidentialité
+
+Sumi ne collecte rien. Les fonctions qui ont besoin du réseau resteront désactivées tant que vous ne les activez pas.
 
 ## Contribuer
 
@@ -51,4 +60,4 @@ Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](.g
 
 ## Licence
 
-[MIT](LICENSE). Sumi n'est affilié ni à Apple ni à Microsoft.
+[MIT](LICENSE).
