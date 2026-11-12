@@ -25,16 +25,21 @@ Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, pu
 
 L'installateur n'est pas encore signé, donc Windows signale un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Pour quitter Sumi, passez par son icône dans la zone de notification.
 
-## Prévu pour la 1.0
+## Feuille de route
 
-- La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, lecture/pause, progression.
-- Un point orange ou vert quand une app utilise le micro ou la caméra.
-- Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche.
-- Des minuteurs : tapez `25m`.
-- La météo d'[Open-Meteo](https://open-meteo.com), et sur portable des alertes de charge et de batterie faible.
-- Elle se masque quand un jeu ou une vidéo est en plein écran.
+Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les cases seront cochées.
 
-Notifications, Bluetooth, agenda, historique du presse-papiers et statut de Claude Code arrivent après la 1.0.
+- [x] L'île en haut de l'écran, avec l'heure (0.1.0)
+- [ ] Les animations à ressort : l'île grandit quand il se passe quelque chose
+- [ ] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, lecture/pause, progression
+- [ ] Un point orange ou vert quand une app utilise le micro ou la caméra
+- [ ] Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche
+- [ ] Des minuteurs : tapez `25m`
+- [ ] La météo d'[Open-Meteo](https://open-meteo.com), et sur portable des alertes de charge et de batterie faible
+- [ ] Elle se masque quand un jeu ou une vidéo est en plein écran
+- [ ] Les réglages, les mises à jour automatiques et un installateur signé
+
+Après la 1.0 : notifications, Bluetooth, agenda, historique du presse-papiers, texte depuis une capture d'écran, étagère à fichiers et statut de Claude Code.
 
 ## Gratuit et privé
 

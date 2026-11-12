@@ -25,16 +25,21 @@ Sumi puts a small black pill at the top of your screen. It shows the time, then 
 
 The installer isn't signed yet, so Windows warns about an unknown publisher: click **More info**, then **Run anyway**. Quit Sumi from its tray icon.
 
-## Planned for 1.0
+## Roadmap
 
-- Music from any app Windows can control (Spotify, browsers, VLC…): artwork, play/pause, progress.
-- An orange or green dot when an app uses your microphone or camera.
-- A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine.
-- Timers: type `25m`.
-- Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops.
-- Hides itself while a game or video is fullscreen.
+Each step ships as its own version. Version 1.0 is done when every box is checked.
 
-Notifications, Bluetooth, calendar, clipboard history and Claude Code status come after 1.0.
+- [x] The island at the top of the screen, with the time (0.1.0)
+- [ ] Spring animations: the island grows when something happens
+- [ ] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, play/pause, progress
+- [ ] An orange or green dot when an app uses your microphone or camera
+- [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine
+- [ ] Timers: type `25m`
+- [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
+- [ ] Hides itself while a game or video is fullscreen
+- [ ] Settings, automatic updates and a signed installer
+
+After 1.0: notifications, Bluetooth, calendar, clipboard history, text from a screen capture, a file shelf and Claude Code status.
 
 ## Free and private
 
