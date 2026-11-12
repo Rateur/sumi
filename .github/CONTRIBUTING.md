@@ -12,7 +12,35 @@ Pull requests into `dev` are squash-merged, so the PR title becomes the commit m
 
 ## Setup
 
-Instructions arrive with the first code, along with the commands CI runs.
+You need Windows 10 or 11 with Node.js 24, Rust and the Microsoft C++ Build Tools. From a terminal:
+
+```bash
+winget install OpenJS.NodeJS.LTS Rustlang.Rustup
+winget install Microsoft.VisualStudio.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+The exact Rust and Node versions are pinned in `rust-toolchain.toml` and `.node-version`; Rust installs the right one on the first build. Windows 10 may also need [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+Then, in the repository:
+
+```bash
+npm install
+npm run tauri dev
+```
+
+The island appears at the top of your primary screen. Quit it from the tray icon. Changes to the frontend reload instantly; changes to Rust restart the app.
+
+## Before you push
+
+Run what CI runs:
+
+```bash
+npm run lint && npm run check && npm test
+npm run build
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+```
+
+Every pull request also builds an installer. Find it under **Checks → CI → Artifacts** to test the change without building it yourself.
 
 ## What I look at in review
 

@@ -3,6 +3,8 @@
   <h1>Sumi</h1>
   <p>A free, open-source island for the top of your Windows screen.</p>
   <p>
+    <a href="https://github.com/Rateur/sumi/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Rateur/sumi?style=flat-square&color=0B0B0F"></a>
+    <a href="https://github.com/Rateur/sumi/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Rateur/sumi/ci.yml?branch=dev&style=flat-square&label=CI"></a>
     <img alt="Windows 10 and 11" src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4?style=flat-square">
     <img alt="Built with Tauri 2" src="https://img.shields.io/badge/built%20with-Tauri%202-24C8DB?style=flat-square&logo=tauri&logoColor=white">
     <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/Rateur/sumi?style=flat-square&color=8B5CF6"></a>
@@ -12,21 +14,32 @@
 
 ![The island while music plays, the music panel and the command bar](.github/assets/hero.png)
 
-> [!NOTE]
-> Sumi is in early development. There is nothing to install yet, and the images above are mockups. Watch the repository (Custom → Releases) to hear about the first build.
-
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
-## Planned for 1.0
+> [!NOTE]
+> Sumi is in early development. Version 0.1.0 shows the time and nothing else yet; the images above are mockups of what's coming. Watch the repository (Custom → Releases) to hear about new versions.
 
-- Music from any app Windows can control (Spotify, browsers, VLC…): artwork, play/pause, progress.
-- An orange or green dot when an app uses your microphone or camera.
-- A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine.
-- Timers: type `25m`.
-- Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops.
-- Hides itself while a game or video is fullscreen.
+## Download
 
-Notifications, Bluetooth, calendar, clipboard history and Claude Code status come after 1.0.
+[**Download Sumi for Windows**](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe) (10 and 11, 64-bit), or pick a version on the [releases page](https://github.com/Rateur/sumi/releases).
+
+The installer isn't signed yet, so Windows warns about an unknown publisher: click **More info**, then **Run anyway**. Quit Sumi from its tray icon.
+
+## Roadmap
+
+Each step ships as its own version. Version 1.0 is done when every box is checked.
+
+- [x] The island at the top of the screen, with the time (0.1.0)
+- [ ] Spring animations: the island grows when something happens
+- [ ] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, play/pause, progress
+- [ ] An orange or green dot when an app uses your microphone or camera
+- [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine
+- [ ] Timers: type `25m`
+- [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
+- [ ] Hides itself while a game or video is fullscreen
+- [ ] Settings, automatic updates and a signed installer
+
+After 1.0: notifications, Bluetooth, calendar, clipboard history, text from a screen capture, a file shelf and Claude Code status.
 
 ## Free and private
 
@@ -34,7 +47,7 @@ No account, no paid tier, no telemetry. Everything runs on your PC. The only net
 
 ## Contributing
 
-Code lands on the `dev` branch first. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, and [docs/design.md](docs/design.md) for how the island behaves. Ideas and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
+Code lands on the `dev` branch first. Read [the contributing guide](.github/CONTRIBUTING.md) before opening a pull request, and [docs/design.md](docs/design.md) for how the island behaves. Ideas and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## License
 
