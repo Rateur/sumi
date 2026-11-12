@@ -1,6 +1,6 @@
 [package]
 name = "sumi"
-version = "0.0.0"
+version = "0.1.0"
 description = "A free, open-source island for the top of your Windows screen."
 authors = ["Valentin Périès"]
 license = "MIT"
