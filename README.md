@@ -38,8 +38,6 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [ ] Hides itself while a game or video is fullscreen
 - [ ] Settings, automatic updates and a signed installer
 
-After 1.0: notifications, Bluetooth, calendar, clipboard history, text from a screen capture, a file shelf and Claude Code status.
-
 ## How it's built
 
 <p>
@@ -52,9 +50,9 @@ After 1.0: notifications, Bluetooth, calendar, clipboard history, text from a sc
 
 Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, and will read media, microphone and battery state. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
 
-## Free and private
+## Privacy
 
-No account, no paid tier, no telemetry. Everything runs on your PC. The only network requests are the ones you turn on: weather, calendar and update checks.
+Sumi collects nothing. Features that need the network will stay off until you turn them on.
 
 ## Contributing
 
@@ -62,4 +60,4 @@ Code lands on the `dev` branch first. Read [the contributing guide](.github/CONT
 
 ## License
 
-[MIT](LICENSE). Sumi is not affiliated with Apple or Microsoft.
+[MIT](LICENSE).
