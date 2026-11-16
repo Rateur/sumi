@@ -334,7 +334,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				'scroll',
 				() => {
 					if (scrollY > 160 && Math.abs(scrollY - lastY) < 24) return;
-					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && scrollY > 160 && scrollY > lastY;
+					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && !nav.querySelector(':focus-visible') && scrollY > 160 && scrollY > lastY;
 					if (compact !== nav.classList.contains('compact')) {
 						nav.classList.toggle('compact', compact);
 						fit();
@@ -343,9 +343,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				},
 				{ passive: true },
 			);
-			// Compact hides the menu button; keyboard focus brings it back.
-			nav.addEventListener('focusin', () => {
-				if (!nav.classList.contains('compact')) return;
+			// Compact hides the menu button; keyboard focus brings it back and keeps it while it stays.
+			nav.addEventListener('focusin', (e) => {
+				if (!nav.classList.contains('compact') || !(e.target as Element).matches(':focus-visible')) return;
 				nav.classList.remove('compact');
 				fit();
 			});
