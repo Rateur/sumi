@@ -51,6 +51,27 @@ pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bo
     state.0.store(expanded, Ordering::Relaxed);
 }
 
+/// How long the cursor rests on the island before it grows: the Windows hover time, within reason.
+#[tauri::command]
+pub fn hover_time() -> u32 {
+    system_hover_time().clamp(200, 800)
+}
+
+#[cfg(windows)]
+fn system_hover_time() -> u32 {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SPI_GETMOUSEHOVERTIME, SystemParametersInfoW,
+    };
+    let mut ms: u32 = 400;
+    unsafe { SystemParametersInfoW(SPI_GETMOUSEHOVERTIME, 0, (&raw mut ms).cast(), 0) };
+    ms
+}
+
+#[cfg(not(windows))]
+fn system_hover_time() -> u32 {
+    400
+}
+
 /// Mouse buttons and Esc, one bit each, as [`keys`] reads them.
 const MOUSE: u8 = 0b0111;
 const ESCAPE: u8 = 0b1000;

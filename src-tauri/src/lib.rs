@@ -17,7 +17,8 @@ pub fn run() {
         .manage(island::IslandExpanded::default())
         .invoke_handler(tauri::generate_handler![
             island::set_island_rects,
-            island::set_island_expanded
+            island::set_island_expanded,
+            island::hover_time
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

@@ -22,6 +22,8 @@
   const SHRINK = { stiffness: 0.1, damping: 0.5 }
   // Content leaves this fast, and the shape waits for it before shrinking.
   const EXIT = 80
+  // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
+  const LEAVE = 300
 
   const tauri = isTauri()
   let island: HTMLButtonElement
@@ -30,6 +32,8 @@
   let expanded = $state(false)
   let peeking = $state<string>()
   let now = $state(new Date())
+  // Windows' default, until the app reads the user's own hover time.
+  let hoverTime = 400
 
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange(activities, shown)))
@@ -88,11 +92,19 @@
     if (tauri) invoke('set_island_rects', { rects: rects.map((r) => ({ ...r, radius: radius(r.height) })) })
   })
 
+  // The cursor crosses the island on its way to tabs: it grows only once the cursor rests on it.
+  let hoverTimer: ReturnType<typeof setTimeout>
+  function point(inside: boolean) {
+    clearTimeout(hoverTimer)
+    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside), inside ? hoverTime : LEAVE)
+  }
+
   // Once the window lets the cursor through, the DOM stops hearing about it: Rust watches instead.
   $effect(() => {
     if (!tauri) return
+    invoke<number>('hover_time').then((ms) => (hoverTime = ms))
     const stops = [
-      listen<boolean>('island://pointer', (event) => (hovered = event.payload)),
+      listen<boolean>('island://pointer', (event) => point(event.payload)),
       listen('island://dismiss', () => (expanded = false)),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
@@ -159,8 +171,8 @@
   bind:this={island}
   style={place(rects[0])}
   onclick={() => (expanded = true)}
-  onpointerenter={() => tauri || (hovered = true)}
-  onpointerleave={() => tauri || (hovered = false)}
+  onpointerenter={() => tauri || point(true)}
+  onpointerleave={() => tauri || point(false)}
 >
   {#key key}
     <span
@@ -222,6 +234,11 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     cursor: default;
+  }
+
+  /* Answers the press at once; the panel opens on release. */
+  button.island:active:not([aria-expanded='true']) {
+    scale: 0.96;
   }
 
   .content {
