@@ -22,4 +22,10 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
 
 4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Install the attached `Sumi-setup.exe`, then click **Publish release**.
 
+   Each installer carries a build attestation. Anyone can check it came from this repository's workflow:
+
+   ```bash
+   gh attestation verify Sumi-setup.exe -R Rateur/sumi
+   ```
+
 Leave **Set as a pre-release** unchecked, except for test builds like `0.2.0-beta.1`: GitHub skips pre-releases when it resolves `releases/latest`, and the download links point there.
