@@ -134,12 +134,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 						<span class="ask-chip" aria-hidden="true">Claude</span>
 					</label>
 					<div class="ask-answer">
+						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
 						<a class="ask-row is-active" data-engine="claude" href={`https://claude.ai/new?q=${q}`} target="_blank" rel="noopener">
 							<span>{t.askClaude}</span><kbd>Enter</kbd>
 						</a>
 						<a class="ask-row" data-engine="chatgpt" href={`https://chatgpt.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askChatGPT}</span></a>
 						<a class="ask-row" data-engine="web" href={`https://duckduckgo.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askWeb}</span></a>
-						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
 					</div>
 				</div>
 				<p class="examples" data-reveal style="--d: 3">
@@ -450,7 +450,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			const update = () => {
 				const v = input.value.trim();
 				const seconds = parseTimer(v);
+				// The timer takes the top row and the last engine steps aside, so the bar keeps its height.
 				timerRow.hidden = !seconds;
+				rows[rows.length - 1].hidden = !!seconds;
 				if (seconds) timerRow.querySelector('span')!.textContent = (timerRow.dataset.template ?? '').replace('{t}', clock(seconds));
 				rows.forEach((row, i) => {
 					row.href = urls[row.dataset.engine!] + encodeURIComponent(v);
