@@ -137,7 +137,7 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
-            if tick.is_multiple_of(60) {
+            if tick.is_multiple_of(30) {
                 let _ = place(&window);
             }
             let (Ok(cursor), Ok(origin), Ok(scale)) = (
