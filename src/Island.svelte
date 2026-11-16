@@ -339,22 +339,24 @@
       })
     }
     if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    // No blur on the way out: too quick to see, and a growing blur stalls the GPU for several frames.
     const to = shrinks ? 0.94 : 1.06
     return {
       duration: 100,
       easing: EXIT,
-      css: (t: number, u: number) => `opacity:${t};filter:blur(${4 * u}px);scale:${1 + (to - 1) * u}`,
+      css: (t: number, u: number) => `opacity:${t};scale:${1 + (to - 1) * u}`,
     }
   }
 
   // Only the digits that change roll over: the old one rises out, the new one rises in.
   function roll(node: Element, _: unknown, { direction }: { direction: 'in' | 'out' | 'both' }) {
     if (reduced) return {}
-    const [duration, easing, y] = direction === 'in' ? [200, ENTER, 6] : [120, EXIT, -6]
+    const into = direction === 'in'
+    const [duration, easing, y] = into ? [200, ENTER, 6] : [120, EXIT, -6]
     return {
       duration,
       easing,
-      css: (t: number, u: number) => `opacity:${t};translate:0 ${y * u}px;filter:blur(${3 * u}px)`,
+      css: (t: number, u: number) => `opacity:${t};translate:0 ${y * u}px` + (into ? `;filter:blur(${3 * u}px)` : ''),
     }
   }
 
@@ -617,6 +619,17 @@
   </span>
 </button>
 
+<!-- Each size of the font is readied the first time it is laid out, a stall of 30 to 40 ms. -->
+<!-- This hidden copy pays it at launch instead of on the first hover and the first open. -->
+<span class="island warm" aria-hidden="true">
+  <span class="muted">{formatShortDate(now)}</span>
+  <span class="expanded">
+    <time class="big">{formatTime(now)}</time>
+    <span class="muted">{formatLongDate(now)}</span>
+  </span>
+  <span class="bubble"><span class="countdown">0:00</span></span>
+</span>
+
 {#if geometry.dot}
   <div class="island bubble" style={place(geometry.dot)}>
     {#if arrangement.bubble && revealed}
@@ -672,6 +685,10 @@
     white-space: nowrap;
     cursor: default;
     contain: layout paint style;
+  }
+
+  .warm {
+    visibility: hidden;
   }
 
   /* High contrast drops the black fill and the shadow: an outline keeps the shape. */
