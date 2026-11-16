@@ -54,6 +54,9 @@ export const EXIT = { duration: 100, easing: [0.4, 0, 1, 1], scale: 0.06 } as co
 /** A press gives at once, and the release springs back with a little bounce. */
 export const PRESS: { scale: number; down: Axis; up: Axis } = { scale: 0.96, down: [0.15, 0], up: [0.3, 0.3] }
 
+/** In fullscreen the island slides up off the screen a beat after its content leaves, and drops back with a bounce. */
+export const FULLSCREEN: { delay: number; hide: Axis; show: Axis } = { delay: 100, hide: [0.3, 0], show: [0.5, 0.2] }
+
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
   const at = (p1: number, p2: number, t: number) => 3 * p1 * t * (1 - t) ** 2 + 3 * p2 * (1 - t) * t * t + t ** 3

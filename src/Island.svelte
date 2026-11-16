@@ -14,7 +14,7 @@
     msUntilNextMinute,
     msUntilNextSecond,
   } from './lib/clock'
-  import { ENTER, EXIT, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
+  import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
   import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
   import { Spring } from './lib/spring'
 
@@ -408,10 +408,10 @@
     const t = performance.now()
     const off = -(TOP + height.target + 24)
     if (reduced) drop.jump(on ? off : 0)
-    else if (on) drop.to(off, 0.3, 0, t + 100)
+    else if (on) drop.to(off, ...FULLSCREEN.hide, t + FULLSCREEN.delay)
     else {
       reveal = drop.value * 0.4
-      drop.to(0, 0.5, 0.2, t)
+      drop.to(0, ...FULLSCREEN.show, t)
     }
     wake()
   }

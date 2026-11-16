@@ -1,6 +1,6 @@
 // The island's motion as CSS, for the website, worked out from these springs so the site moves as Sumi does.
 import type { Activity } from './activities'
-import { ENTER, EXIT, PRESS, motion, type Axis } from './motion'
+import { ENTER, EXIT, FULLSCREEN, PRESS, motion, type Axis } from './motion'
 import type { View } from './shapes'
 import { Spring } from './spring'
 
@@ -56,7 +56,7 @@ const moves: Record<string, [View, View]> = {
   shrink: [views.music, views.timer],
 }
 
-/** Custom properties for a `:root` rule: each move's width and height, the press, and the content's way in and out. */
+/** Custom properties for `:root`: each move's width and height, the press, fullscreen, and how content comes and goes. */
 export function motionVars(): string {
   const vars: Record<string, string> = {}
   for (const [name, [from, to]] of Object.entries(moves)) {
@@ -67,6 +67,9 @@ export function motionVars(): string {
   vars.press = spring(PRESS.down)
   vars.release = spring(PRESS.up)
   vars['press-scale'] = String(PRESS.scale)
+  vars.hide = spring(FULLSCREEN.hide)
+  vars['hide-delay'] = `${FULLSCREEN.delay}ms`
+  vars.show = spring(FULLSCREEN.show)
   vars.enter = `${ENTER.duration}ms ${bezier(ENTER.easing)}`
   vars['enter-delay'] = `${ENTER.delay}ms`
   vars['enter-stagger'] = `${ENTER.stagger}ms`
