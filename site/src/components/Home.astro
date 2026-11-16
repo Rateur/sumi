@@ -1561,6 +1561,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		display: block;
 		width: 100%;
 		height: 100%;
+		/* What the text inverts against when there is no simulation: reduced motion, no WebGL 2. */
+		background: var(--paper);
 	}
 	.ink-body {
 		position: relative;
