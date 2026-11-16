@@ -7,18 +7,18 @@ How the island looks and behaves. If code and this page disagree, one of them ha
 | State | Size | When |
 |---|---|---|
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
-| Hover | ~140 × 36 px | Cursor over the island. Adds the date. |
+| Hover | 152 × 36 px | Cursor over the island. Adds the date. |
 | Compact | 34 px high, wider | An activity runs: content on the left and right ends. |
 | Peek | Larger, up to 3 s | Something just happened: new track, charger, low battery. |
 | Expanded | Panel, up to 560 px wide | Click. Closes on Esc or a click elsewhere. |
-| Bubble | 34 px circle | A second activity, next to the island. |
+| Bubble | 34 px circle | A second activity, 8 px right of the island. |
 | Hidden | — | A game, video or slideshow is fullscreen. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
 
 ## Who gets the island
 
-When several things happen at once, the highest one takes the island, the next one the bubble, and the rest wait:
+When several things happen at once, the highest one takes the island, the next one the bubble, and the rest wait. Between equals, what is already shown keeps its place.
 
 1. Call, microphone or camera
 2. Timer
@@ -28,6 +28,8 @@ When several things happen at once, the highest one takes the island, the next o
 ## Input
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
+
+Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for.
 
 | Shortcut | Action |
 |---|---|
@@ -40,7 +42,7 @@ In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcu
 
 ## Motion
 
-Size changes are springs, never fades. Content appears a few milliseconds after the shape starts moving. With reduced motion turned on in Windows, the island crossfades instead.
+Size changes are springs, never fades. Growing overshoots a little, shrinking doesn't. Content appears a few milliseconds after the shape starts moving, and leaves before it shrinks. With reduced motion turned on in Windows, sizes change at once and the content crossfades.
 
 Nothing animates at rest. The equalizer moves only while music plays and the island is visible.
 
