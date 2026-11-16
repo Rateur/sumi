@@ -83,9 +83,9 @@
     bubble.set(arrangement.bubble ? BUBBLE : 0, { instant: reduced })
   })
 
-  // The Rust side lets clicks through everywhere except over these rectangles.
+  // The Rust side lets clicks through everywhere except over these rounded rectangles.
   $effect(() => {
-    if (tauri) invoke('set_island_rects', { rects })
+    if (tauri) invoke('set_island_rects', { rects: rects.map((r) => ({ ...r, radius: radius(r.height) })) })
   })
 
   // Once the window lets the cursor through, the DOM stops hearing about it: Rust watches instead.

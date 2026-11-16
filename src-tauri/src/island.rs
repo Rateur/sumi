@@ -12,11 +12,20 @@ pub struct Rect {
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub radius: f64,
 }
 
 impl Rect {
+    /// Follows the rounded corners, as the page does: a click in a corner falls through.
     pub fn contains(&self, x: f64, y: f64) -> bool {
-        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+        let (right, bottom) = (self.x + self.width, self.y + self.height);
+        if !(x >= self.x && x < right && y >= self.y && y < bottom) {
+            return false;
+        }
+        let r = self.radius;
+        let dx = (self.x + r - x).max(x - (right - r)).max(0.0);
+        let dy = (self.y + r - y).max(y - (bottom - r)).max(0.0);
+        dx * dx + dy * dy <= r * r
     }
 }
 
@@ -52,6 +61,7 @@ pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
 }
 
 /// Reads the buttons and Esc without taking them: the click or the key still reaches the app underneath.
+/// Reads nothing while an elevated app has focus (UIPI), which is why a change of app also closes the panel.
 #[cfg(windows)]
 fn keys() -> u8 {
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
@@ -67,6 +77,17 @@ fn keys() -> u8 {
 
 #[cfg(not(windows))]
 fn keys() -> u8 {
+    0
+}
+
+/// The app in front, which Windows tells even when it is elevated.
+#[cfg(windows)]
+fn foreground() -> usize {
+    unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() as usize }
+}
+
+#[cfg(not(windows))]
+fn foreground() -> usize {
     0
 }
 
@@ -97,11 +118,13 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 /// Lets clicks through everywhere except over the island, tells the frontend when the cursor
 /// enters or leaves it and when the open panel should close, and keeps the window in place
 /// when the resolution, the scale or the taskbar changes.
-// shortcut: polls the cursor 30 times a second; a low-level mouse hook would idle at 0 %, switch if profiling shows a cost.
+// shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
+// first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
+// on the press itself: switch when touch matters or profiling shows a cost.
 pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
     std::thread::spawn(move || {
         let mut over = None;
-        let mut keys_before = None;
+        let mut before = None;
         let mut tick: u32 = 0;
         loop {
             std::thread::sleep(Duration::from_millis(33));
@@ -132,14 +155,16 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             }
             let expanded = app.state::<IslandExpanded>();
             if expanded.0.load(Ordering::Relaxed) {
-                let now = keys();
-                if keys_before.is_some_and(|before| dismisses(before, now, inside)) {
+                let now = (keys(), foreground());
+                if before
+                    .is_some_and(|(keys, front)| front != now.1 || dismisses(keys, now.0, inside))
+                {
                     expanded.0.store(false, Ordering::Relaxed);
                     let _ = app.emit("island://dismiss", ());
                 }
-                keys_before = Some(now);
+                before = Some(now);
             } else {
-                keys_before = None;
+                before = None;
             }
         }
     });
@@ -154,12 +179,21 @@ mod tests {
         y: 8.0,
         width: 132.0,
         height: 34.0,
+        radius: 17.0,
     };
 
     #[test]
-    fn contains_points_inside_and_on_the_top_left_edge() {
+    fn contains_points_inside_and_on_the_top_and_left_edges() {
         assert!(PILL.contains(300.0, 20.0));
-        assert!(PILL.contains(234.0, 8.0));
+        assert!(PILL.contains(234.0, 25.0));
+        assert!(PILL.contains(300.0, 8.0));
+    }
+
+    #[test]
+    fn excludes_the_rounded_corners() {
+        assert!(!PILL.contains(235.0, 9.0));
+        assert!(!PILL.contains(364.0, 40.0));
+        assert!(PILL.contains(240.0, 20.0));
     }
 
     #[test]
