@@ -102,26 +102,24 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 
 		<main>
 			<section class="hero" aria-label="Sumi">
-				<div class="hero-stage">
-					<h1 class="sentence">
-						<span class="half half-a">{t.h1a}</span>
-						<span class="isle" data-ui data-state="dot" aria-hidden="true">
-							<span class="layer layer-time" data-time>00:00</span>
-							<span class="layer layer-music">
-								<span class="art"></span>
-								<span class="track">Tank!</span>
-								<span class="eq"><i></i><i></i><i></i><i></i></span>
-							</span>
-							<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+				<h1 class="sentence">
+					<span class="half half-a">{t.h1a}</span>
+					<span class="isle" data-ui data-state="dot" aria-hidden="true">
+						<span class="layer layer-time" data-time>00:00</span>
+						<span class="layer layer-music">
+							<span class="art"></span>
+							<span class="track">Tank!</span>
+							<span class="eq"><i></i><i></i><i></i><i></i></span>
 						</span>
-						<span class="half half-b">{t.h1b}</span>
-					</h1>
-					<p class="steps" aria-live="polite">
-						{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
-					</p>
-					<div class="band">
-						<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
-					</div>
+						<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+					</span>
+					<span class="half half-b">{t.h1b}</span>
+				</h1>
+				<p class="steps">
+					{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
+				</p>
+				<div class="band">
+					<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
 				</div>
 			</section>
 
@@ -364,40 +362,52 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			};
 			tick();
 
-			// The hero island: a dot that opens into the time, then follows the scroll through its states.
+			// The hero island: a dot that opens into the time, then plays through its states on its own.
 			const hero = document.querySelector<HTMLElement>('.hero')!;
 			const isle = hero.querySelector<HTMLElement>('.isle')!;
-			const steps = [...hero.querySelectorAll<HTMLElement>('.step')];
+			const stepsEl = hero.querySelector<HTMLElement>('.steps')!;
+			const steps = [...stepsEl.querySelectorAll<HTMLElement>('.step')];
 			const states = ['time', 'music', 'timer'];
 			let current = -1;
 			const show = (i: number) => {
-				if (i === current) return;
 				current = i;
 				isle.dataset.state = states[i];
 				steps.forEach((s, j) => s.classList.toggle('on', j === i));
 			};
-			// Left alone, the island moves on by itself; scrolling takes over.
-			let idle = 0;
-			const autoplay = () => {
-				clearTimeout(idle);
-				if (reduce) return;
-				idle = window.setTimeout(() => {
-					if (hero.getBoundingClientRect().bottom > innerHeight * 0.5) show((current + 1) % states.length);
-					autoplay();
+			// WCAG 2.2.2: it plays two rounds and rests on the time, and holds still under the pointer, off screen
+			// and in a background tab, so it never keeps moving next to what someone is reading.
+			let left = reduce ? 0 : states.length * 2;
+			let seen = false;
+			let held = false;
+			let next = 0;
+			const play = () => {
+				clearTimeout(next);
+				if (current < 0 || !left || !seen || held || document.hidden) return;
+				next = window.setTimeout(() => {
+					left -= 1;
+					show((current + 1) % states.length);
+					play();
 				}, 3200);
 			};
 			setTimeout(() => {
 				show(0);
-				autoplay();
+				play();
 			}, reduce ? 0 : 450);
-			const onScroll = () => {
-				if (current < 0) return;
-				const r = hero.getBoundingClientRect();
-				const p = Math.min(0.999, Math.max(0, -r.top / (r.height - innerHeight)));
-				show(Math.floor(p * states.length));
-				autoplay();
-			};
-			addEventListener('scroll', () => requestAnimationFrame(onScroll), { passive: true });
+			new IntersectionObserver(([e]) => {
+				seen = e.isIntersecting;
+				play();
+			}, { threshold: 0.5 }).observe(hero);
+			document.addEventListener('visibilitychange', play);
+			[isle, stepsEl].forEach((el) => {
+				el.addEventListener('pointerenter', () => {
+					held = true;
+					play();
+				});
+				el.addEventListener('pointerleave', () => {
+					held = false;
+					play();
+				});
+			});
 
 			// The command bar, working as it will in the app.
 			const input = document.querySelector<HTMLInputElement>('.ask-input')!;
@@ -903,14 +913,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-size: 14px;
 	}
 
-	/* Hero: the island takes the place of a word and lives through three states as the page scrolls. */
+	/* Hero: the island takes the place of a word and plays through three states. One screen, no pinning. */
 	.hero {
-		height: 270svh;
-	}
-	.hero-stage {
-		position: sticky;
-		top: 0;
-		height: 100svh;
+		min-height: 100svh;
 		display: flex;
 		flex-direction: column;
 		padding: 96px var(--m) 0;
