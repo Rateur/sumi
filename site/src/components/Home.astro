@@ -1824,7 +1824,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			font-size: 30vw;
 		}
 		.quiet-row {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 			gap: 24px;
 		}
 		.frag {
