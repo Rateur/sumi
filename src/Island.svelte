@@ -128,6 +128,7 @@
 </script>
 
 <svelte:window
+  oncontextmenu={(event) => event.preventDefault()}
   onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
   onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
 />
