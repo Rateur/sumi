@@ -327,11 +327,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			document.fonts.ready.then(fit);
 			fit();
 
-			// Compact while scrolling down, like the app at rest.
+			// Compact while scrolling down, like the app at rest. A touchpad's few pixels back and forth don't count.
 			let lastY = scrollY;
 			addEventListener(
 				'scroll',
 				() => {
+					if (scrollY > 160 && Math.abs(scrollY - lastY) < 24) return;
 					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && scrollY > 160 && scrollY > lastY;
 					if (compact !== nav.classList.contains('compact')) {
 						nav.classList.toggle('compact', compact);
