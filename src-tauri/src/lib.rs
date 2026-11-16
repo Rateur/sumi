@@ -7,8 +7,8 @@ use tauri::tray::TrayIconBuilder;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(island::IslandRect::default())
-        .invoke_handler(tauri::generate_handler![island::set_island_rect])
+        .manage(island::IslandRects::default())
+        .invoke_handler(tauri::generate_handler![island::set_island_rects])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

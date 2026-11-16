@@ -2,9 +2,9 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow};
 
-/// The island's bounds in CSS pixels, relative to the window. The frontend keeps it current.
+/// Bounds in CSS pixels, relative to the window: the island, and the bubble when there is one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
 pub struct Rect {
     pub x: f64,
@@ -19,13 +19,14 @@ impl Rect {
     }
 }
 
+/// Where the island and its bubble are. The frontend keeps it current while they spring.
 #[derive(Default)]
-pub struct IslandRect(pub Mutex<Rect>);
+pub struct IslandRects(pub Mutex<Vec<Rect>>);
 
 #[tauri::command]
-pub fn set_island_rect(state: tauri::State<'_, IslandRect>, rect: Rect) {
+pub fn set_island_rects(state: tauri::State<'_, IslandRects>, rects: Vec<Rect>) {
     if let Ok(mut current) = state.0.lock() {
-        *current = rect;
+        *current = rects;
     }
 }
 
@@ -53,8 +54,9 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Lets clicks through everywhere except over the island, and keeps the window in place
-/// when the resolution, the scale or the taskbar changes.
+/// Lets clicks through everywhere except over the island, tells the frontend when the cursor
+/// enters or leaves it, and keeps the window in place when the resolution, the scale or the
+/// taskbar changes.
 // shortcut: polls the cursor 30 times a second; a low-level mouse hook would idle at 0 %, switch if profiling shows a cost.
 pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
     std::thread::spawn(move || {
@@ -73,18 +75,19 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             ) else {
                 continue;
             };
-            let rect = app
-                .state::<IslandRect>()
-                .0
-                .lock()
-                .map(|r| *r)
-                .unwrap_or_default();
-            let inside = rect.contains(
+            let (x, y) = (
                 (cursor.x - f64::from(origin.x)) / scale,
                 (cursor.y - f64::from(origin.y)) / scale,
             );
+            let inside = app
+                .state::<IslandRects>()
+                .0
+                .lock()
+                .is_ok_and(|rects| rects.iter().any(|r| r.contains(x, y)));
+            // Once events are ignored the page never hears the cursor leave, so this is the source of truth.
             if over != Some(inside) && window.set_ignore_cursor_events(!inside).is_ok() {
                 over = Some(inside);
+                let _ = app.emit("island://pointer", inside);
             }
         }
     });
