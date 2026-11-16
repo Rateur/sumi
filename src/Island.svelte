@@ -237,6 +237,13 @@
   }
 
   /* Answers the press at once; the panel opens on release. */
+  /* High contrast drops the black fill and the shadow: an outline keeps the shape. */
+  @media (forced-colors: active) {
+    .island {
+      outline: 1px solid CanvasText;
+    }
+  }
+
   button.island:active:not([aria-expanded='true']) {
     scale: 0.96;
   }

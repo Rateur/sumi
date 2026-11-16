@@ -9,6 +9,7 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 - The island springs between its shapes. Rest the cursor on it and it widens to add the date. Click it and it opens at once into a panel with the time and the full date.
 - Esc or a click elsewhere closes the panel. Both still reach the app underneath.
 - With reduced motion turned on in Windows, sizes change at once and the content crossfades.
+- With a contrast theme turned on in Windows, the island is outlined in the theme's colors.
 
 ### Known limits
 
