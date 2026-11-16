@@ -658,8 +658,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		outline-offset: 3px;
 		border-radius: 4px;
 	}
+	/* Content stops at 1360px and centres; backgrounds and the ink water still run edge to edge. */
 	.wrap {
-		padding-inline: var(--m);
+		padding-inline: max(var(--m), (100% - 1360px) / 2);
 	}
 	.h2 {
 		margin: 0;
