@@ -24,6 +24,8 @@
   const EXIT = 80
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
   const LEAVE = 300
+  // Half of Windows' 4 px hover rectangle: a cursor that moves farther hasn't come to rest.
+  const REST = 2
 
   const tauri = isTauri()
   let island: HTMLButtonElement
@@ -94,9 +96,21 @@
 
   // The cursor crosses the island on its way to tabs: it grows only once the cursor rests on it.
   let hoverTimer: ReturnType<typeof setTimeout>
+  let pointer = false
+  let rest: { x: number; y: number } | undefined
   function point(inside: boolean) {
+    pointer = inside
+    rest = undefined
     clearTimeout(hoverTimer)
     if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside), inside ? hoverTime : LEAVE)
+  }
+
+  // A cursor still moving on the island starts the wait over from where it is.
+  function move({ clientX: x, clientY: y }: PointerEvent) {
+    if (!pointer || hovered) return
+    if (rest && Math.abs(x - rest.x) <= REST && Math.abs(y - rest.y) <= REST) return
+    if (rest) point(true)
+    rest = { x, y }
   }
 
   // Once the window lets the cursor through, the DOM stops hearing about it: Rust watches instead.
@@ -143,6 +157,7 @@
 
 <svelte:window
   oncontextmenu={(event) => event.preventDefault()}
+  onpointermove={move}
   onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
   onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
 />
