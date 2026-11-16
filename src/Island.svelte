@@ -32,7 +32,7 @@
   let expanded = $state(false)
   let peeking = $state<string>()
   let now = $state(new Date())
-  // Windows' default, until the app reads the user's own hover time.
+  // Windows' default. Rust sends the user's own each time the cursor arrives.
   let hoverTime = 400
 
   let shown: Arrangement | undefined
@@ -102,9 +102,11 @@
   // Once the window lets the cursor through, the DOM stops hearing about it: Rust watches instead.
   $effect(() => {
     if (!tauri) return
-    invoke<number>('hover_time').then((ms) => (hoverTime = ms))
     const stops = [
-      listen<boolean>('island://pointer', (event) => point(event.payload)),
+      listen<number | null>('island://pointer', ({ payload }) => {
+        if (payload !== null) hoverTime = payload
+        point(payload !== null)
+      }),
       listen('island://dismiss', () => (expanded = false)),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))

@@ -52,8 +52,8 @@ pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bo
 }
 
 /// How long the cursor rests on the island before it grows: the Windows hover time, within reason.
-#[tauri::command]
-pub fn hover_time() -> u32 {
+/// Read on every arrival, so a changed setting applies without a restart.
+fn hover_time() -> u32 {
     system_hover_time().clamp(200, 800)
 }
 
@@ -145,8 +145,8 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Lets clicks and drags through everywhere except over the island, tells the frontend when the cursor
-/// enters or leaves it and when the open panel should close, and keeps the window in place
-/// when the resolution, the scale or the taskbar changes.
+/// enters it, with the hover time to wait, or leaves it, and when the open panel should close, and keeps
+/// the window in place when the resolution, the scale or the taskbar changes.
 // shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
 // first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
 // on the press itself: switch when touch matters or profiling shows a cost.
@@ -182,7 +182,7 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             // Once events are ignored the page never hears the cursor leave, so this is the source of truth.
             if over != Some(takes) && window.set_ignore_cursor_events(!takes).is_ok() {
                 over = Some(takes);
-                let _ = app.emit("island://pointer", takes);
+                let _ = app.emit("island://pointer", takes.then(hover_time));
             }
             let expanded = app.state::<IslandExpanded>();
             if expanded.0.load(Ordering::Relaxed) {
