@@ -201,6 +201,7 @@
   }
 
   .content {
+    box-sizing: border-box;
     position: absolute;
     inset: 0;
     display: flex;
@@ -283,6 +284,7 @@
   }
 
   .countdown {
+    margin: auto;
     color: #fbbf24;
   }
 
