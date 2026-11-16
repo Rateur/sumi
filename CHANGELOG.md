@@ -4,6 +4,14 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+### Added
+
+- The island slides up out of the way while a game, a video or a slideshow fills the main screen, and drops back when it ends. It never takes focus.
+
+### Known limits
+
+- F11 and fullscreen video in a browser take up to a second to hide the island.
+
 ## [0.2.0] - 2026-11-17
 
 The island moves. Rest the cursor on it and it widens, click it and it opens. The rest of the time, it stays out of your way.

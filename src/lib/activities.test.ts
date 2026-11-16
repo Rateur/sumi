@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { arrange, type Activity } from './activities'
+import { arrange, peeks, type Activity } from './activities'
 
 const call: Activity = { id: 'call', kind: 'call', mic: true, camera: false }
 const timer: Activity = { id: 'timer', kind: 'timer', endsAt: 0 }
@@ -38,5 +38,21 @@ describe('arrange', () => {
   it('hands the island back when the higher priority ends', () => {
     const shown = arrange([timer, a])
     expect(arrange([a], shown)).toEqual({ island: a, bubble: undefined, waiting: [] })
+  })
+})
+
+describe('peeks', () => {
+  it('peeks anything while you are free', () => {
+    expect(peeks(a, 'shown')).toBe(true)
+  })
+
+  it('lets only a call through while you are busy', () => {
+    expect(peeks(call, 'quiet')).toBe(true)
+    expect(peeks(a, 'quiet')).toBe(false)
+    expect(peeks(timer, 'quiet')).toBe(false)
+  })
+
+  it('shows nothing while hidden', () => {
+    expect(peeks(call, 'hidden')).toBe(false)
   })
 })

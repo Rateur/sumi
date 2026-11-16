@@ -4,6 +4,9 @@ export type Activity =
   | { id: string; kind: 'timer'; endsAt: number }
   | { id: string; kind: 'music'; title: string; artist: string; color: string }
 
+/** How much of the island shows: quiet while Windows says you're busy, hidden while something is fullscreen. */
+export type Presence = 'shown' | 'quiet' | 'hidden'
+
 export interface Arrangement {
   island?: Activity
   bubble?: Activity
@@ -22,4 +25,9 @@ export function arrange(activities: readonly Activity[], shown?: Arrangement): A
     (a, b) => RANK[a.kind] - RANK[b.kind] || place(a) - place(b),
   )
   return { island, bubble, waiting }
+}
+
+/** Whether news about an activity may peek. Nothing shows while hidden, and only a call interrupts you when busy. */
+export function peeks(activity: Activity | undefined, presence: Presence): boolean {
+  return presence === 'shown' || (presence === 'quiet' && activity?.kind === 'call')
 }

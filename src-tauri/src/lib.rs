@@ -1,3 +1,4 @@
+mod fullscreen;
 mod island;
 
 use tauri::Manager;
@@ -49,6 +50,8 @@ pub fn run() {
             island::place(&window)?;
             window.set_ignore_cursor_events(true)?;
             window.show()?;
+            // Setup runs on the main thread, whose message loop delivers the hook's events.
+            fullscreen::watch_foreground();
             island::follow_cursor(app.handle().clone(), window);
             Ok(())
         })
