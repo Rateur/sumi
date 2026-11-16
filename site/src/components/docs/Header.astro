@@ -18,6 +18,17 @@ const download = lang === 'fr' ? 'Télécharger' : 'Download';
 	</div>
 </div>
 
+<script>
+	// A language picked here wins on the home page too, as one picked there does.
+	document.querySelectorAll<HTMLSelectElement>('starlight-lang-select select').forEach((select) =>
+		select.addEventListener('change', () => {
+			try {
+				localStorage.setItem('sumi-lang', select.value.includes('/fr/') ? 'fr' : 'en');
+			} catch {}
+		}),
+	);
+</script>
+
 <style>
 	.island-header {
 		display: flex;

@@ -40,9 +40,10 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		{
 			lang === 'en' && (
 				<script is:inline>
-					// First visit only: a French browser gets the French page. A language picked by hand wins.
+					// A French browser arriving from elsewhere gets the French page; one coming from the docs stays put. A language picked by hand wins.
 					try {
-						if (!localStorage.getItem('sumi-lang') && /^fr\b/i.test(navigator.language)) location.replace('fr/');
+						const fromSite = document.referrer.startsWith(location.origin + location.pathname);
+						if (!fromSite && !localStorage.getItem('sumi-lang') && /^fr\b/i.test(navigator.language)) location.replace('fr/');
 					} catch {}
 				</script>
 			)
