@@ -43,7 +43,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 					// A French browser arriving from elsewhere gets the French page; one coming from the docs stays put. A language picked by hand wins.
 					try {
 						const fromSite = document.referrer.startsWith(location.origin + location.pathname);
-						if (!fromSite && !localStorage.getItem('sumi-lang') && /^fr\b/i.test(navigator.language)) location.replace('fr/');
+						const picked = localStorage.getItem('sumi-lang');
+						if (!fromSite && (picked ? picked === 'fr' : /^fr\b/i.test(navigator.language))) location.replace('fr/');
 					} catch {}
 				</script>
 			)
