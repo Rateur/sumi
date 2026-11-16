@@ -6,7 +6,14 @@
   import { innerWidth } from 'svelte/reactivity/window'
   import { fade } from 'svelte/transition'
   import { arrange, type Activity, type Arrangement } from './lib/activities'
-  import { formatCountdown, formatLongDate, formatShortDate, formatTime, msUntilNextMinute } from './lib/clock'
+  import {
+    formatCountdown,
+    formatLongDate,
+    formatShortDate,
+    formatTime,
+    msUntilNextMinute,
+    msUntilNextSecond,
+  } from './lib/clock'
   import { BUBBLE, layout, radius, resolveView, sizeOf, type Rect } from './lib/shapes'
 
   // Tuned at 60 Hz against Svelte's integrator: growing covers 90 % of the way in ~120 ms
@@ -46,10 +53,10 @@
   const bubble = new Spring(0, GROW)
   const rects = $derived(layout(innerWidth.current ?? 0, size.current, bubble.current))
 
-  // A running timer needs the seconds; the clock alone wakes up once a minute.
-  const seconds = $derived(activities.some((a) => a.kind === 'timer'))
+  // A running timer needs the seconds, in step with its end; the clock alone wakes up once a minute.
+  const ends = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a.endsAt] : [])))
   $effect(() => {
-    const wait = () => (seconds ? 1000 - (Date.now() % 1000) : msUntilNextMinute(new Date()))
+    const wait = () => (ends.length ? msUntilNextSecond(Math.min(...ends), Date.now()) : msUntilNextMinute(new Date()))
     now = new Date()
     let timer = setTimeout(function tick() {
       now = new Date()
@@ -125,14 +132,14 @@
   onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
 />
 
-{#snippet glyph(activity: Activity)}
+{#snippet glyph(activity: Activity, short = false)}
   {#if activity.kind === 'call'}
     <span class="dots">
       {#if activity.mic}<span class="dot mic"></span>{/if}
       {#if activity.camera}<span class="dot camera"></span>{/if}
     </span>
   {:else if activity.kind === 'timer'}
-    <span class="countdown">{formatCountdown(activity.endsAt - now.getTime())}</span>
+    <span class="countdown">{formatCountdown(activity.endsAt - now.getTime(), short)}</span>
   {:else}
     <span class="art" style:background={activity.color}></span>
   {/if}
@@ -193,7 +200,7 @@
   <div class="island bubble" style={place(rects[1])}>
     {#if arrangement.bubble}
       <span class="content" transition:fade={{ duration: reduced ? 120 : EXIT }}>
-        {@render glyph(arrangement.bubble)}
+        {@render glyph(arrangement.bubble, true)}
       </span>
     {/if}
   </div>
