@@ -66,7 +66,7 @@ Nothing animates at rest. The equalizer moves only while music plays and the isl
 - Music tints the equalizer and the progress bar with the artwork's main color. The island itself stays black, so text keeps AA contrast on any artwork.
 - Fixed colors: microphone `#FB923C`, camera `#4ADE80`, timer `#FBBF24`, low battery `#F87171`.
 - A light theme (white island, black text) is available in Settings.
-- With a contrast theme turned on in Windows, the island is outlined in the theme's colors.
+- With a contrast theme turned on in Windows, the island is outlined in the theme's colors. The microphone and camera dots, the artwork and the equalizer keep their own.
 
 ## Why these choices
 

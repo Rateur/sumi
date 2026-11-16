@@ -236,14 +236,21 @@
     cursor: default;
   }
 
-  /* Answers the press at once; the panel opens on release. */
   /* High contrast drops the black fill and the shadow: an outline keeps the shape. */
+  /* It would also blank every fill, so the indicators keep their own colors. */
   @media (forced-colors: active) {
     .island {
       outline: 1px solid CanvasText;
     }
+
+    .dot,
+    .art,
+    .equalizer {
+      forced-color-adjust: none;
+    }
   }
 
+  /* Answers the press at once; the panel opens on release. */
   button.island:active:not([aria-expanded='true']) {
     scale: 0.96;
   }
