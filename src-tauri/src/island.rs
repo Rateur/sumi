@@ -1,32 +1,123 @@
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, PhysicalPosition, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow};
 
-/// The island's bounds in CSS pixels, relative to the window. The frontend keeps it current.
+/// Bounds in CSS pixels, relative to the window: the island, and the bubble when there is one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
 pub struct Rect {
     pub x: f64,
     pub y: f64,
     pub width: f64,
     pub height: f64,
+    pub radius: f64,
 }
 
 impl Rect {
+    /// Follows the rounded corners, as the page does: a click in a corner falls through.
     pub fn contains(&self, x: f64, y: f64) -> bool {
-        x >= self.x && x < self.x + self.width && y >= self.y && y < self.y + self.height
+        let (right, bottom) = (self.x + self.width, self.y + self.height);
+        if !(x >= self.x && x < right && y >= self.y && y < bottom) {
+            return false;
+        }
+        let r = self.radius;
+        let dx = (self.x + r - x).max(x - (right - r)).max(0.0);
+        let dy = (self.y + r - y).max(y - (bottom - r)).max(0.0);
+        dx * dx + dy * dy <= r * r
     }
 }
 
+/// Where the island and its bubble are. The frontend sends them on every frame while they spring:
+/// only what is drawn takes clicks, where a union of start and end would also catch the empty
+/// corners around a growing panel.
 #[derive(Default)]
-pub struct IslandRect(pub Mutex<Rect>);
+pub struct IslandRects(pub Mutex<Vec<Rect>>);
 
 #[tauri::command]
-pub fn set_island_rect(state: tauri::State<'_, IslandRect>, rect: Rect) {
+pub fn set_island_rects(state: tauri::State<'_, IslandRects>, rects: Vec<Rect>) {
     if let Ok(mut current) = state.0.lock() {
-        *current = rect;
+        *current = rects;
     }
+}
+
+/// Whether the panel is open, so Esc and clicks elsewhere are watched only while it is.
+#[derive(Default)]
+pub struct IslandExpanded(pub AtomicBool);
+
+#[tauri::command]
+pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bool) {
+    state.0.store(expanded, Ordering::Relaxed);
+}
+
+/// How long the cursor rests on the island before it grows: the Windows hover time, within reason.
+/// Read on every arrival, so a changed setting applies without a restart.
+fn hover_time() -> u32 {
+    system_hover_time().clamp(200, 800)
+}
+
+#[cfg(windows)]
+fn system_hover_time() -> u32 {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SPI_GETMOUSEHOVERTIME, SystemParametersInfoW,
+    };
+    let mut ms: u32 = 400;
+    unsafe { SystemParametersInfoW(SPI_GETMOUSEHOVERTIME, 0, (&raw mut ms).cast(), 0) };
+    ms
+}
+
+#[cfg(not(windows))]
+fn system_hover_time() -> u32 {
+    400
+}
+
+/// Mouse buttons and Esc, one bit each, as [`keys`] reads them.
+const MOUSE: u8 = 0b0111;
+const ESCAPE: u8 = 0b1000;
+
+/// Whether the keys read in two ticks in a row close the panel: Esc pressed anywhere,
+/// or a mouse button pressed outside the island. Only a new press counts, not one held down.
+pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
+    let pressed = now & !before;
+    pressed & ESCAPE != 0 || (!inside && pressed & MOUSE != 0)
+}
+
+/// Whether the island takes the cursor this tick. A button already held when the cursor arrives,
+/// as in a tab drag, a text selection or a window drag, passes through until every button is up.
+pub fn takes_cursor(took: bool, inside: bool, held: bool) -> bool {
+    inside && (took || !held)
+}
+
+/// Reads the buttons and Esc without taking them: the click or the key still reaches the app underneath.
+/// Reads nothing while an elevated app has focus (UIPI), which is why a change of app also closes the panel.
+#[cfg(windows)]
+fn keys() -> u8 {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_ESCAPE, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
+    };
+    [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_ESCAPE]
+        .into_iter()
+        .enumerate()
+        // Non-zero when down now, or pressed since the last read: a tap shorter than a tick still counts.
+        .filter(|&(_, key)| unsafe { GetAsyncKeyState(i32::from(key)) } != 0)
+        .fold(0, |bits, (i, _)| bits | 1 << i)
+}
+
+#[cfg(not(windows))]
+fn keys() -> u8 {
+    0
+}
+
+/// The app in front, which Windows tells even when it is elevated.
+#[cfg(windows)]
+fn foreground() -> usize {
+    unsafe { windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow() as usize }
+}
+
+#[cfg(not(windows))]
+fn foreground() -> usize {
+    0
 }
 
 /// Top-left corner that centers a window of `width` on the top edge of an area.
@@ -53,17 +144,21 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Lets clicks through everywhere except over the island, and keeps the window in place
-/// when the resolution, the scale or the taskbar changes.
-// shortcut: polls the cursor 30 times a second; a low-level mouse hook would idle at 0 %, switch if profiling shows a cost.
+/// Lets clicks and drags through everywhere except over the island, tells the frontend when the cursor
+/// enters it, with the hover time to wait, or leaves it, and when the open panel should close, and keeps
+/// the window in place when the resolution, the scale or the taskbar changes.
+// shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
+// first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
+// on the press itself: switch when touch matters or profiling shows a cost.
 pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
     std::thread::spawn(move || {
         let mut over = None;
+        let mut before = None;
         let mut tick: u32 = 0;
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
-            if tick.is_multiple_of(60) {
+            if tick.is_multiple_of(30) {
                 let _ = place(&window);
             }
             let (Ok(cursor), Ok(origin), Ok(scale)) = (
@@ -73,18 +168,34 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             ) else {
                 continue;
             };
-            let rect = app
-                .state::<IslandRect>()
-                .0
-                .lock()
-                .map(|r| *r)
-                .unwrap_or_default();
-            let inside = rect.contains(
+            let (x, y) = (
                 (cursor.x - f64::from(origin.x)) / scale,
                 (cursor.y - f64::from(origin.y)) / scale,
             );
-            if over != Some(inside) && window.set_ignore_cursor_events(!inside).is_ok() {
-                over = Some(inside);
+            let inside = app
+                .state::<IslandRects>()
+                .0
+                .lock()
+                .is_ok_and(|rects| rects.iter().any(|r| r.contains(x, y)));
+            let keys = keys();
+            let takes = takes_cursor(over == Some(true), inside, keys & MOUSE != 0);
+            // Once events are ignored the page never hears the cursor leave, so this is the source of truth.
+            if over != Some(takes) && window.set_ignore_cursor_events(!takes).is_ok() {
+                over = Some(takes);
+                let _ = app.emit("island://pointer", takes.then(hover_time));
+            }
+            let expanded = app.state::<IslandExpanded>();
+            if expanded.0.load(Ordering::Relaxed) {
+                let now = (keys, foreground());
+                if before
+                    .is_some_and(|(keys, front)| front != now.1 || dismisses(keys, now.0, inside))
+                {
+                    expanded.0.store(false, Ordering::Relaxed);
+                    let _ = app.emit("island://dismiss", ());
+                }
+                before = Some(now);
+            } else {
+                before = None;
             }
         }
     });
@@ -99,12 +210,21 @@ mod tests {
         y: 8.0,
         width: 132.0,
         height: 34.0,
+        radius: 17.0,
     };
 
     #[test]
-    fn contains_points_inside_and_on_the_top_left_edge() {
+    fn contains_points_inside_and_on_the_top_and_left_edges() {
         assert!(PILL.contains(300.0, 20.0));
-        assert!(PILL.contains(234.0, 8.0));
+        assert!(PILL.contains(234.0, 25.0));
+        assert!(PILL.contains(300.0, 8.0));
+    }
+
+    #[test]
+    fn excludes_the_rounded_corners() {
+        assert!(!PILL.contains(235.0, 9.0));
+        assert!(!PILL.contains(364.0, 40.0));
+        assert!(PILL.contains(240.0, 20.0));
     }
 
     #[test]
@@ -113,6 +233,50 @@ mod tests {
         assert!(!PILL.contains(366.0, 20.0));
         assert!(!PILL.contains(300.0, 42.0));
         assert!(!Rect::default().contains(0.0, 0.0));
+    }
+
+    #[test]
+    fn esc_closes_wherever_the_cursor_is() {
+        assert!(dismisses(0, ESCAPE, true));
+        assert!(dismisses(0, ESCAPE, false));
+    }
+
+    #[test]
+    fn a_click_closes_only_outside_the_island() {
+        for button in [0b001, 0b010, 0b100] {
+            assert!(dismisses(0, button, false));
+            assert!(!dismisses(0, button, true));
+        }
+    }
+
+    #[test]
+    fn a_key_held_down_does_not_close_again() {
+        assert!(!dismisses(ESCAPE, ESCAPE, false));
+        assert!(!dismisses(MOUSE, MOUSE, false));
+        assert!(!dismisses(ESCAPE, 0, false));
+    }
+
+    #[test]
+    fn a_second_button_pressed_while_one_is_held_closes() {
+        assert!(dismisses(0b001, 0b011, false));
+    }
+
+    #[test]
+    fn takes_the_cursor_only_over_the_island() {
+        assert!(takes_cursor(false, true, false));
+        assert!(!takes_cursor(false, false, false));
+        assert!(!takes_cursor(true, false, true));
+    }
+
+    #[test]
+    fn a_drag_from_elsewhere_crosses_until_every_button_is_up() {
+        assert!(!takes_cursor(false, true, true));
+        assert!(takes_cursor(false, true, false));
+    }
+
+    #[test]
+    fn a_press_on_the_island_keeps_it() {
+        assert!(takes_cursor(true, true, true));
     }
 
     #[test]
