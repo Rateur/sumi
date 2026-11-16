@@ -45,6 +45,15 @@ export function motion(from: View, to: View): Motion {
   }
 }
 
+/** Content comes in from a blur, a beat after the shape starts, one piece after another. Times in ms. */
+export const ENTER = { delay: 50, stagger: 35, duration: 280, easing: [0.2, 0, 0, 1], blur: 6, scale: 0.9 } as const
+
+/** Content leaves faster than it came, shrinking with the shape or growing with it, by `scale`. */
+export const EXIT = { duration: 100, easing: [0.4, 0, 1, 1], scale: 0.06 } as const
+
+/** A press gives at once, and the release springs back with a little bounce. */
+export const PRESS: { scale: number; down: Axis; up: Axis } = { scale: 0.96, down: [0.15, 0], up: [0.3, 0.3] }
+
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
   const at = (p1: number, p2: number, t: number) => 3 * p1 * t * (1 - t) ** 2 + 3 * p2 * (1 - t) * t * t + t ** 3
