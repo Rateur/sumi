@@ -29,7 +29,9 @@ impl Rect {
     }
 }
 
-/// Where the island and its bubble are. The frontend keeps it current while they spring.
+/// Where the island and its bubble are. The frontend sends them on every frame while they spring:
+/// only what is drawn takes clicks, where a union of start and end would also catch the empty
+/// corners around a growing panel.
 #[derive(Default)]
 pub struct IslandRects(pub Mutex<Vec<Rect>>);
 
@@ -58,6 +60,12 @@ const ESCAPE: u8 = 0b1000;
 pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
     let pressed = now & !before;
     pressed & ESCAPE != 0 || (!inside && pressed & MOUSE != 0)
+}
+
+/// Whether the island takes the cursor this tick. A button already held when the cursor arrives,
+/// as in a tab drag, a text selection or a window drag, passes through until every button is up.
+pub fn takes_cursor(took: bool, inside: bool, held: bool) -> bool {
+    inside && (took || !held)
 }
 
 /// Reads the buttons and Esc without taking them: the click or the key still reaches the app underneath.
@@ -115,7 +123,7 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Lets clicks through everywhere except over the island, tells the frontend when the cursor
+/// Lets clicks and drags through everywhere except over the island, tells the frontend when the cursor
 /// enters or leaves it and when the open panel should close, and keeps the window in place
 /// when the resolution, the scale or the taskbar changes.
 // shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
@@ -148,14 +156,16 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                 .0
                 .lock()
                 .is_ok_and(|rects| rects.iter().any(|r| r.contains(x, y)));
+            let keys = keys();
+            let takes = takes_cursor(over == Some(true), inside, keys & MOUSE != 0);
             // Once events are ignored the page never hears the cursor leave, so this is the source of truth.
-            if over != Some(inside) && window.set_ignore_cursor_events(!inside).is_ok() {
-                over = Some(inside);
-                let _ = app.emit("island://pointer", inside);
+            if over != Some(takes) && window.set_ignore_cursor_events(!takes).is_ok() {
+                over = Some(takes);
+                let _ = app.emit("island://pointer", takes);
             }
             let expanded = app.state::<IslandExpanded>();
             if expanded.0.load(Ordering::Relaxed) {
-                let now = (keys(), foreground());
+                let now = (keys, foreground());
                 if before
                     .is_some_and(|(keys, front)| front != now.1 || dismisses(keys, now.0, inside))
                 {
@@ -228,6 +238,24 @@ mod tests {
     #[test]
     fn a_second_button_pressed_while_one_is_held_closes() {
         assert!(dismisses(0b001, 0b011, false));
+    }
+
+    #[test]
+    fn takes_the_cursor_only_over_the_island() {
+        assert!(takes_cursor(false, true, false));
+        assert!(!takes_cursor(false, false, false));
+        assert!(!takes_cursor(true, false, true));
+    }
+
+    #[test]
+    fn a_drag_from_elsewhere_crosses_until_every_button_is_up() {
+        assert!(!takes_cursor(false, true, true));
+        assert!(takes_cursor(false, true, false));
+    }
+
+    #[test]
+    fn a_press_on_the_island_keeps_it() {
+        assert!(takes_cursor(true, true, true));
     }
 
     #[test]
