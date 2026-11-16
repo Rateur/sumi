@@ -189,6 +189,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                             .store(false, Ordering::Relaxed);
                         over = None;
                         if hides {
+                            // The app gets every click from now on, even one where the island was.
+                            let _ = window.set_ignore_cursor_events(true);
                             hide_at = Some(tick.wrapping_add(HIDE_AFTER));
                         } else if hide_at.take().is_none() {
                             // Back after the window hid, rather than before.

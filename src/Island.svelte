@@ -396,6 +396,7 @@
   }
 
   function open() {
+    if (hidden) return
     pressed = false
     expanded = true
   }
@@ -407,9 +408,12 @@
     hidden = on
     revealed = !on && reduced
     if (on) {
-      // It comes back compact: no panel, no hover, no peek.
+      // It comes back compact: no panel, no hover, no press, no peek.
       clearTimeout(hoverTimer)
       clearTimeout(peekTimer)
+      press(false)
+      pointer = false
+      rest = undefined
       expanded = false
       hovered = false
       peeking = undefined
