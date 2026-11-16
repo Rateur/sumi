@@ -9,7 +9,7 @@
   import { formatCountdown, formatLongDate, formatShortDate, formatTime, msUntilNextMinute } from './lib/clock'
   import { BUBBLE, layout, radius, resolveView, sizeOf, type Rect } from './lib/shapes'
 
-  // Tuned frame by frame against Svelte's integrator: growing covers 90 % of the way in ~120 ms
+  // Tuned at 60 Hz against Svelte's integrator: growing covers 90 % of the way in ~120 ms
   // and overshoots by ~4 %, shrinking lands in ~150 ms without a bounce. Both rest within 0.6 s.
   const GROW = { stiffness: 0.1, damping: 0.4 }
   const SHRINK = { stiffness: 0.1, damping: 0.5 }
@@ -29,6 +29,18 @@
   const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
   const key = $derived('activity' in view ? `${view.name}:${view.activity.id}` : view.name)
   const reduced = $derived(prefersReducedMotion.current)
+
+  // Svelte's spring adds its forces once per frame, so a faster screen would stiffen it and lose
+  // the overshoot. Scaling by the frame time, in 60 Hz frames, keeps the same feel at any rate.
+  let frame = $state(1)
+  const stamps: number[] = []
+  requestAnimationFrame(function measure(stamp) {
+    stamps.push(stamp)
+    if (stamps.length < 12) return void requestAnimationFrame(measure)
+    const gaps = stamps.slice(1).map((t, i) => t - stamps[i]).sort((a, b) => a - b)
+    frame = 60 / Math.round(1000 / gaps[5])
+  })
+  const tuned = ({ stiffness, damping }: typeof GROW) => ({ stiffness: stiffness * frame, damping: damping * frame })
 
   const size = new Spring(sizeOf({ name: 'idle' }), GROW)
   const bubble = new Spring(0, GROW)
@@ -50,10 +62,14 @@
     const target = sizeOf(view)
     if (reduced) return void size.set(target, { instant: true })
     const shrinks = untrack(() => target.width * target.height < size.target.width * size.target.height)
-    Object.assign(size, shrinks ? SHRINK : GROW)
+    Object.assign(size, tuned(shrinks ? SHRINK : GROW))
     if (!shrinks) return void size.set(target)
     const timer = setTimeout(() => size.set(target), EXIT)
     return () => clearTimeout(timer)
+  })
+
+  $effect(() => {
+    Object.assign(bubble, tuned(GROW))
   })
 
   $effect(() => {
