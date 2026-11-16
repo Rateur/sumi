@@ -944,6 +944,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		display: flex;
 		flex-direction: column;
 		padding: 96px var(--m) 0;
+		container-type: inline-size;
 	}
 	.sentence {
 		display: flex;
@@ -1794,7 +1795,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			flex-wrap: wrap;
 			justify-content: flex-start;
 			gap: 0.12em 0.22em;
-			font-size: 12.5vw;
+			/* Small enough that the island at its widest, music, still fits beside the first half. */
+			font-size: min(12.5vw, 100cqi / 7.6);
 		}
 		.half-b {
 			flex-basis: 100%;
