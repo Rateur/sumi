@@ -4,7 +4,7 @@ import { Image } from 'astro:assets';
 import pkg from '../../../package.json';
 import painting from '../assets/jinshan-band.webp';
 import { home, type Lang } from '../i18n/home';
-import { motionVars } from '../lib/motion';
+import { motionVars } from '../../../src/lib/curves';
 
 interface Props {
 	lang: Lang;
@@ -648,7 +648,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		--step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
 		--step-head: clamp(2.25rem, 1.3rem + 3.6vw, 4.5rem);
 		--step-display: clamp(2.75rem, 1rem + 5.6vw, 7.5rem);
-		/* The island's springs and content timings come from the app, in the head: see src/lib/motion.ts. */
+		/* The island's springs and content timings come from the app, in the head: see src/lib/curves.ts. */
 		--settle: cubic-bezier(0.22, 1, 0.36, 1);
 		color-scheme: light;
 	}

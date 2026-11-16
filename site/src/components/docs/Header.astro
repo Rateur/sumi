@@ -3,7 +3,7 @@ import LanguageSelect from '@astrojs/starlight/components/LanguageSelect.astro';
 import Search from '@astrojs/starlight/components/Search.astro';
 import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
 import { PRESS } from '../../../../src/lib/motion';
-import { spring } from '../../lib/motion';
+import { spring } from '../../../../src/lib/curves';
 
 const { lang } = Astro.locals.starlightRoute;
 const download = lang === 'fr' ? 'Télécharger' : 'Download';
