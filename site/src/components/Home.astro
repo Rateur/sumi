@@ -4,6 +4,7 @@ import { Image } from 'astro:assets';
 import pkg from '../../../package.json';
 import painting from '../assets/jinshan-band.webp';
 import { home, type Lang } from '../i18n/home';
+import { motionVars } from '../../../src/lib/curves';
 
 interface Props {
 	lang: Lang;
@@ -37,6 +38,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		<meta property="og:description" content={t.description} />
 		<meta property="og:image" content={og} />
 		<meta name="twitter:card" content="summary_large_image" />
+		<style is:inline set:html={`:root{${motionVars()}}`} />
 		{
 			lang === 'en' && (
 				<script is:inline>
@@ -381,6 +383,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			let current = -1;
 			const show = (i: number) => {
 				current = i;
+				isle.dataset.from = isle.dataset.state;
 				isle.dataset.state = states[i];
 				steps.forEach((s, j) => s.classList.toggle('on', j === i));
 			};
@@ -645,8 +648,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		--step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
 		--step-head: clamp(2.25rem, 1.3rem + 3.6vw, 4.5rem);
 		--step-display: clamp(2.75rem, 1rem + 5.6vw, 7.5rem);
-		/* A real spring (stiffness 150, damping 15): overshoots 8%, settles in 0.9s. */
-		--spring: linear(0, 0.037, 0.128, 0.244, 0.381, 0.513, 0.643, 0.755, 0.854, 0.93, 0.992, 1.034, 1.063, 1.079, 1.086, 1.085, 1.079, 1.07, 1.058, 1.047, 1.035, 1.025, 1.016, 1.009, 1.003, 0.998, 0.995, 0.994, 0.993, 0.993, 0.993, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.999, 1, 1, 1);
+		/* The island's springs and content timings come from the app, in the head: see src/lib/curves.ts. */
 		--settle: cubic-bezier(0.22, 1, 0.36, 1);
 		color-scheme: light;
 	}
@@ -708,24 +710,28 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		border-radius: 24px;
 		box-shadow: 0 12px 32px rgb(11 11 15 / 0.24);
 		transition:
-			width 0.45s var(--settle),
-			height 0.45s var(--settle),
-			border-radius 0.45s var(--settle),
-			scale 0.5s var(--spring);
+			width var(--close-w),
+			height var(--close-h),
+			border-radius var(--close-h),
+			scale var(--release);
 	}
 	.nav.open,
 	.nav.answering {
 		border-radius: 28px;
 		transition:
-			width 0.9s var(--spring),
-			height 0.9s var(--spring),
-			border-radius 0.9s var(--spring);
+			width var(--open-w),
+			height var(--open-h),
+			border-radius var(--open-h);
 	}
-	.nav.compact,
+	.nav.compact {
+		transition:
+			width var(--shrink-w),
+			scale var(--release);
+	}
 	.nav.timing {
 		transition:
-			width 0.9s var(--spring),
-			scale 0.5s var(--spring);
+			width var(--grow-w),
+			scale var(--release);
 	}
 	.nav:hover:not(.open) {
 		scale: 1.03;
@@ -756,13 +762,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		cursor: pointer;
 		transition:
 			background 0.2s,
-			scale 0.4s var(--spring);
+			scale var(--release);
 	}
 	.nav-timer-stop:hover {
 		background: rgb(251 191 36 / 0.3);
 	}
 	.nav-timer-stop:active {
 		scale: 0.9;
+		transition: scale var(--press);
 	}
 	.answer {
 		display: none;
@@ -865,10 +872,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		color: #fff;
 	}
 	.nav-toggle svg {
-		transition: rotate 0.6s var(--spring);
+		transition: rotate var(--close-w);
 	}
 	.nav.open .nav-toggle svg {
 		rotate: 180deg;
+		transition: rotate var(--open-w);
 	}
 	.nav.compact .nav-toggle {
 		display: none;
@@ -884,10 +892,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-weight: 600;
 		font-size: 15px;
 		text-decoration: none;
-		transition: scale 0.4s var(--spring);
+		transition: scale var(--release);
 	}
 	.nav-download:active {
-		scale: 0.96;
+		scale: var(--press-scale);
+		transition: scale var(--press);
 	}
 	.menu {
 		display: none;
@@ -982,7 +991,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		background: #000;
 		color: #fff;
 		letter-spacing: 0;
-		transition: width 0.9s var(--spring);
+		transition: width var(--grow-w);
+	}
+	/* Music is the widest state and the timer is wider than the time: those steps down shrink, without a bounce. */
+	.isle[data-from='music'],
+	.isle[data-from='timer'][data-state='time'] {
+		transition: width var(--shrink-w);
 	}
 	.isle[data-state='time'] {
 		width: 2.15em;
@@ -1224,13 +1238,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		cursor: pointer;
 		transition:
 			background 0.2s,
-			scale 0.4s var(--spring);
+			scale var(--release);
 	}
 	.example:hover {
 		background: #e2dccd;
 	}
 	.example:active {
-		scale: 0.96;
+		scale: var(--press-scale);
+		transition: scale var(--press);
 	}
 
 	/* Quiet: statements on one axis, each with its proof at the right margin. */
@@ -1431,34 +1446,43 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 		transition:
-			width 0.45s var(--settle),
-			height 0.45s var(--settle),
-			border-radius 0.45s var(--settle);
+			width var(--unpeek-w),
+			height var(--unpeek-h),
+			border-radius var(--unpeek-h);
 	}
 	.rm-row:hover .rm-pill {
 		width: var(--w1);
 		height: 44px;
 		border-radius: 22px;
 		transition:
-			width 0.9s var(--spring),
-			height 0.9s var(--spring),
-			border-radius 0.9s var(--spring);
+			width var(--peek-w),
+			height var(--peek-h),
+			border-radius var(--peek-h);
 	}
+	/* Comes in from a blur and leaves with a plain fade, as in the app. The blur returns once it's gone. */
 	.rm-more {
 		display: inline-block;
 		max-width: 0;
 		opacity: 0;
+		scale: var(--enter-scale);
+		filter: blur(var(--enter-blur));
 		overflow: hidden;
 		transition:
-			max-width 0.45s var(--settle),
-			opacity 0.2s;
+			max-width var(--unpeek-w),
+			opacity var(--exit),
+			scale 0s var(--exit-time),
+			filter 0s var(--exit-time);
 	}
 	.rm-row:hover .rm-more {
 		max-width: 220px;
 		opacity: 1;
+		scale: 1;
+		filter: none;
 		transition:
-			max-width 0.9s var(--spring),
-			opacity 0.4s var(--settle) 0.12s;
+			max-width var(--peek-w),
+			opacity var(--enter) var(--enter-delay),
+			scale var(--enter) var(--enter-delay),
+			filter var(--enter) var(--enter-delay);
 	}
 	.rm-dim {
 		color: #a1a1aa;
@@ -1473,12 +1497,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	}
 	.rm-peek .rm-art {
 		width: 0;
-		transition: width 0.45s var(--settle);
+		transition: width var(--unpeek-w);
 	}
 	.rm-row:hover .rm-peek .rm-art {
 		width: 30px;
 		height: 30px;
-		transition: width 0.9s var(--spring), height 0.9s var(--spring);
+		transition:
+			width var(--peek-w),
+			height var(--peek-h);
 	}
 	.rm-row:hover .rm-swap {
 		display: none;
@@ -1636,13 +1662,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		color: var(--ink);
 		font-weight: 600;
 		text-decoration: none;
-		transition: scale 0.5s var(--spring);
+		transition: scale var(--release);
 	}
 	.btn:hover {
 		scale: 1.03;
 	}
 	.btn:active {
 		scale: 0.97;
+		transition: scale var(--press);
 	}
 	.end-links {
 		justify-self: end;
@@ -1705,68 +1732,81 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			translate: 0 28px;
 			transition:
 				opacity 0.8s var(--settle) calc(var(--d, 0) * 80ms),
-				translate 1s var(--spring) calc(var(--d, 0) * 80ms);
+				translate var(--open-h) calc(var(--d, 0) * 80ms);
 		}
 		.js [data-reveal].in {
 			opacity: 1;
 			translate: 0 0;
 		}
+		/* Content in the islands comes and goes as in the app: in from a blur, one piece after another, out with a quick fade. */
 		.nav.closing .menu-cols a,
 		.nav.closing .menu-foot {
 			opacity: 0;
-			translate: 0 -6px;
-			filter: blur(4px);
+			scale: var(--exit-scale);
 			transition:
-				opacity 0.2s,
-				translate 0.2s,
-				filter 0.2s;
+				opacity var(--exit),
+				scale var(--exit);
 		}
 		@starting-style {
 			.nav.open .menu-cols a,
 			.nav.open .menu-foot {
 				opacity: 0;
-				translate: 0 -6px;
-				filter: blur(4px);
+				scale: var(--enter-scale);
+				filter: blur(var(--enter-blur));
 			}
 		}
 		.nav.open .menu-cols a,
 		.nav.open .menu-foot {
+			--after: calc(var(--enter-delay) + var(--i) * var(--enter-stagger));
 			transition:
-				opacity 0.45s var(--settle) calc(0.14s + var(--i) * 0.045s),
-				translate 0.6s var(--spring) calc(0.14s + var(--i) * 0.045s),
-				filter 0.45s var(--settle) calc(0.14s + var(--i) * 0.045s);
+				opacity var(--enter) var(--after),
+				scale var(--enter) var(--after),
+				filter var(--enter) var(--after);
 		}
 		.layer {
+			display: none;
 			opacity: 0;
-			scale: 0.9;
-			filter: blur(6px);
+			scale: var(--exit-scale);
 			transition:
-				opacity 0.25s,
-				scale 0.25s,
-				filter 0.25s,
-				visibility 0s 0.25s;
-		}
-		@starting-style {
-			.step.on {
-				opacity: 0;
-				translate: 0 0.5em;
-				filter: blur(6px);
-			}
+				opacity var(--exit),
+				scale var(--exit),
+				visibility var(--exit),
+				display var(--exit) allow-discrete;
 		}
 		.isle[data-state='time'] .layer-time,
 		.isle[data-state='music'] .layer-music,
-		.isle[data-state='timer'] .layer-timer,
-		.step.on {
+		.isle[data-state='timer'] .layer-timer {
+			display: flex;
 			opacity: 1;
 			scale: 1;
+			filter: none;
+			transition:
+				opacity var(--enter) var(--enter-delay),
+				scale var(--enter) var(--enter-delay),
+				filter var(--enter) var(--enter-delay);
+		}
+		@starting-style {
+			.isle[data-state='time'] .layer-time,
+			.isle[data-state='music'] .layer-music,
+			.isle[data-state='timer'] .layer-timer {
+				opacity: 0;
+				scale: var(--enter-scale);
+				filter: blur(var(--enter-blur));
+			}
+			.step.on {
+				opacity: 0;
+				translate: 0 0.5em;
+				filter: blur(var(--enter-blur));
+			}
+		}
+		.step.on {
+			opacity: 1;
 			translate: 0 0;
 			filter: none;
 			transition:
-				opacity 0.5s var(--settle) 0.18s,
-				scale 0.8s var(--spring) 0.18s,
-				translate 0.8s var(--spring) 0.18s,
-				filter 0.5s var(--settle) 0.18s,
-				visibility 0s;
+				opacity var(--enter) var(--enter-delay),
+				translate var(--enter) var(--enter-delay),
+				filter var(--enter) var(--enter-delay);
 		}
 		.band img {
 			animation: settle-in 2.4s var(--settle) both;

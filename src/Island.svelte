@@ -14,7 +14,7 @@
     msUntilNextMinute,
     msUntilNextSecond,
   } from './lib/clock'
-  import { bezier, motion, squash, type Axis } from './lib/motion'
+  import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
   import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
   import { Spring } from './lib/spring'
 
@@ -27,8 +27,8 @@
   // Blur that joins the island and the bubble while they part. Their neck breaks at a gap of
   // about 1.35 σ: just before the bubble lands 8 px away, and not again on its bounce.
   const GOO = 5
-  const ENTER = bezier(0.2, 0, 0, 1)
-  const EXIT = bezier(0.4, 0, 1, 1)
+  const entering = bezier(...ENTER.easing)
+  const leaving = bezier(...EXIT.easing)
 
   const tauri = isTauri()
   const forced = new MediaQuery('forced-colors: active')
@@ -316,10 +316,11 @@
       node.style.transformOrigin = `${c.left + c.width / 2 - r.left}px ${top - r.top}px`
     }
     return {
-      delay: 50 + 35 * step,
-      duration: 280,
-      easing: ENTER,
-      css: (t: number, u: number) => `opacity:${t};filter:blur(${6 * u}px);scale:${0.9 + 0.1 * t}`,
+      delay: ENTER.delay + ENTER.stagger * step,
+      duration: ENTER.duration,
+      easing: entering,
+      css: (t: number, u: number) =>
+        `opacity:${t};filter:blur(${ENTER.blur * u}px);scale:${ENTER.scale + (1 - ENTER.scale) * t}`,
     }
   }
 
@@ -340,10 +341,10 @@
     }
     if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
     // No blur on the way out: too quick to see, and a growing blur stalls the GPU for several frames.
-    const to = shrinks ? 0.94 : 1.06
+    const to = shrinks ? 1 - EXIT.scale : 1 + EXIT.scale
     return {
-      duration: 100,
-      easing: EXIT,
+      duration: EXIT.duration,
+      easing: leaving,
       css: (t: number, u: number) => `opacity:${t};scale:${1 + (to - 1) * u}`,
     }
   }
@@ -352,7 +353,7 @@
   function roll(node: Element, _: unknown, { direction }: { direction: 'in' | 'out' | 'both' }) {
     if (reduced) return {}
     const into = direction === 'in'
-    const [duration, easing, y] = into ? [200, ENTER, 6] : [120, EXIT, -6]
+    const [duration, easing, y] = into ? [200, entering, 6] : [120, leaving, -6]
     return {
       duration,
       easing,
@@ -386,7 +387,7 @@
   function press(down: boolean) {
     if (reduced || expanded || pressed === down) return
     pressed = down
-    const [k, duration, bounce] = down ? [0.96, 0.15, 0] : [1, 0.3, 0.3]
+    const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
     width.to(size.width * k, duration, bounce, t)
     height.to(size.height * k, duration, bounce, t)
@@ -407,10 +408,10 @@
     const t = performance.now()
     const off = -(TOP + height.target + 24)
     if (reduced) drop.jump(on ? off : 0)
-    else if (on) drop.to(off, 0.3, 0, t + 100)
+    else if (on) drop.to(off, ...FULLSCREEN.hide, t + FULLSCREEN.delay)
     else {
       reveal = drop.value * 0.4
-      drop.to(0, 0.5, 0.2, t)
+      drop.to(0, ...FULLSCREEN.show, t)
     }
     wake()
   }

@@ -63,6 +63,7 @@ In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcu
 - **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
 - **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second, and the equalizer moves only while music plays and the island is visible.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
+- **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
 
 ## Look
 

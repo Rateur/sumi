@@ -4,7 +4,7 @@ name: Site
 # from main only, so the site always describes the released version.
 on:
   pull_request:
-    paths: ['site/**', 'package.json', 'docs/design.md', '.github/CONTRIBUTING.md', '.github/workflows/site.yml']
+    paths: ['site/**', 'src/lib/**', 'package.json', 'docs/design.md', '.github/CONTRIBUTING.md', '.github/workflows/site.yml']
   push:
     branches: [main]
   workflow_dispatch:
