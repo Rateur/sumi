@@ -17,6 +17,7 @@
   const EXIT = 80
 
   const tauri = isTauri()
+  let island: HTMLButtonElement
   let activities = $state<Activity[]>([])
   let hovered = $state(false)
   let expanded = $state(false)
@@ -67,8 +68,15 @@
   // Once the window lets the cursor through, the DOM stops hearing about it: Rust watches instead.
   $effect(() => {
     if (!tauri) return
-    const stop = listen<boolean>('island://pointer', (event) => (hovered = event.payload))
-    return () => void stop.then((unlisten) => unlisten())
+    const stops = [
+      listen<boolean>('island://pointer', (event) => (hovered = event.payload)),
+      listen('island://dismiss', () => (expanded = false)),
+    ]
+    return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
+  })
+
+  $effect(() => {
+    if (tauri) invoke('set_island_expanded', { expanded })
   })
 
   let peekTimer: ReturnType<typeof setTimeout>
@@ -96,6 +104,11 @@
     `left:${x}px;top:${y}px;width:${width}px;height:${height}px;border-radius:${radius(height)}px`
 </script>
 
+<svelte:window
+  onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
+  onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
+/>
+
 {#snippet glyph(activity: Activity)}
   {#if activity.kind === 'call'}
     <span class="dots">
@@ -119,6 +132,7 @@
   type="button"
   class="island"
   aria-expanded={expanded}
+  bind:this={island}
   style={place(rects[0])}
   onclick={() => (expanded = true)}
   onpointerenter={() => tauri || (hovered = true)}

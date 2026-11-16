@@ -8,7 +8,11 @@ use tauri::tray::TrayIconBuilder;
 pub fn run() {
     tauri::Builder::default()
         .manage(island::IslandRects::default())
-        .invoke_handler(tauri::generate_handler![island::set_island_rects])
+        .manage(island::IslandExpanded::default())
+        .invoke_handler(tauri::generate_handler![
+            island::set_island_rects,
+            island::set_island_expanded
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

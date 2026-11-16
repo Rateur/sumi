@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -30,6 +31,45 @@ pub fn set_island_rects(state: tauri::State<'_, IslandRects>, rects: Vec<Rect>) 
     }
 }
 
+/// Whether the panel is open, so Esc and clicks elsewhere are watched only while it is.
+#[derive(Default)]
+pub struct IslandExpanded(pub AtomicBool);
+
+#[tauri::command]
+pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bool) {
+    state.0.store(expanded, Ordering::Relaxed);
+}
+
+/// Mouse buttons and Esc, one bit each, as [`keys`] reads them.
+const MOUSE: u8 = 0b0111;
+const ESCAPE: u8 = 0b1000;
+
+/// Whether the keys read in two ticks in a row close the panel: Esc pressed anywhere,
+/// or a mouse button pressed outside the island. Only a new press counts, not one held down.
+pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
+    let pressed = now & !before;
+    pressed & ESCAPE != 0 || (!inside && pressed & MOUSE != 0)
+}
+
+/// Reads the buttons and Esc without taking them: the click or the key still reaches the app underneath.
+#[cfg(windows)]
+fn keys() -> u8 {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_ESCAPE, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
+    };
+    [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_ESCAPE]
+        .into_iter()
+        .enumerate()
+        // Non-zero when down now, or pressed since the last read: a tap shorter than a tick still counts.
+        .filter(|&(_, key)| unsafe { GetAsyncKeyState(i32::from(key)) } != 0)
+        .fold(0, |bits, (i, _)| bits | 1 << i)
+}
+
+#[cfg(not(windows))]
+fn keys() -> u8 {
+    0
+}
+
 /// Top-left corner that centers a window of `width` on the top edge of an area.
 pub fn top_center(area_x: i32, area_y: i32, area_width: u32, width: u32) -> (i32, i32) {
     let offset = (i64::from(area_width) - i64::from(width)) / 2;
@@ -55,12 +95,13 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Lets clicks through everywhere except over the island, tells the frontend when the cursor
-/// enters or leaves it, and keeps the window in place when the resolution, the scale or the
-/// taskbar changes.
+/// enters or leaves it and when the open panel should close, and keeps the window in place
+/// when the resolution, the scale or the taskbar changes.
 // shortcut: polls the cursor 30 times a second; a low-level mouse hook would idle at 0 %, switch if profiling shows a cost.
 pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
     std::thread::spawn(move || {
         let mut over = None;
+        let mut keys_before = None;
         let mut tick: u32 = 0;
         loop {
             std::thread::sleep(Duration::from_millis(33));
@@ -89,6 +130,17 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                 over = Some(inside);
                 let _ = app.emit("island://pointer", inside);
             }
+            let expanded = app.state::<IslandExpanded>();
+            if expanded.0.load(Ordering::Relaxed) {
+                let now = keys();
+                if keys_before.is_some_and(|before| dismisses(before, now, inside)) {
+                    expanded.0.store(false, Ordering::Relaxed);
+                    let _ = app.emit("island://dismiss", ());
+                }
+                keys_before = Some(now);
+            } else {
+                keys_before = None;
+            }
         }
     });
 }
@@ -116,6 +168,32 @@ mod tests {
         assert!(!PILL.contains(366.0, 20.0));
         assert!(!PILL.contains(300.0, 42.0));
         assert!(!Rect::default().contains(0.0, 0.0));
+    }
+
+    #[test]
+    fn esc_closes_wherever_the_cursor_is() {
+        assert!(dismisses(0, ESCAPE, true));
+        assert!(dismisses(0, ESCAPE, false));
+    }
+
+    #[test]
+    fn a_click_closes_only_outside_the_island() {
+        for button in [0b001, 0b010, 0b100] {
+            assert!(dismisses(0, button, false));
+            assert!(!dismisses(0, button, true));
+        }
+    }
+
+    #[test]
+    fn a_key_held_down_does_not_close_again() {
+        assert!(!dismisses(ESCAPE, ESCAPE, false));
+        assert!(!dismisses(MOUSE, MOUSE, false));
+        assert!(!dismisses(ESCAPE, 0, false));
+    }
+
+    #[test]
+    fn a_second_button_pressed_while_one_is_held_closes() {
+        assert!(dismisses(0b001, 0b011, false));
     }
 
     #[test]
