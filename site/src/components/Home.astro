@@ -459,9 +459,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				timerRow.classList.toggle('is-active', !!seconds);
 			};
 			let countdown = 0;
+			let ending = 0;
 			const startTimer = (seconds: number) => {
 				clearInterval(countdown);
+				clearTimeout(ending);
 				let left = seconds;
+				nav.classList.remove('done');
 				nav.classList.add('timing');
 				timerEl.hidden = false;
 				timerValue.textContent = clock(left);
@@ -472,7 +475,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 					if (left <= 0) {
 						clearInterval(countdown);
 						nav.classList.add('done');
-						setTimeout(() => {
+						ending = window.setTimeout(() => {
 							nav.classList.remove('timing', 'done');
 							timerEl.hidden = true;
 							fit();
@@ -481,13 +484,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				}, 1000);
 			};
 			const stopTimer = () => {
-			clearInterval(countdown);
-			nav.classList.remove('timing', 'done');
-			timerEl.hidden = true;
-			fit();
-		};
-		nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
-		timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
+				clearInterval(countdown);
+				clearTimeout(ending);
+				nav.classList.remove('timing', 'done');
+				timerEl.hidden = true;
+				fit();
+			};
+			nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
+			timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
 			input.addEventListener('input', update);
 			input.addEventListener('keydown', (e) => {
 				if (e.key !== 'Enter') return;
