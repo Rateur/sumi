@@ -7,6 +7,7 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 ### Added
 
 - The island springs between its shapes. Rest the cursor on it and it widens to add the date. Click it and it opens at once into a panel with the time and the full date.
+- The motion feels alive: width and height spring on their own, content comes in from a blur, the time and the artwork glide to their new place, and changed digits roll over. The island gives under a press, and the second activity splits off like a drop.
 - Esc or a click elsewhere closes the panel. Both still reach the app underneath.
 - A tab, a text selection or a window dragged across the top of the screen passes over the island.
 - With reduced motion turned on in Windows, sizes change at once and the content crossfades.

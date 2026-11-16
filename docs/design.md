@@ -55,9 +55,13 @@ In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcu
 
 ## Motion
 
-Size changes are springs, never fades. Growing overshoots a little, shrinking doesn't. Content appears a few milliseconds after the shape starts moving, and leaves before it shrinks. With reduced motion turned on in Windows, sizes change at once and the content crossfades.
-
-Nothing animates at rest. The equalizer moves only while music plays and the island is visible.
+- **Shapes are springs, never fades.** Width and height spring on their own: opening leads with the width, closing with the height. Growing overshoots a little, shrinking never does. A moving shape stretches with its speed, by 4 % at most.
+- **Content comes in from a blur** a beat after the shape starts, piece after piece, and leaves faster than it came. A piece that stays, such as the time, the artwork or the equalizer, moves to its new place instead of fading. Only the digits that change roll over.
+- **Press** and the island gives a little; release and it opens with that speed. A new activity, a song change or a finished timer swell it for a moment.
+- **The bubble** splits off like a drop, joined to the island until they part, and merges back the same way.
+- **In fullscreen** the content leaves and the island slides up off the screen. It drops back down when the game or video ends.
+- **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
+- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second, and the equalizer moves only while music plays and the island is visible.
 
 ## Look
 
