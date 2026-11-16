@@ -118,6 +118,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				<p class="steps">
 					{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
 				</p>
+				<span class="cue" aria-hidden="true"></span>
 				<div class="band">
 					<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
 				</div>
@@ -408,6 +409,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 					play();
 				});
 			});
+
+			// The scroll cue leaves for good with the first real scroll.
+			const scrolled = () => {
+				if (scrollY < 16) return;
+				hero.classList.add('scrolled');
+				removeEventListener('scroll', scrolled);
+			};
+			addEventListener('scroll', scrolled, { passive: true });
 
 			// The command bar, working as it will in the app.
 			const input = document.querySelector<HTMLInputElement>('.ask-input')!;
@@ -1058,6 +1067,35 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	}
 	.step.on {
 		display: block;
+	}
+	/* Scroll cue: a hairline above the painting that ink runs down twice, under 5 s. Gone at the first scroll. */
+	.cue {
+		position: relative;
+		align-self: center;
+		width: 1px;
+		height: 48px;
+		margin-bottom: 24px;
+		overflow: hidden;
+		transition:
+			opacity 0.25s,
+			visibility 0s 0.25s;
+	}
+	.cue::before,
+	.cue::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: var(--ink);
+	}
+	.cue::before {
+		opacity: 0.4;
+	}
+	.cue::after {
+		translate: 0 -100%;
+	}
+	.hero.scrolled .cue {
+		opacity: 0;
+		visibility: hidden;
 	}
 
 	/* The command bar, at headline size. */
@@ -1713,6 +1751,17 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		}
 		.band img {
 			animation: settle-in 2.4s var(--settle) both;
+		}
+		.cue::before {
+			animation: settle-in 0.5s var(--settle) 2.2s both;
+		}
+		.cue::after {
+			animation: drip 1.8s cubic-bezier(0.65, 0, 0.35, 1) 2.2s 2 both;
+		}
+		@keyframes drip {
+			to {
+				translate: 0 100%;
+			}
 		}
 		@keyframes settle-in {
 			from {
