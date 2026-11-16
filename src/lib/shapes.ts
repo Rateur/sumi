@@ -20,7 +20,7 @@ export interface Rect extends Size {
 /** Distance from the top of the screen. */
 export const TOP = 8
 export const BUBBLE = 34
-const GAP = 8
+export const GAP = 8
 
 const SIZES = {
   idle: { width: 132, height: 34 },
@@ -66,13 +66,14 @@ export function radius(height: number): number {
 /**
  * Where the island and the bubble are drawn, and where clicks are caught: the island
  * centered under the top edge, the bubble beside it, both growing from their centers.
+ * `travel` slides the bubble sideways from its place and `drop` moves both down.
  */
-export function layout(viewport: number, island: Size, bubble: number): Rect[] {
+export function layout(viewport: number, island: Size, bubble: number, { travel = 0, drop = 0 } = {}): Rect[] {
   const x = (viewport - island.width) / 2
-  const rects = [{ x, y: TOP, ...island }]
+  const rects = [{ x, y: TOP + drop, ...island }]
   if (bubble > 0) {
     const inset = (BUBBLE - bubble) / 2
-    rects.push({ x: x + island.width + GAP + inset, y: TOP + inset, width: bubble, height: bubble })
+    rects.push({ x: x + island.width + GAP + inset + travel, y: TOP + drop + inset, width: bubble, height: bubble })
   }
   return rects
 }

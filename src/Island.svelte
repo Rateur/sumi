@@ -2,9 +2,9 @@
   import { invoke, isTauri } from '@tauri-apps/api/core'
   import { listen } from '@tauri-apps/api/event'
   import { untrack } from 'svelte'
-  import { Spring, prefersReducedMotion } from 'svelte/motion'
-  import { innerWidth } from 'svelte/reactivity/window'
-  import { fade } from 'svelte/transition'
+  import { prefersReducedMotion } from 'svelte/motion'
+  import { MediaQuery } from 'svelte/reactivity'
+  import { innerHeight, innerWidth } from 'svelte/reactivity/window'
   import { arrange, type Activity, type Arrangement } from './lib/activities'
   import {
     formatCountdown,
@@ -14,25 +14,35 @@
     msUntilNextMinute,
     msUntilNextSecond,
   } from './lib/clock'
-  import { BUBBLE, layout, radius, resolveView, sizeOf, type Rect } from './lib/shapes'
+  import { bezier, motion, squash, type Axis } from './lib/motion'
+  import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
+  import { Spring } from './lib/spring'
 
-  // Tuned at 60 Hz against Svelte's integrator: growing covers 90 % of the way in ~120 ms
-  // and overshoots by ~4 %, shrinking lands in ~150 ms without a bounce. Both rest within 0.6 s.
-  const GROW = { stiffness: 0.1, damping: 0.4 }
-  const SHRINK = { stiffness: 0.1, damping: 0.5 }
-  // Content leaves this fast, and the shape waits for it before shrinking.
-  const EXIT = 80
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
   const LEAVE = 300
   // Half of Windows' 4 px hover rectangle: a cursor that moves farther hasn't come to rest.
   const REST = 2
+  // The bubble splits off from inside the island's round end and lands beside it.
+  const TRAVEL = GAP + BUBBLE
+  // Blur that joins the island and the bubble while they part. Their neck breaks at a gap of
+  // about 1.35 σ: just before the bubble lands 8 px away, and not again on its bounce.
+  const GOO = 5
+  const ENTER = bezier(0.2, 0, 0, 1)
+  const EXIT = bezier(0.4, 0, 1, 1)
 
   const tauri = isTauri()
+  const forced = new MediaQuery('forced-colors: active')
   let island: HTMLButtonElement
+  let content: HTMLElement | undefined
+  let clock = $state<HTMLElement>()
+  let art = $state<HTMLElement>()
+  let eq = $state<HTMLElement>()
   let activities = $state<Activity[]>([])
   let hovered = $state(false)
   let expanded = $state(false)
   let peeking = $state<string>()
+  let hidden = false
+  let revealed = $state(true)
   let now = $state(new Date())
   // Windows' default. Rust sends the user's own each time the cursor arrives.
   let hoverTime = 400
@@ -41,23 +51,23 @@
   const arrangement = $derived.by(() => (shown = arrange(activities, shown)))
   const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
   const key = $derived('activity' in view ? `${view.name}:${view.activity.id}` : view.name)
+  const size = $derived(sizeOf(view))
   const reduced = $derived(prefersReducedMotion.current)
 
-  // Svelte's spring adds its forces once per frame, so a faster screen would stiffen it and lose
-  // the overshoot. Scaling by the frame time, in 60 Hz frames, keeps the same feel at any rate.
-  let frame = $state(1)
-  const stamps: number[] = []
-  requestAnimationFrame(function measure(stamp) {
-    stamps.push(stamp)
-    if (stamps.length < 12) return void requestAnimationFrame(measure)
-    const gaps = stamps.slice(1).map((t, i) => t - stamps[i]).sort((a, b) => a - b)
-    frame = 60 / Math.round(1000 / gaps[5])
+  // What the island shows, piece by piece. A piece that stays from one view to the next moves instead of fading.
+  const parts = $derived.by(() => {
+    const name = revealed ? view.name : undefined
+    const activity = name && 'activity' in view ? view.activity : undefined
+    return {
+      date: name === 'hover',
+      time: name === 'idle' || name === 'hover' || activity?.kind === 'call',
+      panel: name === 'expanded',
+      music: activity?.kind === 'music' ? activity : undefined,
+      track: name === 'peek' && activity?.kind === 'music' ? activity : undefined,
+      call: activity?.kind === 'call' ? activity : undefined,
+      timer: activity?.kind === 'timer' ? activity : undefined,
+    }
   })
-  const tuned = ({ stiffness, damping }: typeof GROW) => ({ stiffness: stiffness * frame, damping: damping * frame })
-
-  const size = new Spring(sizeOf({ name: 'idle' }), GROW)
-  const bubble = new Spring(0, GROW)
-  const rects = $derived(layout(innerWidth.current ?? 0, size.current, bubble.current))
 
   // A running timer needs the seconds, in step with its end; the clock alone wakes up once a minute.
   const ends = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a.endsAt] : [])))
@@ -71,27 +81,354 @@
     return () => clearTimeout(timer)
   })
 
+  // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
+  // of the island, `bubble` is its size and `drop` lifts everything off the screen in fullscreen.
+  const start = untrack(() => size)
+  const width = new Spring(start.width)
+  const height = new Spring(start.height)
+  const drop = new Spring(0)
+  const travel = new Spring(0)
+  const bubble = new Spring(0)
+  const springs = [width, height, drop, travel, bubble]
+
+  let goo = $state(false)
+  let sigma = $state(0)
+  let ramp: { from: number; to: number; start: number; end: number } | undefined
+  let phase: 'none' | 'split' | 'shown' | 'merge' = 'none'
+  let delayed: ReturnType<typeof setTimeout> | undefined
+  let reveal = 0
+  let geometry = $state.raw(shape())
+  let raf = 0
+
+  /** Where everything is drawn: the shapes stretch with their speed, the content and its clip don't. */
+  function shape() {
+    const s = reduced ? 0 : squash(width.velocity)
+    const [w, h] = [width.value * (1 + s), height.value / (1 + s)]
+    const viewport = window.innerWidth
+    const [fill, dot] = layout(viewport, { width: w, height: h }, bubble.value, {
+      travel: travel.value,
+      drop: drop.value,
+    })
+    const clip = { width: Math.min(w, width.value), height: Math.min(h, height.value) }
+    return { fill, dot, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
+  }
+
+  // Frames run only while something moves: at rest there is no loop, no IPC and no filter.
+  function wake() {
+    raf ||= requestAnimationFrame(frame)
+  }
+
+  function frame(t: number) {
+    raf = 0
+    springs.forEach((s) => s.update(t))
+    if (ramp) {
+      const p = Math.min(1, Math.max(0, (t - ramp.start) / (ramp.end - ramp.start)))
+      sigma = ramp.from + (ramp.to - ramp.from) * p
+      if (p === 1) {
+        ramp = undefined
+        goo = sigma > 0
+      }
+    }
+    // The goo lets go once the bubble is within half a pixel of its place: the last tenth would keep it on.
+    const near = (s: Spring) => Math.abs(s.value - s.target) < 0.5 && Math.abs(s.velocity) < 20
+    if (phase === 'split' && near(travel) && near(bubble)) {
+      phase = 'shown'
+      fade(0, 120, t)
+    } else if (phase === 'merge' && near(travel) && near(bubble)) {
+      phase = 'none'
+      bubble.jump(0)
+      pulse(120, 0, t)
+      fade(0, 120, t)
+    }
+    if (!hidden && !revealed && drop.value >= reveal) revealed = true
+    geometry = shape()
+    const moving = springs.some((s) => !s.resting) || !!ramp || !!delayed
+    follow(moving)
+    report(moving)
+    if (moving) raf = requestAnimationFrame(frame)
+  }
+  wake()
+
+  // A spring that may not bounce still overshoots when it already heads for its target faster than it
+  // would on its own, so such a shrink starts from a standstill.
+  function drive(spring: Spring, target: number, [duration, bounce]: Axis, t: number) {
+    if (!bounce && (target - spring.value) * spring.velocity > 0) spring.jump(spring.value)
+    spring.to(target, duration, bounce, t)
+  }
+
+  function reshape(from: View, to: View) {
+    clearTimeout(delayed)
+    delayed = undefined
+    const target = sizeOf(to)
+    if (reduced) {
+      width.jump(target.width)
+      height.jump(target.height)
+      return wake()
+    }
+    const { width: w, height: h, delay, pulse: arrives } = motion(from, to)
+    const go = () => {
+      delayed = undefined
+      const t = performance.now()
+      drive(width, target.width, w, t)
+      drive(height, target.height, h, t)
+      if (arrives) pulse(0, 150, t)
+      wake()
+    }
+    if (delay) delayed = setTimeout(go, delay)
+    else go()
+    wake()
+  }
+
+  /** Swells the shape for a moment without changing its size. */
+  function pulse(dw: number, dh: number, t = performance.now()) {
+    if (reduced) return
+    if (dw) {
+      width.to(width.target, 0.44, 0, t)
+      width.kick(dw, t)
+    }
+    if (dh) {
+      height.to(height.target, 0.3, 0, t)
+      height.kick(dh, t)
+    }
+    wake()
+  }
+
+  function alert() {
+    pulse(160, 150)
+  }
+
+  function fade(to: number, ms: number, t = performance.now()) {
+    goo = true
+    ramp = { from: sigma, to, start: t, end: t + ms }
+    wake()
+  }
+
+  // The bubble splits off like a drop, joined to the island by a neck until they part.
   $effect(() => {
-    const target = sizeOf(view)
-    if (reduced) return void size.set(target, { instant: true })
-    const shrinks = untrack(() => target.width * target.height < size.target.width * size.target.height)
-    Object.assign(size, tuned(shrinks ? SHRINK : GROW))
-    if (!shrinks) return void size.set(target)
-    const timer = setTimeout(() => size.set(target), EXIT)
-    return () => clearTimeout(timer)
+    const has = !!arrangement.bubble
+    untrack(() => (has ? split() : merge()))
+  })
+
+  function split() {
+    if (phase === 'split' || phase === 'shown') return
+    if (reduced || forced.current) {
+      travel.jump(0)
+      bubble.jump(BUBBLE)
+      phase = 'shown'
+      return wake()
+    }
+    const t = performance.now()
+    if (phase === 'none') {
+      travel.jump(-TRAVEL)
+      bubble.jump(20)
+    }
+    phase = 'split'
+    ramp = undefined
+    goo = true
+    sigma = GOO
+    travel.to(0, 0.5, 0.3, t)
+    bubble.to(BUBBLE, 0.4, 0.25, t)
+    wake()
+  }
+
+  function merge() {
+    if (phase === 'none' || phase === 'merge') return
+    if (reduced || forced.current) {
+      bubble.jump(0)
+      phase = 'none'
+      return wake()
+    }
+    const t = performance.now()
+    phase = 'merge'
+    fade(GOO, 80, t)
+    drive(travel, -TRAVEL, [0.36, 0], t)
+    drive(bubble, 20, [0.36, 0], t)
+  }
+
+  // Pieces that stay from one view to the next move from their old box to their new one, in step
+  // with the shape, so a change of mind halfway costs nothing.
+  let before = new Map<Element, DOMRect>()
+  let box: DOMRect | undefined
+  let grows = true
+  let last = untrack(() => view)
+  let flips: { node: HTMLElement; dx: number; dy: number; scale: number }[] = []
+  let basis = { w0: 0, w1: 0, h0: 0, h1: 0 }
+
+  $effect.pre(() => {
+    void [key, revealed]
+    untrack(() => {
+      if (!content) return
+      const [a, b] = [sizeOf(last), size]
+      grows = revealed && b.width * b.height >= a.width * a.height
+      box = content.getBoundingClientRect()
+      before = new Map([...content.children].map((node) => [node, node.getBoundingClientRect()]))
+    })
   })
 
   $effect(() => {
-    Object.assign(bubble, tuned(GROW))
+    void key
+    untrack(() => {
+      const from = last
+      last = view
+      if (from === view) return
+      flip()
+      reshape(from, view)
+    })
   })
 
+  function flip() {
+    if (reduced) return
+    // A piece on its way out is inert and has already left the layout.
+    const nodes = [clock, art, eq].filter((node): node is HTMLElement => !!node && !node.inert && before.has(node))
+    for (const node of nodes) node.style.transform = ''
+    flips = nodes.map((node) => {
+      const [a, b] = [before.get(node)!, node.getBoundingClientRect()]
+      node.style.transformOrigin = '0 0'
+      return { node, dx: a.left - b.left, dy: a.top - b.top, scale: a.width / b.width }
+    })
+    basis = { w0: width.value, w1: size.width, h0: height.value, h1: size.height }
+    follow(true)
+  }
+
+  function follow(moving: boolean) {
+    const { w0, w1, h0, h1 } = basis
+    const p = !moving
+      ? 1
+      : Math.abs(w1 - w0) >= 1
+        ? (width.value - w0) / (w1 - w0)
+        : Math.abs(h1 - h0) >= 1
+          ? (height.value - h0) / (h1 - h0)
+          : 1
+    for (const { node, dx, dy, scale } of flips) {
+      const u = 1 - p
+      node.style.transform = u ? `translate(${dx * u}px, ${dy * u}px) scale(${1 + (scale - 1) * u})` : ''
+    }
+    if (!moving) flips = []
+  }
+
+  // Content comes in from a blur a beat after the shape starts, and leaves faster than it came.
+  function enter(node: HTMLElement, { step = 0 } = {}) {
+    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    if (content?.contains(node)) {
+      // Scaled from the island's center, or from its top for the panel and the peek.
+      const [r, c] = [node.getBoundingClientRect(), content.getBoundingClientRect()]
+      const top = view.name === 'expanded' || view.name === 'peek' ? c.top : c.top + c.height / 2
+      node.style.transformOrigin = `${c.left + c.width / 2 - r.left}px ${top - r.top}px`
+    }
+    return {
+      delay: 50 + 35 * step,
+      duration: 280,
+      easing: ENTER,
+      css: (t: number, u: number) => `opacity:${t};filter:blur(${6 * u}px);scale:${0.9 + 0.1 * t}`,
+    }
+  }
+
+  function exit(node: HTMLElement, { shrinks = !grows } = {}) {
+    if (content?.contains(node)) {
+      // Out of the layout, where it was drawn, so the pieces that stay can move at once.
+      const r = before.get(node) ?? node.getBoundingClientRect()
+      const c = box ?? content.getBoundingClientRect()
+      flips = flips.filter((f) => f.node !== node)
+      Object.assign(node.style, {
+        position: 'absolute',
+        left: `calc(50% + ${r.left - c.left - c.width / 2}px)`,
+        top: `${r.top - c.top}px`,
+        width: `${node.offsetWidth}px`,
+        margin: '0',
+        transform: '',
+      })
+    }
+    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    const to = shrinks ? 0.94 : 1.06
+    return {
+      duration: 100,
+      easing: EXIT,
+      css: (t: number, u: number) => `opacity:${t};filter:blur(${4 * u}px);scale:${1 + (to - 1) * u}`,
+    }
+  }
+
+  // Only the digits that change roll over: the old one rises out, the new one rises in.
+  function roll(node: Element, _: unknown, { direction }: { direction: 'in' | 'out' | 'both' }) {
+    if (reduced) return {}
+    const [duration, easing, y] = direction === 'in' ? [200, ENTER, 6] : [120, EXIT, -6]
+    return {
+      duration,
+      easing,
+      css: (t: number, u: number) => `opacity:${t};translate:0 ${y * u}px;filter:blur(${3 * u}px)`,
+    }
+  }
+
+  // The Rust side lets clicks through everywhere except over these rounded rectangles, padded by a pixel.
+  let sent: (Rect & { radius: number })[] = []
+  function report(moving: boolean) {
+    if (!tauri) return
+    const rects = hidden && drop.resting ? [] : [geometry.fill, geometry.dot].filter((r) => r !== undefined)
+    const padded = rects.map(({ x, y, width, height }) => ({
+      x: x - 1,
+      y: y - 1,
+      width: width + 2,
+      height: height + 2,
+      radius: radius(height) + 1,
+    }))
+    const sides = ['x', 'y', 'width', 'height'] as const
+    const changed =
+      padded.length !== sent.length ||
+      padded.some((r, i) => sides.some((side) => Math.abs(r[side] - sent[i][side]) >= 0.5))
+    if (!changed && moving) return
+    sent = padded
+    invoke('set_island_rects', { rects: padded })
+  }
+
+  // Gives under the finger at once. The panel opens on release and carries the press's speed.
+  let pressed = false
+  function press(down: boolean) {
+    if (reduced || expanded || pressed === down) return
+    pressed = down
+    const [k, duration, bounce] = down ? [0.96, 0.15, 0] : [1, 0.3, 0.3]
+    const t = performance.now()
+    width.to(size.width * k, duration, bounce, t)
+    height.to(size.height * k, duration, bounce, t)
+    wake()
+  }
+
+  function open() {
+    pressed = false
+    expanded = true
+  }
+
+  // In fullscreen the content leaves, then the island slides up off the screen, shadow included.
+  // Coming back, the content waits until the island is 60 % of the way down.
+  function fullscreen(on: boolean) {
+    if (on === hidden) return
+    hidden = on
+    revealed = !on && reduced
+    const t = performance.now()
+    const off = -(TOP + height.target + 24)
+    if (reduced) drop.jump(on ? off : 0)
+    else if (on) drop.to(off, 0.3, 0, t + 100)
+    else {
+      reveal = drop.value * 0.4
+      drop.to(0, 0.5, 0.2, t)
+    }
+    wake()
+  }
+
+  // A timer that runs out, or a new song while the island is compact, swells it for a moment.
+  const done = $derived(arrangement.island?.kind === 'timer' && now.getTime() >= arrangement.island.endsAt)
   $effect(() => {
-    bubble.set(arrangement.bubble ? BUBBLE : 0, { instant: reduced })
+    if (done) untrack(alert)
   })
 
-  // The Rust side lets clicks through everywhere except over these rounded rectangles.
+  let song: Activity | undefined
   $effect(() => {
-    if (tauri) invoke('set_island_rects', { rects: rects.map((r) => ({ ...r, radius: radius(r.height) })) })
+    const playing = arrangement.island
+    untrack(() => {
+      const was = song
+      if (playing?.kind === 'music' && was?.kind === 'music' && playing.id === was.id && playing.title !== was.title) {
+        if (view.name === 'compact') alert()
+      }
+      song = playing
+    })
   })
 
   // The cursor crosses the island on its way to tabs: it grows only once the cursor rests on it.
@@ -102,6 +439,7 @@
     pointer = inside
     rest = undefined
     clearTimeout(hoverTimer)
+    if (!inside) press(false)
     if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside), inside ? hoverTime : LEAVE)
   }
 
@@ -122,6 +460,7 @@
         point(payload !== null)
       }),
       listen('island://dismiss', () => (expanded = false)),
+      listen<boolean>('island://fullscreen', ({ payload }) => fullscreen(payload)),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
@@ -147,6 +486,11 @@
           activities = next
         },
         peek,
+        hover: () => (hovered = !hovered),
+        expand: () => (expanded ? (expanded = false) : open()),
+        press,
+        alert,
+        fullscreen: () => fullscreen(!hidden),
       }),
     )
   }
@@ -158,92 +502,168 @@
 <svelte:window
   oncontextmenu={(event) => event.preventDefault()}
   onpointermove={move}
+  onresize={wake}
   onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
   onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
 />
 
-{#snippet glyph(activity: Activity, short = false)}
-  {#if activity.kind === 'call'}
-    <span class="dots">
-      {#if activity.mic}<span class="dot mic"></span>{/if}
-      {#if activity.camera}<span class="dot camera"></span>{/if}
+{#snippet digits(text: string)}
+  {#each [...text] as char, i (i)}
+    <span class="digit">
+      {#key char}
+        <span in:roll out:roll>{char}</span>
+      {/key}
     </span>
+  {/each}
+{/snippet}
+
+{#snippet dots(call: Extract<Activity, { kind: 'call' }>)}
+  {#if call.mic}<span class="dot mic"></span>{/if}
+  {#if call.camera}<span class="dot camera"></span>{/if}
+{/snippet}
+
+{#snippet glyph(activity: Activity)}
+  {#if activity.kind === 'call'}
+    <span class="dots">{@render dots(activity)}</span>
   {:else if activity.kind === 'timer'}
-    <span class="countdown">{formatCountdown(activity.endsAt - now.getTime(), short)}</span>
+    <span class="countdown">{@render digits(formatCountdown(activity.endsAt - now.getTime(), true))}</span>
   {:else}
     <span class="art" style:background={activity.color}></span>
   {/if}
 {/snippet}
 
-{#snippet equalizer(color: string)}
-  <span class="equalizer" class:still={reduced} style:color>
-    <span></span><span></span><span></span><span></span>
-  </span>
-{/snippet}
+<svg class="defs" aria-hidden="true">
+  <filter
+    id="goo"
+    filterUnits="userSpaceOnUse"
+    x="0"
+    y="0"
+    width={innerWidth.current}
+    height={innerHeight.current}
+    color-interpolation-filters="sRGB"
+  >
+    <feGaussianBlur stdDeviation={sigma} />
+    <!-- Alpha × 18 − 8.5 puts the edge back at half the blur, so the shapes keep their size. -->
+    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8.5" />
+  </filter>
+</svg>
+
+<!-- The black shapes, under the content, so the goo never blurs the text. -->
+<div class="shapes" class:goo>
+  <div class="fill" style={place(geometry.fill)}></div>
+  {#if geometry.dot}
+    <div class="fill" style={place(geometry.dot)}></div>
+  {/if}
+</div>
 
 <button
   type="button"
   class="island"
   aria-expanded={expanded}
   bind:this={island}
-  style={place(rects[0])}
-  onclick={() => (expanded = true)}
+  style={place(geometry.clip)}
+  onclick={open}
+  onpointerdown={(event) => event.button === 0 && press(true)}
+  onpointercancel={() => press(false)}
   onpointerenter={() => tauri || point(true)}
-  onpointerleave={() => tauri || point(false)}
+  onpointerleave={() => (tauri ? press(false) : point(false))}
 >
-  {#key key}
-    <span
-      class="content view {view.name}"
-      style:width="{sizeOf(view).width}px"
-      style:height="{sizeOf(view).height}px"
-      in:fade={{ delay: reduced ? 0 : 60, duration: reduced ? 120 : 160 }}
-      out:fade={{ duration: reduced ? 120 : EXIT }}
-    >
-      {#if view.name === 'idle'}
-        <time datetime={now.toISOString()}>{formatTime(now)}</time>
-      {:else if view.name === 'hover'}
-        <span class="muted">{formatShortDate(now)}</span>
-        <time datetime={now.toISOString()}>{formatTime(now)}</time>
-      {:else if view.name === 'expanded'}
-        <time class="big" datetime={now.toISOString()}>{formatTime(now)}</time>
-        <span class="muted">{formatLongDate(now)}</span>
-      {:else if view.activity.kind === 'music'}
-        {@render glyph(view.activity)}
-        {#if view.name === 'peek'}
-          <span class="track">
-            <span>{view.activity.title}</span>
-            <span class="muted">{view.activity.artist}</span>
-          </span>
-        {/if}
-        {@render equalizer(view.activity.color)}
-      {:else if view.activity.kind === 'call'}
-        <time datetime={now.toISOString()}>{formatTime(now)}</time>
-        {@render glyph(view.activity)}
-      {:else}
-        {@render glyph(view.activity)}
-      {/if}
-    </span>
-  {/key}
+  <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
+  <span
+    class="content view {view.name}"
+    bind:this={content}
+    style:width="{size.width}px"
+    style:height="{size.height}px"
+  >
+    {#if parts.music}
+      <span class="art" bind:this={art} style:background={parts.music.color} in:enter out:exit></span>
+    {/if}
+    {#if parts.date}
+      <span class="muted" in:enter out:exit>{formatShortDate(now)}</span>
+    {/if}
+    {#if parts.time}
+      <time bind:this={clock} datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
+    {/if}
+    {#if parts.panel}
+      <time class="big" datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
+      <span class="muted" in:enter={{ step: 1 }} out:exit>{formatLongDate(now)}</span>
+    {/if}
+    {#if parts.track}
+      <span class="track" out:exit>
+        <span in:enter={{ step: 1 }}>{parts.track.title}</span>
+        <span class="muted" in:enter={{ step: 2 }}>{parts.track.artist}</span>
+      </span>
+    {/if}
+    {#if parts.call}
+      <span class="dots" in:enter={{ step: 1 }} out:exit>{@render dots(parts.call)}</span>
+    {/if}
+    {#if parts.timer}
+      <span class="countdown" in:enter out:exit>
+        {@render digits(formatCountdown(parts.timer.endsAt - now.getTime()))}
+      </span>
+    {/if}
+    {#if parts.music}
+      <span
+        class="equalizer"
+        class:still={reduced}
+        bind:this={eq}
+        style:color={parts.music.color}
+        in:enter={{ step: 1 }}
+        out:exit
+      >
+        <span></span><span></span><span></span><span></span>
+      </span>
+    {/if}
+  </span>
 </button>
 
-{#if rects[1]}
-  <div class="island bubble" style={place(rects[1])}>
-    {#if arrangement.bubble}
-      <span class="content" transition:fade={{ duration: reduced ? 120 : EXIT }}>
-        {@render glyph(arrangement.bubble, true)}
-      </span>
+{#if geometry.dot}
+  <div class="island bubble" style={place(geometry.dot)}>
+    {#if arrangement.bubble && revealed}
+      {#key arrangement.bubble.id}
+        <span class="content" in:enter|global out:exit|global={{ shrinks: true }}>
+          {@render glyph(arrangement.bubble)}
+        </span>
+      {/key}
     {/if}
   </div>
 {/if}
 
 <style>
+  .defs {
+    position: absolute;
+    width: 0;
+    height: 0;
+  }
+
+  .shapes {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    contain: layout paint style;
+  }
+
+  .fill {
+    position: absolute;
+    background: #000;
+    box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+  }
+
+  /* The threshold would eat a box shadow and grow the shapes with it: the shadow comes after. */
+  .goo {
+    filter: url(#goo) drop-shadow(0 6px 18px rgb(0 0 0 / 0.45));
+  }
+
+  .goo .fill {
+    box-shadow: none;
+  }
+
   .island {
     position: absolute;
     overflow: hidden;
     padding: 0;
     border: 0;
-    background: #000;
-    box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+    background: none;
     color: inherit;
     font: inherit;
     font-size: 14px;
@@ -251,6 +671,7 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     cursor: default;
+    contain: layout paint style;
   }
 
   /* High contrast drops the black fill and the shadow: an outline keeps the shape. */
@@ -267,11 +688,6 @@
     }
   }
 
-  /* Answers the press at once; the panel opens on release. */
-  button.island:active:not([aria-expanded='true']) {
-    scale: 0.96;
-  }
-
   .content {
     box-sizing: border-box;
     position: absolute;
@@ -281,7 +697,6 @@
     justify-content: center;
   }
 
-  /* Laid out at the size it is headed for, and revealed by the shape as it grows. */
   .view {
     inset: 0 auto auto 50%;
     translate: -50% 0;
@@ -324,6 +739,16 @@
     font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
     font-size: 44px;
     line-height: 1;
+  }
+
+  /* The old and the new digit share one cell while they roll. */
+  .digit {
+    display: inline-grid;
+    white-space: pre;
+  }
+
+  .digit > span {
+    grid-area: 1 / 1;
   }
 
   .track {

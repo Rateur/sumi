@@ -63,4 +63,10 @@ describe('layout', () => {
   it('grows the bubble from its center', () => {
     expect(layout(600, { width: 200, height: 34 }, 10)[1]).toEqual({ x: 420, y: 20, width: 10, height: 10 })
   })
+  it('slides the bubble and drops both', () => {
+    expect(layout(600, { width: 200, height: 34 }, 20, { travel: -42, drop: -50 })).toEqual([
+      { x: 200, y: -42, width: 200, height: 34 },
+      { x: 373, y: -35, width: 20, height: 20 },
+    ])
+  })
 })
