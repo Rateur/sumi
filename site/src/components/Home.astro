@@ -40,9 +40,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		{
 			lang === 'en' && (
 				<script is:inline>
-					// First visit only: a French browser gets the French page. A language picked by hand wins.
+					// A French browser arriving from elsewhere gets the French page; one coming from the docs stays put. A language picked by hand wins.
 					try {
-						if (!localStorage.getItem('sumi-lang') && /^fr\b/i.test(navigator.language)) location.replace('fr/');
+						const fromSite = document.referrer.startsWith(location.origin + location.pathname);
+						const picked = localStorage.getItem('sumi-lang');
+						if (!fromSite && (picked ? picked === 'fr' : /^fr\b/i.test(navigator.language))) location.replace('fr/');
 					} catch {}
 				</script>
 			)
@@ -102,26 +104,25 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 
 		<main>
 			<section class="hero" aria-label="Sumi">
-				<div class="hero-stage">
-					<h1 class="sentence">
-						<span class="half half-a">{t.h1a}</span>
-						<span class="isle" data-ui data-state="dot" aria-hidden="true">
-							<span class="layer layer-time" data-time>00:00</span>
-							<span class="layer layer-music">
-								<span class="art"></span>
-								<span class="track">Tank!</span>
-								<span class="eq"><i></i><i></i><i></i><i></i></span>
-							</span>
-							<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+				<h1 class="sentence">
+					<span class="half half-a">{t.h1a}</span>
+					<span class="isle" data-ui data-state="dot" aria-hidden="true">
+						<span class="layer layer-time" data-time>00:00</span>
+						<span class="layer layer-music">
+							<span class="art"></span>
+							<span class="track">Tank!</span>
+							<span class="eq"><i></i><i></i><i></i><i></i></span>
 						</span>
-						<span class="half half-b">{t.h1b}</span>
-					</h1>
-					<p class="steps" aria-live="polite">
-						{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
-					</p>
-					<div class="band">
-						<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
-					</div>
+						<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+					</span>
+					<span class="half half-b">{t.h1b}</span>
+				</h1>
+				<p class="steps">
+					{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
+				</p>
+				<span class="cue" aria-hidden="true"></span>
+				<div class="band">
+					<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
 				</div>
 			</section>
 
@@ -135,12 +136,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 						<span class="ask-chip" aria-hidden="true">Claude</span>
 					</label>
 					<div class="ask-answer">
+						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
 						<a class="ask-row is-active" data-engine="claude" href={`https://claude.ai/new?q=${q}`} target="_blank" rel="noopener">
 							<span>{t.askClaude}</span><kbd>Enter</kbd>
 						</a>
 						<a class="ask-row" data-engine="chatgpt" href={`https://chatgpt.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askChatGPT}</span></a>
 						<a class="ask-row" data-engine="web" href={`https://duckduckgo.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askWeb}</span></a>
-						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
 					</div>
 				</div>
 				<p class="examples" data-reveal style="--d: 3">
@@ -172,7 +173,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 						<div class="frag frag-file" data-ui aria-hidden="true">
 							<span class="file-icon"><svg width="34" height="34" viewBox="192 192 640 640"><path transform="translate(0 15)" fill="#F4F1EA" d={mark}></path></svg></span>
 							<span class="file-name">Sumi-setup.exe</span>
-							<span class="file-size">1.1 MB</span>
+							<span class="file-size">{t.fileSize}</span>
 						</div>
 					</article>
 				</div>
@@ -328,12 +329,13 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			document.fonts.ready.then(fit);
 			fit();
 
-			// Compact while scrolling down, like the app at rest.
+			// Compact while scrolling down, like the app at rest. A touchpad's few pixels back and forth don't count.
 			let lastY = scrollY;
 			addEventListener(
 				'scroll',
 				() => {
-					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && scrollY > 160 && scrollY > lastY;
+					if (scrollY > 160 && Math.abs(scrollY - lastY) < 24) return;
+					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && !nav.querySelector(':focus-visible') && scrollY > 160 && scrollY > lastY;
 					if (compact !== nav.classList.contains('compact')) {
 						nav.classList.toggle('compact', compact);
 						fit();
@@ -342,6 +344,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				},
 				{ passive: true },
 			);
+			// Compact hides the menu button; keyboard focus brings it back and keeps it while it stays.
+			nav.addEventListener('focusin', (e) => {
+				if (!nav.classList.contains('compact') || !(e.target as Element).matches(':focus-visible')) return;
+				nav.classList.remove('compact');
+				fit();
+			});
 
 			// A language picked by hand wins over the browser's next time.
 			document.querySelectorAll<HTMLAnchorElement>('[data-lang]').forEach((a) =>
@@ -364,40 +372,60 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			};
 			tick();
 
-			// The hero island: a dot that opens into the time, then follows the scroll through its states.
+			// The hero island: a dot that opens into the time, then plays through its states on its own.
 			const hero = document.querySelector<HTMLElement>('.hero')!;
 			const isle = hero.querySelector<HTMLElement>('.isle')!;
-			const steps = [...hero.querySelectorAll<HTMLElement>('.step')];
+			const stepsEl = hero.querySelector<HTMLElement>('.steps')!;
+			const steps = [...stepsEl.querySelectorAll<HTMLElement>('.step')];
 			const states = ['time', 'music', 'timer'];
 			let current = -1;
 			const show = (i: number) => {
-				if (i === current) return;
 				current = i;
 				isle.dataset.state = states[i];
 				steps.forEach((s, j) => s.classList.toggle('on', j === i));
 			};
-			// Left alone, the island moves on by itself; scrolling takes over.
-			let idle = 0;
-			const autoplay = () => {
-				clearTimeout(idle);
-				if (reduce) return;
-				idle = window.setTimeout(() => {
-					if (hero.getBoundingClientRect().bottom > innerHeight * 0.5) show((current + 1) % states.length);
-					autoplay();
+			// WCAG 2.2.2: it plays two rounds and rests on the time, and holds still under the pointer, off screen
+			// and in a background tab, so it never keeps moving next to what someone is reading.
+			let left = reduce ? 0 : states.length * 2;
+			let seen = false;
+			let held = false;
+			let next = 0;
+			const play = () => {
+				clearTimeout(next);
+				if (current < 0 || !left || !seen || held || document.hidden) return;
+				next = window.setTimeout(() => {
+					left -= 1;
+					show((current + 1) % states.length);
+					play();
 				}, 3200);
 			};
 			setTimeout(() => {
 				show(0);
-				autoplay();
+				play();
 			}, reduce ? 0 : 450);
-			const onScroll = () => {
-				if (current < 0) return;
-				const r = hero.getBoundingClientRect();
-				const p = Math.min(0.999, Math.max(0, -r.top / (r.height - innerHeight)));
-				show(Math.floor(p * states.length));
-				autoplay();
+			new IntersectionObserver(([e]) => {
+				seen = e.isIntersecting;
+				play();
+			}, { threshold: 0.5 }).observe(hero);
+			document.addEventListener('visibilitychange', play);
+			[isle, stepsEl].forEach((el) => {
+				el.addEventListener('pointerenter', () => {
+					held = true;
+					play();
+				});
+				el.addEventListener('pointerleave', () => {
+					held = false;
+					play();
+				});
+			});
+
+			// The scroll cue leaves for good with the first real scroll.
+			const scrolled = () => {
+				if (scrollY < 16) return;
+				hero.classList.add('scrolled');
+				removeEventListener('scroll', scrolled);
 			};
-			addEventListener('scroll', () => requestAnimationFrame(onScroll), { passive: true });
+			addEventListener('scroll', scrolled, { passive: true });
 
 			// The command bar, working as it will in the app.
 			const input = document.querySelector<HTMLInputElement>('.ask-input')!;
@@ -424,7 +452,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			const update = () => {
 				const v = input.value.trim();
 				const seconds = parseTimer(v);
+				// The timer takes the top row and the last engine steps aside, so the bar keeps its height.
 				timerRow.hidden = !seconds;
+				rows[rows.length - 1].hidden = !!seconds;
 				if (seconds) timerRow.querySelector('span')!.textContent = (timerRow.dataset.template ?? '').replace('{t}', clock(seconds));
 				rows.forEach((row, i) => {
 					row.href = urls[row.dataset.engine!] + encodeURIComponent(v);
@@ -433,9 +463,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				timerRow.classList.toggle('is-active', !!seconds);
 			};
 			let countdown = 0;
+			let ending = 0;
 			const startTimer = (seconds: number) => {
 				clearInterval(countdown);
+				clearTimeout(ending);
 				let left = seconds;
+				nav.classList.remove('done');
 				nav.classList.add('timing');
 				timerEl.hidden = false;
 				timerValue.textContent = clock(left);
@@ -446,7 +479,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 					if (left <= 0) {
 						clearInterval(countdown);
 						nav.classList.add('done');
-						setTimeout(() => {
+						ending = window.setTimeout(() => {
 							nav.classList.remove('timing', 'done');
 							timerEl.hidden = true;
 							fit();
@@ -455,13 +488,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				}, 1000);
 			};
 			const stopTimer = () => {
-			clearInterval(countdown);
-			nav.classList.remove('timing', 'done');
-			timerEl.hidden = true;
-			fit();
-		};
-		nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
-		timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
+				clearInterval(countdown);
+				clearTimeout(ending);
+				nav.classList.remove('timing', 'done');
+				timerEl.hidden = true;
+				fit();
+			};
+			nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
+			timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
 			input.addEventListener('input', update);
 			input.addEventListener('keydown', (e) => {
 				if (e.key !== 'Enter') return;
@@ -639,8 +673,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		outline-offset: 3px;
 		border-radius: 4px;
 	}
+	/* Content stops at 1360px and centres; backgrounds and the ink water still run edge to edge. */
 	.wrap {
-		padding-inline: var(--m);
+		padding-inline: max(var(--m), (100% - 1360px) / 2);
 	}
 	.h2 {
 		margin: 0;
@@ -903,17 +938,13 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-size: 14px;
 	}
 
-	/* Hero: the island takes the place of a word and lives through three states as the page scrolls. */
+	/* Hero: the island takes the place of a word and plays through three states. One screen, no pinning. */
 	.hero {
-		height: 270svh;
-	}
-	.hero-stage {
-		position: sticky;
-		top: 0;
-		height: 100svh;
+		min-height: 100svh;
 		display: flex;
 		flex-direction: column;
 		padding: 96px var(--m) 0;
+		container-type: inline-size;
 	}
 	.sentence {
 		display: flex;
@@ -1053,6 +1084,35 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	}
 	.step.on {
 		display: block;
+	}
+	/* Scroll cue: a hairline above the painting that ink runs down twice, under 5 s. Gone at the first scroll. */
+	.cue {
+		position: relative;
+		align-self: center;
+		width: 1px;
+		height: 48px;
+		margin-bottom: 24px;
+		overflow: hidden;
+		transition:
+			opacity 0.25s,
+			visibility 0s 0.25s;
+	}
+	.cue::before,
+	.cue::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: var(--ink);
+	}
+	.cue::before {
+		opacity: 0.4;
+	}
+	.cue::after {
+		translate: 0 -100%;
+	}
+	.hero.scrolled .cue {
+		opacity: 0;
+		visibility: hidden;
 	}
 
 	/* The command bar, at headline size. */
@@ -1518,6 +1578,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		display: block;
 		width: 100%;
 		height: 100%;
+		/* What the text inverts against when there is no simulation: reduced motion, no WebGL 2. */
+		background: var(--paper);
 	}
 	.ink-body {
 		position: relative;
@@ -1709,6 +1771,17 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		.band img {
 			animation: settle-in 2.4s var(--settle) both;
 		}
+		.cue::before {
+			animation: settle-in 0.5s var(--settle) 2.2s both;
+		}
+		.cue::after {
+			animation: drip 1.8s cubic-bezier(0.65, 0, 0.35, 1) 2.2s 2 both;
+		}
+		@keyframes drip {
+			to {
+				translate: 0 100%;
+			}
+		}
 		@keyframes settle-in {
 			from {
 				scale: 1.08;
@@ -1722,7 +1795,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			flex-wrap: wrap;
 			justify-content: flex-start;
 			gap: 0.12em 0.22em;
-			font-size: 12.5vw;
+			/* Small enough that the island at its widest, music, still fits beside the first half. */
+			font-size: min(12.5vw, 100cqi / 7.6);
 		}
 		.half-b {
 			flex-basis: 100%;
@@ -1750,7 +1824,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			font-size: 30vw;
 		}
 		.quiet-row {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 			gap: 24px;
 		}
 		.frag {
