@@ -7,6 +7,14 @@ At rest, the island shows the time in your language's format: `21:05` in French,
 
 The island sits 8 px below the top edge of your main screen, centered. Clicks beside it reach the window underneath, and it never takes focus from the app you're using.
 
+## Date and panel
+
+- **Rest the cursor on the island** and it widens to add the date. It waits for the Windows hover time, so a cursor passing through on its way to a tab leaves it alone.
+- **Click it** and it opens into a panel with the time and the full date.
+- **Press Esc or click elsewhere** to close it. Both still reach the app underneath.
+
+A tab, a text selection or a window dragged across the top of the screen passes over the island.
+
 ## Limits
 
 - Main screen only. Choosing the screen comes with the settings, before 1.0.
