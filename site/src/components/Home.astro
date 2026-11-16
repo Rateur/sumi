@@ -194,48 +194,53 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 							<span class="rm-art"></span><span class="rm-more"><b>Tank!</b> <span class="rm-dim">Seatbelts</span></span><span class="rm-swap" data-time>00:00</span>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[1].title}</strong><span>{t.roadmap[1].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[1].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[1].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-screen" data-ui aria-hidden="true"><span class="rm-pill rm-hide" style="--w0: 132px"><span data-time>00:00</span></span></span>
+						<span class="rm-copy"><strong>{t.roadmap[2].title}</strong><span>{t.roadmap[2].text}</span></span>
+						<span class="rm-tag rm-next">{t.roadmap[2].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-music" data-ui aria-hidden="true" style="--w0: 200px; --w1: 300px">
 							<span class="rm-art"></span><span class="rm-more"><b>Tank!</b> <span class="rm-dim">Seatbelts</span></span><span class="rm-eq"><i></i><i></i><i></i><i></i></span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[2].title}</strong><span>{t.roadmap[2].text}</span></span>
-						<span class="rm-tag">{t.roadmap[2].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
+						<span class="rm-tag">{t.roadmap[3].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 150px; --w1: 240px"><span data-time>00:00</span><span class="rm-dots"><i></i><i></i></span><span class="rm-more rm-dim">Discord</span></span>
-						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
-						<span class="rm-tag">{t.roadmap[3].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
+						<span class="rm-tag">{t.roadmap[4].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-ask" data-ui aria-hidden="true" style="--w0: 210px; --w1: 320px">
 							<svg width="13" height="13" viewBox="0 0 24 24"><path fill="#f472b6" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
 							<span class="rm-dim">{t.askLabel}…</span><span class="rm-more rm-chip">Claude</span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
-						<span class="rm-tag">{t.roadmap[4].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[5].title}</strong><span>{t.roadmap[5].text}</span></span>
+						<span class="rm-tag">{t.roadmap[5].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-timer" data-ui aria-hidden="true" style="--w0: 112px; --w1: 236px"><span>24:59</span><span class="rm-more">{t.timesUp}</span></span>
-						<span class="rm-copy"><strong>{t.roadmap[5].title}</strong><span>{t.roadmap[5].text}</span></span>
-						<span class="rm-tag">{t.roadmap[5].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[6].title}</strong><span>{t.roadmap[6].text}</span></span>
+						<span class="rm-tag">{t.roadmap[6].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 112px; --w1: 220px">
 							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"></path></svg>
 							<span>12°</span><span class="rm-more rm-dim">{t.sunny}</span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[6].title}</strong><span>{t.roadmap[6].text}</span></span>
-						<span class="rm-tag">{t.roadmap[6].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
+						<span class="rm-tag">{t.roadmap[7].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-battery" data-ui aria-hidden="true" style="--w0: 120px; --w1: 236px">
 							<span class="rm-more">{t.charging}</span><span>64%</span>
 							<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2.5"></rect><path d="M22 11v2"></path><path d="M12 8.5l-3 4h4l-2 3"></path></svg>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
-						<span class="rm-tag">{t.roadmap[7].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[8].title}</strong><span>{t.roadmap[8].text}</span></span>
+						<span class="rm-tag">{t.roadmap[8].tag}</span>
 					</li>
 				</ol>
 			</section>
@@ -1509,6 +1514,23 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	.rm-row:hover .rm-swap {
 		display: none;
 	}
+	/* Fullscreen: the top of the box is the top of the screen, and the island slides up through it as in the app. */
+	.rm-screen {
+		display: flex;
+		align-items: center;
+		height: 44px;
+		overflow: clip;
+	}
+	.rm-hide {
+		transition: translate var(--show);
+	}
+	.rm-row:hover .rm-hide {
+		width: var(--w0);
+		height: 34px;
+		border-radius: 17px;
+		translate: 0 -40px;
+		transition: translate var(--hide) var(--hide-delay);
+	}
 	.rm-music {
 		justify-content: space-between;
 		padding-left: 6px;
@@ -1853,7 +1875,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			gap: 16px;
 			padding: 20px 16px;
 		}
-		.rm-pill {
+		.rm-pill,
+		.rm-screen {
 			grid-column: 1 / -1;
 			max-width: 100%;
 		}
