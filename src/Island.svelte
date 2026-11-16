@@ -272,6 +272,7 @@
   }
 
   .big {
+    font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
     font-size: 44px;
     line-height: 1;
   }
