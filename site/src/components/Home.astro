@@ -342,6 +342,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				},
 				{ passive: true },
 			);
+			// Compact hides the menu button; keyboard focus brings it back.
+			nav.addEventListener('focusin', () => {
+				if (!nav.classList.contains('compact')) return;
+				nav.classList.remove('compact');
+				fit();
+			});
 
 			// A language picked by hand wins over the browser's next time.
 			document.querySelectorAll<HTMLAnchorElement>('[data-lang]').forEach((a) =>
