@@ -7,8 +7,13 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 ### Added
 
 - The island springs between its shapes. Point at it and it widens to add the date. Click it and it opens into a panel with the time and the full date.
-- Esc or a click elsewhere closes the panel, and still reaches the app you're using.
+- Esc or a click elsewhere closes the panel. Both still reach the app underneath.
 - With reduced motion turned on in Windows, sizes change at once and the content crossfades.
+
+### Known limits
+
+- With touch or a pen, it takes two taps to open the island: the first one reaches the app underneath.
+- While an elevated app such as Task Manager has focus, Esc and clicks don't close the panel. Switching apps does.
 
 ## [0.1.0] - 2026-11-12
 

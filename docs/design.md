@@ -8,13 +8,15 @@ How the island looks and behaves. If code and this page disagree, one of them ha
 |---|---|---|
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
 | Hover | 152 × 36 px | Cursor over the island. Adds the date. |
-| Compact | 34 px high, wider | An activity runs: content on the left and right ends. |
-| Peek | Larger, up to 3 s | Something just happened: new track, charger, low battery. |
-| Expanded | Panel, up to 560 px wide | Click. Closes on Esc or a click elsewhere. |
+| Compact | Call 144, timer 96, music 200 × 34 px* | An activity runs: content on the left and right ends. |
+| Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
+| Expanded | Clock 280 × 120 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. |
 | Bubble | 34 px circle | A second activity, 8 px right of the island. |
 | Hidden | — | A game, video or slideshow is fullscreen. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
+
+\* Provisional, not yet checked against the Figma frames.
 
 ## Who gets the island
 
@@ -29,7 +31,9 @@ When several things happen at once, the highest one takes the island, the next o
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
 
-Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for.
+Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for. Switching apps closes it too.
+
+Known limits: with touch or a pen, the first tap on the island reaches the app underneath and the second one opens it. While an elevated app such as Task Manager has focus, Windows hides Esc and clicks from Sumi, so only switching apps closes the panel.
 
 | Shortcut | Action |
 |---|---|
