@@ -16,7 +16,7 @@
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.1.0 shows the time and nothing else yet; the images above are mockups of what's coming. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.2.0 shows the time, adds the date when you rest the cursor on it and opens into a panel when you click it; the images above are mockups of what's coming. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
@@ -29,13 +29,13 @@ The installer isn't signed yet, so Windows warns about an unknown publisher: cli
 Each step ships as its own version. Version 1.0 is done when every box is checked.
 
 - [x] The island at the top of the screen, with the time (0.1.0)
-- [ ] Spring animations: the island grows when something happens
+- [x] Spring animations: rest the cursor on the island and it widens, click it and it opens (0.2.0)
+- [ ] Hides itself while a game or video is fullscreen
 - [ ] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, play/pause, progress
 - [ ] An orange or green dot when an app uses your microphone or camera
 - [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine
 - [ ] Timers: type `25m`
 - [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
-- [ ] Hides itself while a game or video is fullscreen
 - [ ] Settings, automatic updates and a signed installer
 
 ## How it's built

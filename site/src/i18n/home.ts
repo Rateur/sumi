@@ -42,7 +42,8 @@ export const home = {
 		roadmapTitle: 'Roadmap',
 		roadmap: [
 			{ title: 'The time', text: 'Centered at the top of your main screen.', tag: '0.1.0' },
-			{ title: 'Spring animations', text: 'The island grows when something happens.', tag: 'next' },
+			{ title: 'Spring animations', text: 'It widens on hover and opens on click.', tag: '0.2.0' },
+			{ title: 'Hidden in fullscreen', text: 'It steps aside for games and videos.', tag: 'next' },
 			{ title: 'Music', text: 'Artwork, play and pause, progress.', tag: 'planned' },
 			{ title: 'Microphone and camera', text: 'A dot when an app uses them.', tag: 'planned' },
 			{ title: 'Command bar', text: 'Ctrl + Alt + Space, then your question.', tag: 'planned' },
@@ -111,7 +112,8 @@ export const home = {
 		roadmapTitle: 'Feuille de route',
 		roadmap: [
 			{ title: 'L’heure', text: 'Centrée en haut de votre écran principal.', tag: '0.1.0' },
-			{ title: 'Animations à ressort', text: 'L’île grandit quand il se passe quelque chose.', tag: 'prochaine' },
+			{ title: 'Animations à ressort', text: 'Elle s’élargit au survol et s’ouvre au clic.', tag: '0.2.0' },
+			{ title: 'Masquée en plein écran', text: 'Elle s’efface pendant les jeux et les vidéos.', tag: 'prochaine' },
 			{ title: 'Musique', text: 'Pochette, lecture et pause, progression.', tag: 'prévu' },
 			{ title: 'Micro et caméra', text: 'Un point quand une app les utilise.', tag: 'prévu' },
 			{ title: 'Barre de commande', text: 'Ctrl + Alt + Espace, puis votre question.', tag: 'prévu' },
