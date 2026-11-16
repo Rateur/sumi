@@ -8,9 +8,9 @@ export function msUntilNextMinute(date: Date): number {
   return 60_000 - (date.getSeconds() * 1000 + date.getMilliseconds())
 }
 
-/** Weekday, day and month, short, e.g. "Thu 12 Nov" or "jeu. 12 nov.". */
+/** Day and month, short, e.g. "12 Nov" or "Nov 12". No weekday: beside a 12-hour time it overflows the hover. */
 export function formatShortDate(date: Date, locale?: string): string {
-  return new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(date)
+  return new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short' }).format(date)
 }
 
 /** Weekday, day and month in full, e.g. "Thursday 12 November" or "jeudi 12 novembre". */

@@ -34,8 +34,9 @@ describe('formatShortDate', () => {
   const thursday = new Date(2026, 10, 12, 21, 5)
 
   it('follows the locale', () => {
-    expect(formatShortDate(thursday, 'en-GB')).toBe('Thu 12 Nov')
-    expect(formatShortDate(thursday, 'fr-FR')).toBe('jeu. 12 nov.')
+    expect(formatShortDate(thursday, 'en-GB')).toBe('12 Nov')
+    expect(formatShortDate(thursday, 'en-US')).toBe('Nov 12')
+    expect(formatShortDate(thursday, 'fr-FR')).toBe('12 nov.')
   })
 })
 
