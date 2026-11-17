@@ -41,8 +41,7 @@ body:
       description: How many screens, and their scale (Settings → Display).
       placeholder: "2 screens, 150 % and 100 %"
   - type: textarea
-    id: logs
+    id: more
     attributes:
-      label: Logs
-      description: Paste the latest log if you have one. Logs never contain your notifications or clipboard.
-      render: text
+      label: Anything else
+      description: A screenshot or a short video helps.

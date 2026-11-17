@@ -47,7 +47,7 @@ Every pull request also builds an installer. Find it under **Checks → CI → A
 - It does one thing, with tests for the logic.
 - It fails quietly. If a Windows API call fails, the module hides and the app keeps running. No `unwrap()` on Windows calls.
 - It costs nothing at rest: no timer or animation running when nothing changes.
-- It logs nothing private. Notification and clipboard content never reach a log.
+- It keeps your PC private. Nothing the island shows is written to a log or a file, and nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
 - The UI works with reduced motion and keeps AA contrast.
 
 New to pull requests? [First Contributions](https://github.com/firstcontributions/first-contributions) walks you through your first one.
