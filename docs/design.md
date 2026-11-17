@@ -12,7 +12,7 @@ How the island looks and behaves. If code and this page disagree, one of them ha
 | Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
 | Expanded | Clock 280 × 120 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. |
 | Bubble | 34 px circle | A second activity, 8 px right of the island. |
-| Hidden | — | A game, video or slideshow is fullscreen. |
+| Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
 
@@ -50,6 +50,8 @@ In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcu
 - A drag that starts elsewhere, such as a tab, a text selection or a window, passes over the island. It wakes up once every button is up.
 - It grows only after the cursor rests on it for the Windows hover time, and shrinks 300 ms after the cursor leaves. A click opens it at once.
 - It is put on top once and never pushed back up, so menus, tooltips, Start and Alt+Tab can cover it. Moving it never takes focus.
+- It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
+- While Windows says you're busy, such as a fullscreen app on another screen, news updates in place without a peek. Calls still peek.
 - It sits under the top of the work area, so a taskbar at the top pushes it down. It checks once a second.
 - A frozen Sumi never leaves a "Not responding" copy at the top of the screen.
 
