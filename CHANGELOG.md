@@ -4,6 +4,10 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-17
+
+Your music on the island, from any player, with the time in a bubble beside it.
+
 ### Added
 
 - Music from any app that Windows' media controls can see, such as Spotify, browsers or VLC. The island shows the artwork and an equalizer in its colour. Click it for the title and artist, the progress, and previous, play or pause and next.
@@ -16,6 +20,9 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 ### Known limits
 
 - A browser shows one player, the tab it last played, and often without artwork.
+- Some players don't let other apps move through the song: the bar then stays put.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- The installer isn't signed yet: your browser may hold the download, and Windows warns about an unknown publisher.
 
 ## [0.3.0] - 2026-11-17
 
@@ -70,7 +77,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Rateur/sumi/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Rateur/sumi/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Rateur/sumi/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Rateur/sumi/releases/tag/v0.1.0
