@@ -3,6 +3,7 @@ import {
   formatCountdown,
   formatLongDate,
   formatShortDate,
+  formatBubbleTime,
   formatTime,
   msUntilNextMinute,
   msUntilNextSecond,
@@ -17,6 +18,15 @@ describe('formatTime', () => {
 
   it('uses 12-hour time where the locale does', () => {
     expect(formatTime(evening, 'en-US')).toMatch(/^9:05\sPM$/)
+  })
+})
+
+describe('formatBubbleTime', () => {
+  it('drops AM and PM, wherever the locale puts them', () => {
+    const evening = new Date(2026, 10, 12, 21, 5)
+    expect(formatBubbleTime(evening, 'fr-FR')).toBe('21:05')
+    expect(formatBubbleTime(evening, 'en-US')).toBe('9:05')
+    expect(formatBubbleTime(evening, 'ko-KR')).toBe('9:05')
   })
 })
 

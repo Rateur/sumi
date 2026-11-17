@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { arrange, peeks, type Activity } from './activities'
+import { CLOCK, arrange, peeks, type Activity } from './activities'
 
 const call: Activity = { id: 'call', kind: 'call', mic: true, camera: false }
 const timer: Activity = { id: 'timer', kind: 'timer', endsAt: 0 }
@@ -13,6 +13,16 @@ describe('arrange', () => {
 
   it('gives the island to a call, the bubble to a timer and makes music wait', () => {
     expect(arrange([a, timer, call])).toEqual({ island: call, bubble: timer, waiting: [a] })
+  })
+
+  it('puts the time in the bubble beside a lone activity, and on the island once picked', () => {
+    expect(arrange([a])).toEqual({ island: a, bubble: CLOCK, waiting: [] })
+    expect(arrange([a], arrange([a]), 'clock')).toEqual({ island: undefined, bubble: a, waiting: [] })
+  })
+
+  it('makes the time wait while two activities share the island and the bubble', () => {
+    expect(arrange([a, b])).toEqual({ island: a, bubble: b, waiting: [] })
+    expect(arrange([a, b], undefined, 'clock')).toEqual({ island: undefined, bubble: a, waiting: [b] })
   })
 
   it('lets a higher priority take the island from what is shown', () => {
@@ -44,7 +54,7 @@ describe('arrange', () => {
 
   it('hands the island back when the higher priority ends', () => {
     const shown = arrange([timer, a])
-    expect(arrange([a], shown)).toEqual({ island: a, bubble: undefined, waiting: [] })
+    expect(arrange([a], shown)).toEqual({ island: a, bubble: CLOCK, waiting: [] })
   })
 })
 

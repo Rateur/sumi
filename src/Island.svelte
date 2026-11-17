@@ -6,8 +6,9 @@
   import { MediaQuery, SvelteMap } from 'svelte/reactivity'
   import { fade as dissolve } from 'svelte/transition'
   import { innerHeight, innerWidth } from 'svelte/reactivity/window'
-  import { arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
+  import { CLOCK, arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
   import {
+    formatBubbleTime,
     formatCountdown,
     formatLongDate,
     formatShortDate,
@@ -20,7 +21,6 @@
   import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
   import {
     clockTime,
-    dismiss,
     nextChange,
     nobody,
     position,
@@ -215,6 +215,14 @@
 
   function alert() {
     pulse(160, 150)
+  }
+
+  /** Swells the bubble for a moment, once it has split off. */
+  function nudge(t = performance.now()) {
+    if (reduced || phase !== 'shown') return
+    bubble.to(BUBBLE, 0.44, 0, t)
+    bubble.kick(110, t)
+    wake()
   }
 
   function fade(to: number, ms: number, t = performance.now()) {
@@ -448,22 +456,24 @@
     wake()
   }
 
-  // A timer that runs out, or a new song while the island is compact, swells it for a moment.
+  // A timer that runs out, or a new song while the island is compact, swells it for a moment. A new song in the
+  // bubble swells the bubble.
   const done = $derived(arrangement.island?.kind === 'timer' && now.getTime() >= arrangement.island.endsAt)
   $effect(() => {
     if (done) untrack(alert)
   })
 
+  const newSong = (now?: Activity, was?: Activity) =>
+    now?.kind === 'music' && was?.kind === 'music' && now.id === was.id && now.title !== was.title
   let song: Activity | undefined
+  let aside: Activity | undefined
   $effect(() => {
-    const playing = arrangement.island
+    const [playing, beside] = [arrangement.island, arrangement.bubble]
     untrack(() => {
-      const was = song
-      if (playing?.kind === 'music' && was?.kind === 'music' && playing.id === was.id && playing.title !== was.title) {
-        // While Windows says you're busy, the song changes in place.
-        if (view.name === 'compact' && peeks(playing, presence)) alert()
-      }
-      song = playing
+      // While Windows says you're busy, the song changes in place.
+      if (newSong(playing, song) && view.name === 'compact' && peeks(playing, presence)) alert()
+      if (newSong(beside, aside) && peeks(beside, presence)) nudge()
+      ;[song, aside] = [playing, beside]
     })
   })
 
@@ -528,7 +538,7 @@
     const t = Date.now()
     players = update(players, latest, t)
     music = songs(showing(players, t), artwork)
-    if (prefer && !music.some((a) => a.id === prefer)) prefer = undefined
+    if (prefer && (prefer === CLOCK.id ? !music.length : !music.some((a) => a.id === prefer))) prefer = undefined
     // The player's own word after a seek takes over from the place the bar was dropped at.
     const answer = scrub && !scrub.held && latest.find((p) => p.id === scrub!.id)
     if (answer && (answer.positionMs !== scrub!.from.positionMs || answer.updatedMs !== scrub!.from.updatedMs)) {
@@ -592,14 +602,6 @@
   function control(action: 'play' | 'pause' | 'next' | 'previous') {
     const id = parts.player?.id
     if (tauri && id) invoke('media_control', { id, action })
-  }
-
-  // The small round button sends the music out of sight and brings the time back. Each player returns when it plays
-  // after a pause.
-  function away() {
-    for (const a of music) players = dismiss(players, a.id)
-    expanded = false
-    refresh()
   }
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
@@ -741,7 +743,9 @@
 {/snippet}
 
 {#snippet glyph(activity: Activity)}
-  {#if activity.kind === 'call'}
+  {#if activity.kind === 'clock'}
+    <time class="countdown hour" datetime={now.toISOString()}>{@render digits(formatBubbleTime(now))}</time>
+  {:else if activity.kind === 'call'}
     <span class="dots">{@render dots(activity)}</span>
   {:else if activity.kind === 'timer'}
     <span class="countdown">{@render digits(formatCountdown(activity.endsAt - now.getTime(), true))}</span>
@@ -871,9 +875,6 @@
           </button>
           <button type="button" aria-label="Next" disabled={!p.canNext} onclick={() => control('next')}>
             {@render icon('next')}
-          </button>
-          <button type="button" class="away" aria-label="Show the time" onclick={away}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></svg>
           </button>
         </span>
       {/if}
@@ -1126,7 +1127,6 @@
   }
 
   .controls {
-    position: relative;
     grid-area: controls;
     display: flex;
     justify-content: center;
@@ -1159,28 +1159,6 @@
     width: 20px;
     height: 20px;
     fill: currentColor;
-  }
-
-  /* The way back to the time, set apart from the playback buttons. */
-  .controls .away {
-    position: absolute;
-    top: 50%;
-    right: 0;
-    width: 26px;
-    height: 26px;
-    translate: 0 -50%;
-    background: rgb(255 255 255 / 0.14);
-    color: rgb(255 255 255 / 0.8);
-  }
-
-  .controls .away svg {
-    width: 15px;
-    height: 15px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   .controls .main svg {
@@ -1264,6 +1242,11 @@
 
   .bubble .countdown {
     font-size: 10px;
+  }
+
+  /* The time in the bubble is the island's time, in its white. */
+  .countdown.hour {
+    color: #fff;
   }
 
   .dots {
