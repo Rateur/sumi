@@ -102,16 +102,17 @@ fn same_player(old: &Player, new: &Player) -> bool {
         } == *old
 }
 
-/// Keeps ids unique when one app has two sessions.
-fn unique(ids: impl IntoIterator<Item = String>) -> Vec<String> {
-    let mut seen: HashMap<String, usize> = HashMap::new();
-    ids.into_iter()
-        .map(|id| {
-            let n = seen.entry(id.clone()).or_default();
-            *n += 1;
-            if *n == 1 { id } else { format!("{id}#{n}") }
-        })
-        .collect()
+/// The id for a new session of `app`: the app's own, or the first free numbered one when it already has a
+/// session. Ids already given never change, so a page never sees one player's id move to another.
+fn free_id<'a>(app: &str, taken: impl Iterator<Item = &'a str> + Clone) -> String {
+    let free = |id: &str| !taken.clone().any(|t| t == id);
+    if free(app) {
+        return app.to_string();
+    }
+    (2..)
+        .map(|n| format!("{app}#{n}"))
+        .find(|id| free(id))
+        .unwrap_or_default()
 }
 
 #[cfg(not(windows))]
@@ -141,7 +142,7 @@ mod win {
     use windows::Storage::Streams::DataReader;
     use windows::core::{HSTRING, RuntimeType};
 
-    use super::{Action, Media, Msg, Player, same, unique};
+    use super::{Action, Media, Msg, Player, free_id, same};
 
     /// A song change fires the title, then the artwork, then the timeline: one wait gathers them into one message.
     const BURST: Duration = Duration::from_millis(150);
@@ -250,24 +251,33 @@ mod win {
             });
 
             if sessions {
-                // A restarted app keeps its id but gets a new session, so everything is watched again.
-                watched.clear();
+                // Sessions still there keep their id and handlers; the ones that went are dropped, which
+                // removes their handlers. A restarted app gets a new session, and so a fresh watch.
                 let list: Vec<Session> = manager
                     .GetSessions()
                     .map(|s| s.into_iter().collect())
                     .unwrap_or_default();
-                let ids = unique(list.iter().map(|s| {
-                    s.SourceAppUserModelId()
+                let mut kept: Vec<Watched> = Vec::new();
+                let mut fresh: Vec<Session> = Vec::new();
+                for session in list {
+                    match watched.iter().position(|w| w.session == session) {
+                        Some(i) => kept.push(watched.swap_remove(i)),
+                        None => fresh.push(session),
+                    }
+                }
+                watched = kept;
+                for session in fresh {
+                    let app = session
+                        .SourceAppUserModelId()
                         .map(|h| h.to_string())
-                        .unwrap_or_default()
-                }));
-                watched = ids
-                    .into_iter()
-                    .zip(list)
-                    .filter_map(|(id, s)| Watched::new(id, s, tx).ok())
-                    .collect();
-                changed.extend(watched.iter().map(|w| w.id.clone()));
-                artwork.retain(|id, _| watched.iter().any(|w| &w.id == id));
+                        .unwrap_or_default();
+                    let id = free_id(&app, watched.iter().map(|w| w.id.as_str()));
+                    if let Ok(w) = Watched::new(id, session, tx) {
+                        changed.insert(w.id.clone());
+                        watched.push(w);
+                    }
+                }
+                // The artwork of a player that went is kept: if it comes back with none, that is news to send.
                 late.retain(|(_, id, _)| watched.iter().any(|w| &w.id == id));
             }
 
@@ -293,7 +303,10 @@ mod win {
                         None => artwork.remove(&w.id),
                     };
                     let _ = app.emit("media://artwork", json!({ "id": w.id, "url": fresh }));
-                    continue;
+                    // An empty read may only mean the picture isn't ready yet: it is read again below.
+                    if fresh.is_some() {
+                        continue;
+                    }
                 }
                 // Same artwork as the last song: read again a little later, twice at most.
                 let left = if new_song {
@@ -477,8 +490,11 @@ mod tests {
     }
 
     #[test]
-    fn two_sessions_of_one_app_get_their_own_ids() {
-        let ids = unique(["a".to_string(), "b".into(), "a".into()]);
-        assert_eq!(ids, ["a", "b", "a#2"]);
+    fn a_second_session_of_one_app_gets_the_first_free_id() {
+        assert_eq!(free_id("a", ["b"].into_iter()), "a");
+        assert_eq!(free_id("a", ["a", "b"].into_iter()), "a#2");
+        // The first session ended: its id is free again, and the second keeps `a#2`.
+        assert_eq!(free_id("a", ["a#2"].into_iter()), "a");
+        assert_eq!(free_id("a", ["a", "a#2"].into_iter()), "a#3");
     }
 }

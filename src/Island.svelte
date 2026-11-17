@@ -178,7 +178,8 @@
     clearTimeout(delayed)
     delayed = undefined
     const target = sizeOf(to)
-    if (reduced) {
+    // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
+    if (reduced || (hidden && drop.resting)) {
       width.jump(target.width)
       height.jump(target.height)
       return wake()
@@ -229,7 +230,7 @@
 
   function split() {
     if (phase === 'split' || phase === 'shown') return
-    if (reduced || forced.current) {
+    if (reduced || forced.current || (hidden && drop.resting)) {
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -251,7 +252,7 @@
 
   function merge() {
     if (phase === 'none' || phase === 'merge') return
-    if (reduced || forced.current) {
+    if (reduced || forced.current || (hidden && drop.resting)) {
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -459,7 +460,7 @@
       const was = song
       if (playing?.kind === 'music' && was?.kind === 'music' && playing.id === was.id && playing.title !== was.title) {
         // While Windows says you're busy, the song changes in place.
-        if (view.name === 'compact' && presence !== 'quiet') alert()
+        if (view.name === 'compact' && peeks(playing, presence)) alert()
       }
       song = playing
     })
@@ -518,6 +519,7 @@
   // Every player Windows can see. A paused one stays two minutes, and one that vanishes for a moment is held.
   let players: Players = nobody()
   let latest: Player[] = []
+  let heard = false
   let change: ReturnType<typeof setTimeout> | undefined
   const artwork = new SvelteMap<string, { url: string; color?: string }>()
 
@@ -563,6 +565,7 @@
     if (!tauri) return
     const stops = [
       listen<Player[]>('media://players', ({ payload }) => {
+        heard = true
         latest = payload
         refresh()
       }),
@@ -570,8 +573,8 @@
     ]
     // What Rust sent before these listeners existed.
     invoke<{ players: Player[]; artwork: Record<string, string> }>('media_players').then((snapshot) => {
-      latest = snapshot.players
-      Object.entries(snapshot.artwork).forEach(([id, url]) => paint(id, url))
+      if (!heard) latest = snapshot.players
+      Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
       refresh()
     })
     return () => {
@@ -603,10 +606,19 @@
       fill: 'forwards',
     })
     if (!p.playing || hidden) animation.pause()
-    return () => animation.cancel()
+    return () => {
+      // Keeps the bar where it is while its content leaves, instead of snapping back to empty.
+      try {
+        animation.commitStyles()
+      } catch {
+        // The bar may already be gone.
+      }
+      animation.cancel()
+    }
   })
   $effect(() => {
-    if (!parts.player?.player?.playing || hidden) return
+    const p = parts.player?.player
+    if (!p?.playing || p.endMs <= 0 || hidden) return
     tick = Date.now()
     const timer = setInterval(() => (tick = Date.now()), 1000)
     return () => clearInterval(timer)
