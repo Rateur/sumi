@@ -42,7 +42,7 @@ export default defineConfig({
 				{
 					label: 'Features',
 					translations: { fr: 'Fonctions' },
-					items: ['docs/time', 'docs/fullscreen'],
+					items: ['docs/time', 'docs/fullscreen', 'docs/music'],
 				},
 				{
 					label: 'Contribute',

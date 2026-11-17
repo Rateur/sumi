@@ -678,7 +678,8 @@
     return () => clearInterval(timer)
   })
 
-  if (import.meta.env.DEV) {
+  // The site's live examples run the same demo, from `npm run showcase`.
+  if (import.meta.env.DEV || import.meta.env.MODE === 'showcase') {
     import('./lib/demo').then(({ demo }) =>
       demo({
         get activities() {

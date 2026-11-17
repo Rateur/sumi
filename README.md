@@ -11,18 +11,18 @@
   <p><b>English</b> · <a href="README.fr.md">Français</a></p>
 </div>
 
-![The island while music plays, the music panel and the command bar](.github/assets/hero.png)
+![The music panel at the top of the screen, with the time in the bubble beside it](.github/assets/hero.webp)
 
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.3.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, and hides while a game or video is fullscreen; the images above are mockups of what's coming. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.4.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, and shows your music with its controls. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
 [**Download Sumi for Windows**](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe) (10 and 11, 64-bit), or pick a version on the [releases page](https://github.com/Rateur/sumi/releases).
 
-The installer isn't signed yet, so Windows warns about an unknown publisher: click **More info**, then **Run anyway**. Quit Sumi from its tray icon.
+The installer isn't signed yet. Your browser may hold it as rarely downloaded: keep it from its downloads list. Windows then warns about an unknown publisher: click **More info**, then **Run anyway**. Quit Sumi from its tray icon.
 
 ## Roadmap
 
@@ -31,7 +31,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] The island at the top of the screen, with the time (0.1.0)
 - [x] Spring animations: rest the cursor on the island and it widens, click it and it opens (0.2.0)
 - [x] Hides itself while a game or video is fullscreen (0.3.0)
-- [ ] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress
+- [x] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress; the time moves to a bubble beside it (0.4.0)
 - [ ] An orange or green dot when an app uses your microphone or camera
 - [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine
 - [ ] Timers: type `25m`

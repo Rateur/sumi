@@ -4,7 +4,8 @@ name: Site
 # from main only, so the site always describes the released version.
 on:
   pull_request:
-    paths: ['site/**', 'src/lib/**', 'package.json', 'docs/design.md', '.github/CONTRIBUTING.md', '.github/workflows/site.yml']
+    # The site embeds the app's own island (npm run showcase), so the app's page and code count too.
+    paths: ['site/**', 'src/**', 'index.html', 'vite.config.ts', 'package.json', 'docs/design.md', '.github/CONTRIBUTING.md', '.github/workflows/site.yml']
   push:
     branches: [main]
   workflow_dispatch:
