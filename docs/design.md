@@ -2,6 +2,8 @@
 
 How the island looks and behaves. If code and this page disagree, one of them has a bug.
 
+This is the design for 1.0. What each release already does is in the [changelog](https://github.com/Rateur/sumi/blob/main/CHANGELOG.md).
+
 ## States
 
 | State | Size | When |

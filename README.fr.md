@@ -56,7 +56,7 @@ Sumi ne collecte rien. Les fonctions qui ont besoin du réseau resteront désact
 
 ## Contribuer
 
-Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](.github/CONTRIBUTING.md) avant d'ouvrir une pull request, et [docs/design.md](docs/design.md) pour le comportement de l'île (en anglais). Idées et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
+Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](.github/CONTRIBUTING.md) avant d'ouvrir une pull request, et [docs/design.md](docs/design.md) pour le comportement de l'île (en anglais). Questions et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## Licence
 

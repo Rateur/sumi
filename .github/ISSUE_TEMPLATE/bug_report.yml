@@ -2,6 +2,15 @@ name: Bug report
 description: Something doesn't work as it should.
 labels: ["bug", "needs triage"]
 body:
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Before you report
+      options:
+        - label: I searched open and closed issues, and this isn't one of them.
+          required: true
+        - label: I reproduced it myself on the version below.
+          required: true
   - type: textarea
     id: what
     attributes:
@@ -23,7 +32,8 @@ body:
     id: version
     attributes:
       label: Sumi version
-      placeholder: "1.0.0"
+      description: Settings → Apps → Installed apps → Sumi.
+      placeholder: "0.2.0"
     validations:
       required: true
   - type: input
@@ -40,9 +50,17 @@ body:
       label: Displays
       description: How many screens, and their scale (Settings → Display).
       placeholder: "2 screens, 150 % and 100 %"
-  - type: textarea
-    id: logs
+  - type: dropdown
+    id: motion
     attributes:
-      label: Logs
-      description: Paste the latest log if you have one. Logs never contain your notifications or clipboard.
-      render: text
+      label: Animation effects in Windows
+      description: Settings → Accessibility → Visual effects. When they're off, Sumi skips its animations on purpose.
+      options:
+        - "On"
+        - "Off"
+        - I don't know
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: A screenshot or a short video helps.
