@@ -140,7 +140,7 @@ mod win {
         GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
     };
     use windows::Storage::Streams::DataReader;
-    use windows::core::{HSTRING, RuntimeType};
+    use windows::core::{HSTRING, IUnknown, Interface, RuntimeType};
 
     use super::{Action, Media, Msg, Player, free_id, same};
 
@@ -187,6 +187,15 @@ mod win {
             let _ = self.session.RemoveMediaPropertiesChanged(media);
             let _ = self.session.RemovePlaybackInfoChanged(playback);
             let _ = self.session.RemoveTimelinePropertiesChanged(timeline);
+        }
+    }
+
+    /// Whether two handles are one session. COM's identity rule: the same object always answers with the same
+    /// IUnknown. Comparing the handles themselves isn't enough, and swapped two players' ids.
+    fn same_session(a: &Session, b: &Session) -> bool {
+        match (a.cast::<IUnknown>(), b.cast::<IUnknown>()) {
+            (Ok(a), Ok(b)) => a.as_raw() == b.as_raw(),
+            _ => false,
         }
     }
 
@@ -260,7 +269,10 @@ mod win {
                 let mut kept: Vec<Watched> = Vec::new();
                 let mut fresh: Vec<Session> = Vec::new();
                 for session in list {
-                    match watched.iter().position(|w| w.session == session) {
+                    match watched
+                        .iter()
+                        .position(|w| same_session(&w.session, &session))
+                    {
                         Some(i) => kept.push(watched.swap_remove(i)),
                         None => fresh.push(session),
                     }
@@ -273,10 +285,12 @@ mod win {
                         .unwrap_or_default();
                     let id = free_id(&app, watched.iter().map(|w| w.id.as_str()));
                     if let Ok(w) = Watched::new(id, session, tx) {
-                        changed.insert(w.id.clone());
                         watched.push(w);
                     }
                 }
+                // Some players, Spotify among them, fill in their song as the list changes, without an event
+                // of their own: every player is read again.
+                changed.extend(watched.iter().map(|w| w.id.clone()));
                 // The artwork of a player that went is kept: if it comes back with none, that is news to send.
                 late.retain(|(_, id, _)| watched.iter().any(|w| &w.id == id));
             }
