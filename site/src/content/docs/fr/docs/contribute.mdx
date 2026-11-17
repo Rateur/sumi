@@ -1,0 +1,83 @@
+---
+title: Guide de contribution
+description: Installer Sumi pour le développement, proposer un changement et le faire relire.
+---
+
+{/* Version française de .github/CONTRIBUTING.md : à mettre à jour en même temps que lui. */}
+
+Merci de votre aide. Sumi n'a qu'un mainteneur, alors voici ce qui est accepté.
+
+## Avant de commencer
+
+- Les fautes de frappe, les liens cassés et les petites corrections de bugs peuvent partir directement en pull request.
+- Pour tout le reste, ouvrez d'abord une issue et attendez mon accord. Une issue ouverte aux pull requests porte le label `help wanted`. Une grosse pull request sans accord préalable sera fermée.
+- Jusqu'à la 1.0, Sumi suit la [feuille de route](https://github.com/Rateur/sumi/blob/dev/README.fr.md#feuille-de-route). Les idées en dehors sont les bienvenues dans une issue et se décident au cas par cas.
+- L'apparence et les mouvements de l'île sont fixés dans la [page de design](https://github.com/Rateur/sumi/blob/dev/docs/design.md), en anglais. Changer une taille, une couleur, un ressort ou une durée demande mon accord dans une issue.
+- Pour prendre une issue, dites-le en commentaire et je vous l'assigne. Une personne par issue.
+- Un seul changement par pull request, sans reformatage ni renommage au passage.
+
+## Branches
+
+`main`, c'est ce que reçoivent les utilisateurs. Elle ne change que lorsque `dev` y est fusionnée pour une nouvelle version.
+
+`dev` reçoit le travail en cours. Ouvrez votre pull request vers `dev`, depuis une branche nommée d'après ce qu'elle fait : `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`.
+
+Les pull requests vers `dev` sont fusionnées en squash : leur titre devient le message du commit. Écrivez-le en anglais, au format [Conventional Commits](https://www.conventionalcommits.org) : `feat: show album art in the island`, `fix: keep focus on the game when a timer ends`.
+
+## Installation
+
+Il vous faut Windows 10 ou 11, avec Node.js 24, Rust et les Microsoft C++ Build Tools. Dans un terminal :
+
+```bash
+winget install OpenJS.NodeJS.LTS --version 24.22.1
+winget install Rustlang.Rustup
+winget install Microsoft.VisualStudio.BuildTools --override "--passive --wait --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Les versions exactes de Rust et de Node sont fixées dans `rust-toolchain.toml` et `.node-version`, et Rust installe la bonne au premier build. Sous Windows 10, il faudra peut-être aussi [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/).
+
+Puis, dans le dépôt :
+
+```bash
+npm install
+npm run tauri dev
+```
+
+L'île apparaît en haut de votre écran principal. Pour la quitter, passez par son icône dans la zone de notification. Les changements dans l'interface s'affichent tout de suite, et ceux dans le code Rust relancent l'app.
+
+## Avant de pousser
+
+Lancez ce que lance la CI :
+
+```bash
+npm run lint && npm run check && npm test
+npm run build
+cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
+```
+
+Pour essayer votre changement tel que les utilisateurs le recevront, construisez l'installateur avec `npm run tauri build`.
+
+Sur votre première pull request, la CI démarre une fois que je l'ai approuvée. Laissez **Allow edits by maintainers** coché, pour que je puisse mettre votre branche à jour.
+
+## Ce que je regarde à la relecture
+
+- Elle fait une seule chose, avec des tests pour la logique.
+- Elle échoue sans bruit. Si un appel à Windows échoue, le module se masque et l'app continue. Pas de `unwrap()` sur les appels à Windows.
+- Elle ne coûte rien au repos : aucun minuteur ni aucune animation quand rien ne change.
+- Elle protège votre vie privée. Rien de ce qu'affiche l'île n'est écrit dans un journal ou un fichier, et rien ne quitte le PC sans que l'utilisateur ait activé la fonction. Pas de télémétrie, de statistiques ni de rapports de plantage.
+- Elle n'ajoute ni dépendance, ni requête réseau, ni permission Tauri (`src-tauri/capabilities/`) sans accord dans l'issue. Chaque paquet, c'est du code que chaque utilisateur fait tourner.
+- L'interface fonctionne avec les animations réduites et garde un contraste AA.
+
+## Outils d'IA
+
+Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture.
+
+## Traductions
+
+Le README et le site de Sumi existent en anglais et en français. Merci de ne pas proposer d'autre langue pour l'instant : je ne peux pas relire un texte que je ne comprends pas, et chaque version demanderait de le mettre à jour. Ouvrez une discussion si une langue vous tient à cœur.
+
+## Licence
+
+En envoyant une pull request, vous acceptez que votre travail soit publié sous licence MIT, comme le reste de Sumi, et vous confirmez avoir le droit de le partager. Ne copiez pas de code d'un autre projet si sa licence ne le permet pas.
+
+Première pull request ? [First Contributions](https://github.com/firstcontributions/first-contributions) vous guide pas à pas, en anglais.

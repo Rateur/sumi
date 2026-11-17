@@ -1,5 +1,7 @@
 # Contributing
 
+<!-- The French version is site/src/content/docs/fr/docs/contribute.mdx: update both. -->
+
 Thanks for helping. Sumi has one maintainer, so here is what gets merged.
 
 ## Before you start
