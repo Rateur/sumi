@@ -317,7 +317,7 @@ const island = `${base}island/index.html`;
 			};
 			toggle.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
 			bar.addEventListener('click', (e) => {
-				if (!nav.classList.contains('compact') || (e.target as Element).closest('.nav-download')) return;
+				if (!nav.classList.contains('compact') || (e.target as Element).closest('.nav-download, .nav-timer-stop')) return;
 				e.preventDefault();
 				setOpen(true);
 			});
@@ -444,6 +444,7 @@ const island = `${base}island/index.html`;
 					if (!ready || !seen || started) return;
 					started = true;
 					list('start').forEach(say);
+					if (row.matches(':hover')) hover(true);
 				};
 				addEventListener('message', (e) => {
 					if (e.source !== frame.contentWindow || e.data !== 'sumi:ready') return;
@@ -1581,6 +1582,24 @@ const island = `${base}island/index.html`;
 	.rm > .rm-row[data-open='player'] ~ .rm-row {
 		translate: 0 108px;
 	}
+	.rm-row[data-open] {
+		position: relative;
+	}
+	.rm-row[data-open]::after {
+		content: '';
+		position: absolute;
+		top: 100%;
+		right: 0;
+		left: 0;
+		height: 64px;
+	}
+	.rm-row[data-open='player']::after {
+		height: 108px;
+	}
+	.rm-copy,
+	.rm-tag {
+		transition: translate var(--open-h);
+	}
 	.rm-dots {
 		display: flex;
 		gap: 4px;
@@ -1909,6 +1928,9 @@ const island = `${base}island/index.html`;
 		}
 		.rm-live.split iframe {
 			left: 50%;
+		}
+		.rm-row[data-open='player'] > :not(.rm-live) {
+			translate: 0 108px;
 		}
 		.rm-pill,
 		.rm-live {

@@ -9,7 +9,7 @@ When music plays, the island shows the artwork and an equalizer in its colour, a
 
 - **Click the bubble** to bring the time back to the island. The artwork moves into the bubble. Click again for the music.
 - Your choice holds until the music ends. A new song swells the bubble a little.
-- With two players at once, they share the island and the bubble, and the time waits. Click the bubble to swap them.
+- With two players at once, the second one sits in the bubble. Click the bubble to swap them.
 
 ## The panel
 
@@ -27,5 +27,5 @@ Paused music stays a minute, then the time comes back. Play it again and it retu
 
 - A browser shows one player, the tab that played last, often without artwork.
 - Some players don't let other apps move through the song. The bar then stays put.
-- An app that closes takes its music with it. Spotify's close button may only hide it near the clock, so it keeps playing there.
+- An app that closes takes its music with it. Some players, Spotify among them, can keep running after you close their window.
 - The title, the artist and the artwork stay on your PC.
