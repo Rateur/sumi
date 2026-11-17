@@ -4,6 +4,10 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-17
+
+The island gets out of the way of games, videos and slideshows.
+
 ### Added
 
 - The island slides up out of the way while a game, a video or a slideshow fills the main screen, and drops back when it ends. It never takes focus.
@@ -11,6 +15,11 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 ### Known limits
 
 - F11 and fullscreen video in a browser take up to a second to hide the island.
+- A game in exclusive fullscreen hides the island whichever screen it's on, because Windows reports it for the whole PC.
+- With touch or a pen, it takes two taps to open the island: the first one reaches the app underneath.
+- While an elevated app such as Task Manager has focus, Esc and clicks don't close the panel. Switching apps does.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- Windows still warns about an unknown publisher, because the installer isn't signed yet.
 
 ## [0.2.0] - 2026-11-17
 
@@ -48,6 +57,7 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Rateur/sumi/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Rateur/sumi/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Rateur/sumi/releases/tag/v0.1.0
