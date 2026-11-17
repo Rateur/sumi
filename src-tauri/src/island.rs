@@ -5,6 +5,12 @@ use std::time::Duration;
 use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow};
 
+use crate::fullscreen::{self, Presence};
+
+/// Poll ticks between the island starting to slide up and its window hiding. The content leaves, then the
+/// island slides up (`FULLSCREEN` in src/lib/motion.ts): about 550 ms in all.
+const HIDE_AFTER: u32 = 20;
+
 /// Bounds in CSS pixels, relative to the window: the island, and the bubble when there is one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
 pub struct Rect {
@@ -145,8 +151,8 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Lets clicks and drags through everywhere except over the island, tells the frontend when the cursor
-/// enters it, with the hover time to wait, or leaves it, and when the open panel should close, and keeps
-/// the window in place when the resolution, the scale or the taskbar changes.
+/// enters it, with the hover time to wait, or leaves it, and when the open panel should close, keeps the window
+/// in place when the resolution, the scale or the taskbar changes, and hides it while something is fullscreen.
 // shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
 // first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
 // on the press itself: switch when touch matters or profiling shows a cost.
@@ -155,11 +161,48 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
         let mut over = None;
         let mut before = None;
         let mut tick: u32 = 0;
+        let mut trigger = None;
+        let mut presence = Presence::Shown;
+        // Going, the island slides up off the screen and then the window hides. Coming back, the window
+        // shows first and then the island drops down.
+        let mut hide_at = None;
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
-            if tick.is_multiple_of(30) {
+            if hide_at == Some(tick) {
+                hide_at = None;
+                let _ = fullscreen::set_visible(&window, false);
+            }
+            let second = tick.is_multiple_of(30);
+            if second {
                 let _ = place(&window);
+            }
+            // F11 and in-page fullscreen keep the same window in front: the once-a-second check catches them.
+            if fullscreen::switched() || second {
+                let (next, now) = fullscreen::check(&window, trigger);
+                trigger = next;
+                if now != presence {
+                    let hides = now == Presence::Hidden;
+                    if hides != (presence == Presence::Hidden) {
+                        app.state::<IslandExpanded>()
+                            .0
+                            .store(false, Ordering::Relaxed);
+                        over = None;
+                        if hides {
+                            // The app gets every click from now on, even one where the island was.
+                            let _ = window.set_ignore_cursor_events(true);
+                            hide_at = Some(tick.wrapping_add(HIDE_AFTER));
+                        } else if hide_at.take().is_none() {
+                            // Back after the window hid, rather than before.
+                            let _ = fullscreen::set_visible(&window, true);
+                        }
+                    }
+                    let _ = app.emit("island://presence", now);
+                    presence = now;
+                }
+            }
+            if presence == Presence::Hidden {
+                continue;
             }
             let (Ok(cursor), Ok(origin), Ok(scale)) = (
                 app.cursor_position(),

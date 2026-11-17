@@ -5,7 +5,7 @@
   import { prefersReducedMotion } from 'svelte/motion'
   import { MediaQuery } from 'svelte/reactivity'
   import { innerHeight, innerWidth } from 'svelte/reactivity/window'
-  import { arrange, type Activity, type Arrangement } from './lib/activities'
+  import { arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
   import {
     formatCountdown,
     formatLongDate,
@@ -41,7 +41,8 @@
   let hovered = $state(false)
   let expanded = $state(false)
   let peeking = $state<string>()
-  let hidden = false
+  let hidden = $state(false)
+  let presence: Presence = 'shown'
   let revealed = $state(true)
   let now = $state(new Date())
   // Windows' default. Rust sends the user's own each time the cursor arrives.
@@ -395,6 +396,7 @@
   }
 
   function open() {
+    if (hidden) return
     pressed = false
     expanded = true
   }
@@ -405,6 +407,17 @@
     if (on === hidden) return
     hidden = on
     revealed = !on && reduced
+    if (on) {
+      // It comes back compact: no panel, no hover, no press, no peek.
+      clearTimeout(hoverTimer)
+      clearTimeout(peekTimer)
+      press(false)
+      pointer = false
+      rest = undefined
+      expanded = false
+      hovered = false
+      peeking = undefined
+    }
     const t = performance.now()
     const off = -(TOP + height.target + 24)
     if (reduced) drop.jump(on ? off : 0)
@@ -463,7 +476,10 @@
         point(payload !== null)
       }),
       listen('island://dismiss', () => (expanded = false)),
-      listen<boolean>('island://fullscreen', ({ payload }) => fullscreen(payload)),
+      listen<Presence>('island://presence', ({ payload }) => {
+        presence = payload
+        fullscreen(payload === 'hidden')
+      }),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
@@ -474,6 +490,8 @@
 
   let peekTimer: ReturnType<typeof setTimeout>
   function peek(id: string) {
+    // The activity has already changed in place: only the peek is skipped.
+    if (!peeks(activities.find((a) => a.id === id), presence)) return
     peeking = id
     clearTimeout(peekTimer)
     peekTimer = setTimeout(() => (peeking = undefined), 3000)
@@ -608,7 +626,7 @@
     {#if parts.music}
       <span
         class="equalizer"
-        class:still={reduced}
+        class:still={reduced || hidden}
         bind:this={eq}
         style:color={parts.music.color}
         in:enter={{ step: 1 }}

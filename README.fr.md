@@ -16,7 +16,7 @@
 Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, puis change quand il se passe quelque chose : une chanson démarre, une app allume votre micro, un minuteur se termine. Un clic dessus affiche les commandes.
 
 > [!NOTE]
-> Sumi est en début de développement. La version 0.2.0 affiche l'heure, ajoute la date quand le curseur se pose dessus et s'ouvre en panneau au clic ; les images ci-dessus sont des maquettes de la suite. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
+> Sumi est en début de développement. La version 0.3.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic et se masque quand un jeu ou une vidéo est en plein écran ; les images ci-dessus sont des maquettes de la suite. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
 
 ## Télécharger
 
@@ -30,7 +30,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 
 - [x] L'île en haut de l'écran, avec l'heure (0.1.0)
 - [x] Les animations à ressort : posez le curseur sur l'île et elle s'élargit, cliquez et elle s'ouvre (0.2.0)
-- [ ] Elle se masque quand un jeu ou une vidéo est en plein écran
+- [x] Elle se masque quand un jeu ou une vidéo est en plein écran (0.3.0)
 - [ ] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, lecture/pause, progression
 - [ ] Un point orange ou vert quand une app utilise le micro ou la caméra
 - [ ] Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche
@@ -56,7 +56,7 @@ Sumi ne collecte rien. Les fonctions qui ont besoin du réseau resteront désact
 
 ## Contribuer
 
-Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](.github/CONTRIBUTING.md) avant d'ouvrir une pull request, et [docs/design.md](docs/design.md) pour le comportement de l'île (en anglais). Idées et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
+Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](.github/CONTRIBUTING.md) avant d'ouvrir une pull request, et [docs/design.md](docs/design.md) pour le comportement de l'île (en anglais). Questions et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## Licence
 
