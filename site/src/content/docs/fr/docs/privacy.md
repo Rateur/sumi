@@ -3,7 +3,7 @@ title: Confidentialité
 description: Sumi ne collecte rien.
 ---
 
-Sumi n'a ni compte, ni télémétrie, ni statistiques d'usage. La version 0.3.0 n'utilise pas du tout le réseau.
+Sumi n'a ni compte, ni télémétrie, ni statistiques d'usage. La version 0.4.0 n'utilise pas du tout le réseau. La musique qu'elle affiche, titre, artiste et pochette, vient de Windows et reste sur votre PC.
 
 Les fonctions qui en auront besoin resteront désactivées tant que vous ne les activez pas :
 

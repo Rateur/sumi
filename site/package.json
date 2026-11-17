@@ -3,8 +3,10 @@
   "type": "module",
   "version": "0.0.0",
   "scripts": {
+    "predev": "npm --prefix .. run showcase",
     "dev": "astro dev",
     "start": "astro dev",
+    "prebuild": "npm --prefix .. run showcase",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"

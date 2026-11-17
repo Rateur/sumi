@@ -22,11 +22,16 @@ const playing = (id: string, title: string, artist: string): Player => ({
   rate: 1,
 })
 
+// The site's examples bring their own song: `?title=…&artist=…&art=…&color=…`.
+const params = new URLSearchParams(location.search)
+const own = Object.fromEntries(['title', 'artist', 'art', 'color'].flatMap((k) => (params.has(k) ? [[k, params.get(k)]] : [])))
+const song = { ...SONGS[0], ...own }
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000 }),
   done: () => ({ id: 'done', kind: 'timer', endsAt: Date.now() + 3000 }),
-  music: () => ({ id: 'music', kind: 'music', ...SONGS[0], player: playing('music', SONGS[0].title, SONGS[0].artist) }),
+  music: () => ({ id: 'music', kind: 'music', ...song, player: playing('music', song.title, song.artist) }),
   video: () => ({
     id: 'video',
     kind: 'music',
@@ -88,6 +93,12 @@ export function demo(island: {
     fullscreen: island.fullscreen,
   }
   addEventListener('keydown', ({ key }) => actions[KEYS[key]]?.())
+  // `?show=music&show=video` starts in those states. A page that frames the island drives it by name, and hears
+  // when it can.
+  const run = (name: unknown) => typeof name === 'string' && Object.hasOwn(actions, name) && actions[name]()
+  params.getAll('show').forEach(run)
+  addEventListener('message', ({ origin, data }) => origin === location.origin && run(data))
+  if (parent !== window) parent.postMessage('sumi:ready', location.origin)
   Object.assign(window, {
     __sumiDemo: { transitions: Object.keys(actions), trigger: (name: string) => actions[name]() },
   })

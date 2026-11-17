@@ -11,18 +11,18 @@
   <p><a href="README.md">English</a> · <b>Français</b></p>
 </div>
 
-![L'île pendant la musique, le panneau musique et la barre de commande](.github/assets/hero.png)
+![Le panneau musique en haut de l'écran, avec l'heure dans la bulle à côté](.github/assets/hero.webp)
 
 Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, puis change quand il se passe quelque chose : une chanson démarre, une app allume votre micro, un minuteur se termine. Un clic dessus affiche les commandes.
 
 > [!NOTE]
-> Sumi est en début de développement. La version 0.3.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic et se masque quand un jeu ou une vidéo est en plein écran ; les images ci-dessus sont des maquettes de la suite. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
+> Sumi est en début de développement. La version 0.4.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran et affiche votre musique avec ses commandes. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
 
 ## Télécharger
 
 [**Télécharger Sumi pour Windows**](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe) (10 et 11, 64 bits), ou choisissez une version sur la [page des releases](https://github.com/Rateur/sumi/releases).
 
-L'installateur n'est pas encore signé, donc Windows signale un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Pour quitter Sumi, passez par son icône dans la zone de notification.
+L'installateur n'est pas encore signé. Votre navigateur peut le retenir comme peu téléchargé : conservez-le depuis sa liste de téléchargements. Windows signale ensuite un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Pour quitter Sumi, passez par son icône dans la zone de notification.
 
 ## Feuille de route
 
@@ -31,7 +31,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [x] L'île en haut de l'écran, avec l'heure (0.1.0)
 - [x] Les animations à ressort : posez le curseur sur l'île et elle s'élargit, cliquez et elle s'ouvre (0.2.0)
 - [x] Elle se masque quand un jeu ou une vidéo est en plein écran (0.3.0)
-- [ ] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, précédent, lecture/pause, suivant, progression
+- [x] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, précédent, lecture/pause, suivant, progression ; l'heure passe dans une bulle à côté (0.4.0)
 - [ ] Un point orange ou vert quand une app utilise le micro ou la caméra
 - [ ] Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche
 - [ ] Des minuteurs : tapez `25m`

@@ -3,8 +3,10 @@ import '@fontsource-variable/bricolage-grotesque/opsz.css';
 import { Image } from 'astro:assets';
 import pkg from '../../../package.json';
 import painting from '../assets/jinshan-band.webp';
+import cover from '../assets/cover.webp';
 import { home, type Lang } from '../i18n/home';
 import { motionVars } from '../../../src/lib/curves';
+import { BUBBLE, GAP } from '../../../src/lib/shapes';
 
 interface Props {
 	lang: Lang;
@@ -22,6 +24,9 @@ const q = encodeURIComponent(t.askValue);
 const mark =
 	'M292 330H732A80 80 0 0 1 732 490H566C540 490 522.5 525.3 553.1 551A64 64 0 1 1 470.9 551C501.5 525.3 484 490 458 490H292A80 80 0 0 1 292 330Z';
 const og = new URL(`${base}og.png`, Astro.site).href;
+// The app's own island, built by `npm run showcase`, with a made-up song. The tint is what the app reads from the cover.
+const song = new URLSearchParams({ title: 'West Lake', artist: 'Ink & Gold', art: cover.src, color: '#c6ab95' });
+const island = `${base}island/index.html`;
 ---
 
 <!doctype html>
@@ -185,33 +190,31 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				<h2 id="roadmap-title" class="h2" data-reveal>{t.roadmapTitle}</h2>
 				<ol class="rm">
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 132px; --w1: 236px"><span class="rm-more rm-dim" data-date></span><span data-time>00:00</span></span>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[0].title}</strong><span>{t.roadmap[0].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[0].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill rm-peek" data-ui aria-hidden="true" style="--w0: 132px; --w1: 300px">
-							<span class="rm-art"></span><span class="rm-more"><b>Tank!</b> <span class="rm-dim">Seatbelts</span></span><span class="rm-swap" data-time>00:00</span>
-						</span>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-hover="hover" data-click="expand" data-opens="panel" title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[1].title}</strong><span>{t.roadmap[1].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[1].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-screen" data-ui aria-hidden="true"><span class="rm-pill rm-hide" style="--w0: 132px"><span data-time>00:00</span></span></span>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-hover="fullscreen" title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[2].title}</strong><span>{t.roadmap[2].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[2].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill rm-music" data-ui aria-hidden="true" style="--w0: 200px; --w1: 300px">
-							<span class="rm-art"></span><span class="rm-more"><b>Tank!</b> <span class="rm-dim">Seatbelts</span></span><span class="rm-eq"><i></i><i></i><i></i><i></i></span>
+						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(GAP + BUBBLE) / 2}px`}>
+							<iframe src={`${island}?${song}`} data-start="music" data-hover="expand" data-opens="player" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[3].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 150px; --w1: 240px"><span data-time>00:00</span><span class="rm-dots"><i></i><i></i></span><span class="rm-more rm-dim">Discord</span></span>
 						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
-						<span class="rm-tag">{t.roadmap[4].tag}</span>
+						<span class="rm-tag rm-next">{t.roadmap[4].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-ask" data-ui aria-hidden="true" style="--w0: 210px; --w1: 320px">
@@ -313,6 +316,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				fit();
 			};
 			toggle.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
+			bar.addEventListener('click', (e) => {
+				if (!nav.classList.contains('compact') || (e.target as Element).closest('.nav-download')) return;
+				e.preventDefault();
+				setOpen(true);
+			});
 			const closeAnswer = () => {
 			nav.classList.remove('answering');
 			scrim.hidden = !nav.classList.contains('open');
@@ -372,9 +380,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			const tick = () => {
 				const now = new Date();
 				const time = now.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
-				const date = now.toLocaleDateString(lang, { weekday: 'short', day: 'numeric', month: 'short' });
 				document.querySelectorAll('[data-time]').forEach((el) => (el.textContent = time));
-				document.querySelectorAll('[data-date]').forEach((el) => (el.textContent = date));
 				setTimeout(tick, 60_000 - (now.getSeconds() * 1000 + now.getMilliseconds()));
 			};
 			tick();
@@ -405,7 +411,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 					left -= 1;
 					show((current + 1) % states.length);
 					play();
-				}, 3200);
+				}, 2200);
 			};
 			setTimeout(() => {
 				show(0);
@@ -424,6 +430,50 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				el.addEventListener('pointerleave', () => {
 					held = false;
 					play();
+				});
+			});
+
+			// The roadmap's lines already out run the app's own island. Each starts once in view, and hovering the line,
+			// or tapping it on a touch screen, plays what that version brought.
+			document.querySelectorAll<HTMLIFrameElement>('.rm-live iframe').forEach((frame) => {
+				const row = frame.closest<HTMLElement>('.rm-row')!;
+				const say = (name?: string) => name && frame.contentWindow?.postMessage(name, location.origin);
+				const list = (key: string) => frame.dataset[key]?.split(' ').filter(Boolean) ?? [];
+				let [ready, seen, started, on, opened] = [false, false, false, false, false];
+				const start = () => {
+					if (!ready || !seen || started) return;
+					started = true;
+					list('start').forEach(say);
+				};
+				addEventListener('message', (e) => {
+					if (e.source !== frame.contentWindow || e.data !== 'sumi:ready') return;
+					ready = true;
+					start();
+				});
+				new IntersectionObserver(([e]) => {
+					if (!e.isIntersecting) return;
+					seen = true;
+					start();
+				}, { threshold: 0.6 }).observe(row);
+				const mark = (open: boolean) => {
+					if (open && frame.dataset.opens) row.dataset.open = frame.dataset.opens;
+					else delete row.dataset.open;
+				};
+				const hover = (next: boolean) => {
+					if (!started || next === on) return;
+					if (!next && opened) say(frame.dataset.click);
+					[on, opened] = [next, false];
+					list('hover').forEach(say);
+					mark(next && !frame.dataset.click);
+				};
+				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
+				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
+				row.addEventListener('click', (e) => {
+					if (e.pointerType !== 'mouse') return hover(!on);
+					if (!on || !frame.dataset.click) return;
+					opened = !opened;
+					say(frame.dataset.click);
+					mark(opened);
 				});
 			});
 
@@ -1414,7 +1464,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	}
 	.rm-row {
 		display: grid;
-		grid-template-columns: 340px minmax(0, 1fr) auto;
+		grid-template-columns: 360px minmax(0, 1fr) auto;
 		gap: 32px;
 		align-items: center;
 		min-height: 88px;
@@ -1493,61 +1543,43 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		color: #a1a1aa;
 		font-weight: 500;
 	}
-	.rm-art {
-		flex: none;
-		width: 24px;
-		height: 24px;
-		border-radius: 7px;
-		background: #3b2a55;
+	/* The real island, from the app's own code: its frame is the top of a screen, and its panels drop over the
+	   lines below as they would over windows. The frame lets the cursor through, so the line under it stays hovered. */
+	.rm-pill,
+	.rm-live {
+		justify-self: center;
 	}
-	.rm-peek .rm-art {
-		width: 0;
-		transition: width var(--unpeek-w);
+	.rm-live {
+		position: relative;
+		width: 100%;
+		height: 52px;
 	}
-	.rm-row:hover .rm-peek .rm-art {
-		width: 30px;
-		height: 30px;
-		transition:
-			width var(--peek-w),
-			height var(--peek-h);
+	.rm-live iframe {
+		position: absolute;
+		top: 1px;
+		left: 50%;
+		z-index: 2;
+		width: min(480px, 100vw);
+		height: 220px;
+		border: 0;
+		translate: -50% 0;
+		color-scheme: normal;
+		pointer-events: none;
 	}
-	.rm-row:hover .rm-swap {
-		display: none;
+	/* The island and its bubble are centered together, as the eye reads them. */
+	.rm-live.split iframe {
+		left: calc(50% - var(--split));
 	}
-	/* Fullscreen: the top of the box is the top of the screen, and the island slides up through it as in the app. */
-	.rm-screen {
-		display: flex;
-		align-items: center;
-		height: 44px;
-		overflow: clip;
+	.rm-row:has(.rm-live):hover {
+		position: relative;
+		z-index: 3;
 	}
-	.rm-hide {
-		transition: translate var(--show);
+	/* An open panel pushes the lines below down, with the island's own spring, instead of covering them. */
+	.rm > .rm-row[data-open='panel'] ~ .rm-row {
+		translate: 0 64px;
 	}
-	.rm-row:hover .rm-hide {
-		width: var(--w0);
-		height: 34px;
-		border-radius: 17px;
-		translate: 0 -40px;
-		transition: translate var(--hide) var(--hide-delay);
-	}
-	.rm-music {
-		justify-content: space-between;
-		padding-left: 6px;
-	}
-	.rm-eq {
-		display: flex;
-		align-items: center;
-		gap: 2.5px;
-		height: 15px;
-	}
-	.rm-eq i {
-		display: block;
-		width: 3px;
-		height: 100%;
-		border-radius: 2px;
-		background: var(--accent);
-		scale: 1 0.5;
+	.rm > .rm-row[data-open='player'] ~ .rm-row {
+		translate: 0 108px;
 	}
 	.rm-dots {
 		display: flex;
@@ -1875,8 +1907,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			gap: 16px;
 			padding: 20px 16px;
 		}
+		.rm-live.split iframe {
+			left: 50%;
+		}
 		.rm-pill,
-		.rm-screen {
+		.rm-live {
 			grid-column: 1 / -1;
 			max-width: 100%;
 		}

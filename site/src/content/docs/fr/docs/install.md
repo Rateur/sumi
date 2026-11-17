@@ -5,7 +5,7 @@ description: Télécharger et installer Sumi sur Windows 10 ou 11.
 
 Sumi fonctionne sur Windows 10 et 11, 64 bits.
 
-1. Téléchargez [Sumi-setup.exe](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe).
+1. Téléchargez [Sumi-setup.exe](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe). Si votre navigateur le retient comme peu téléchargé, ouvrez sa liste de téléchargements et choisissez **Conserver**, ou **Autoriser le téléchargement** dans Firefox.
 2. Lancez-le. Windows signale un éditeur inconnu : sélectionnez **Informations complémentaires**, puis **Exécuter quand même**.
 3. Ouvrez Sumi depuis le menu Démarrer. L'île apparaît en haut de votre écran principal.
 
