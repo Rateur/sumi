@@ -31,7 +31,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [x] L'île en haut de l'écran, avec l'heure (0.1.0)
 - [x] Les animations à ressort : posez le curseur sur l'île et elle s'élargit, cliquez et elle s'ouvre (0.2.0)
 - [x] Elle se masque quand un jeu ou une vidéo est en plein écran (0.3.0)
-- [ ] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, lecture/pause, progression
+- [ ] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, précédent, lecture/pause, suivant, progression
 - [ ] Un point orange ou vert quand une app utilise le micro ou la caméra
 - [ ] Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche
 - [ ] Des minuteurs : tapez `25m`

@@ -681,8 +681,17 @@
     <span class="dots">{@render dots(activity)}</span>
   {:else if activity.kind === 'timer'}
     <span class="countdown">{@render digits(formatCountdown(activity.endsAt - now.getTime(), true))}</span>
+  {:else if activity.art}
+    <span class="art" style:background={activity.color}><img src={activity.art} alt="" /></span>
   {:else}
-    <span class="art" style:background={activity.color}></span>
+    <!-- A player without artwork, such as a browser, shows its equalizer. -->
+    <span
+      class="equalizer"
+      class:still={reduced || hidden || activity.player?.playing === false}
+      style:color={activity.color}
+    >
+      <span></span><span></span><span></span><span></span>
+    </span>
   {/if}
 {/snippet}
 
