@@ -37,7 +37,7 @@ export default defineConfig({
 				{
 					label: 'Start here',
 					translations: { fr: 'Pour commencer' },
-					items: ['docs/install', 'docs/privacy'],
+					items: ['docs/install', 'docs/privacy', 'docs/code-signing'],
 				},
 				{
 					label: 'Features',

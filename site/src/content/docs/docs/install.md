@@ -10,7 +10,7 @@ Sumi runs on Windows 10 and 11, 64-bit.
 3. Open Sumi from the Start menu. The island appears at the top of your main screen.
 
 :::note[Why the warning?]
-The installer isn't signed yet. Signing is free for open-source projects and comes before 1.0.
+The installer isn't signed yet. Sumi has applied for free signing from SignPath Foundation: see the [code signing policy](../code-signing/).
 :::
 
 ## Quit
