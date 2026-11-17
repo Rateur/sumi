@@ -2,10 +2,14 @@
 import LanguageSelect from '@astrojs/starlight/components/LanguageSelect.astro';
 import Search from '@astrojs/starlight/components/Search.astro';
 import SiteTitle from '@astrojs/starlight/components/SiteTitle.astro';
+import { PRESS } from '../../../../src/lib/motion';
+import { spring } from '../../../../src/lib/curves';
 
 const { lang } = Astro.locals.starlightRoute;
 const download = lang === 'fr' ? 'Télécharger' : 'Download';
 ---
+
+<style is:inline set:html={`:root{--release:${spring(PRESS.up)}}`} />
 
 <div class="island-header">
 	<div class="island">
@@ -17,6 +21,17 @@ const download = lang === 'fr' ? 'Télécharger' : 'Download';
 		</div>
 	</div>
 </div>
+
+<script>
+	// A language picked here wins on the home page too, as one picked there does.
+	document.querySelectorAll<HTMLSelectElement>('starlight-lang-select select').forEach((select) =>
+		select.addEventListener('change', () => {
+			try {
+				localStorage.setItem('sumi-lang', select.value.includes('/fr/') ? 'fr' : 'en');
+			} catch {}
+		}),
+	);
+</script>
 
 <style>
 	.island-header {

@@ -4,6 +4,7 @@ import { Image } from 'astro:assets';
 import pkg from '../../../package.json';
 import painting from '../assets/jinshan-band.webp';
 import { home, type Lang } from '../i18n/home';
+import { motionVars } from '../../../src/lib/curves';
 
 interface Props {
 	lang: Lang;
@@ -37,12 +38,15 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		<meta property="og:description" content={t.description} />
 		<meta property="og:image" content={og} />
 		<meta name="twitter:card" content="summary_large_image" />
+		<style is:inline set:html={`:root{${motionVars()}}`} />
 		{
 			lang === 'en' && (
 				<script is:inline>
-					// First visit only: a French browser gets the French page. A language picked by hand wins.
+					// A French browser arriving from elsewhere gets the French page; one coming from the docs stays put. A language picked by hand wins.
 					try {
-						if (!localStorage.getItem('sumi-lang') && /^fr\b/i.test(navigator.language)) location.replace('fr/');
+						const fromSite = document.referrer.startsWith(location.origin + location.pathname);
+						const picked = localStorage.getItem('sumi-lang');
+						if (!fromSite && (picked ? picked === 'fr' : /^fr\b/i.test(navigator.language))) location.replace('fr/');
 					} catch {}
 				</script>
 			)
@@ -102,26 +106,25 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 
 		<main>
 			<section class="hero" aria-label="Sumi">
-				<div class="hero-stage">
-					<h1 class="sentence">
-						<span class="half half-a">{t.h1a}</span>
-						<span class="isle" data-ui data-state="dot" aria-hidden="true">
-							<span class="layer layer-time" data-time>00:00</span>
-							<span class="layer layer-music">
-								<span class="art"></span>
-								<span class="track">Tank!</span>
-								<span class="eq"><i></i><i></i><i></i><i></i></span>
-							</span>
-							<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+				<h1 class="sentence">
+					<span class="half half-a">{t.h1a}</span>
+					<span class="isle" data-ui data-state="dot" aria-hidden="true">
+						<span class="layer layer-time" data-time>00:00</span>
+						<span class="layer layer-music">
+							<span class="art"></span>
+							<span class="track">Tank!</span>
+							<span class="eq"><i></i><i></i><i></i><i></i></span>
 						</span>
-						<span class="half half-b">{t.h1b}</span>
-					</h1>
-					<p class="steps" aria-live="polite">
-						{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
-					</p>
-					<div class="band">
-						<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
-					</div>
+						<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+					</span>
+					<span class="half half-b">{t.h1b}</span>
+				</h1>
+				<p class="steps">
+					{t.steps.map((s, i) => <span class:list={['step', { on: i === 0 }]}>{s}</span>)}
+				</p>
+				<span class="cue" aria-hidden="true"></span>
+				<div class="band">
+					<Image src={painting} alt={t.paintingAlt} widths={[960, 1600, 2400]} sizes="100vw" loading="eager" />
 				</div>
 			</section>
 
@@ -135,12 +138,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 						<span class="ask-chip" aria-hidden="true">Claude</span>
 					</label>
 					<div class="ask-answer">
+						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
 						<a class="ask-row is-active" data-engine="claude" href={`https://claude.ai/new?q=${q}`} target="_blank" rel="noopener">
 							<span>{t.askClaude}</span><kbd>Enter</kbd>
 						</a>
 						<a class="ask-row" data-engine="chatgpt" href={`https://chatgpt.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askChatGPT}</span></a>
 						<a class="ask-row" data-engine="web" href={`https://duckduckgo.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askWeb}</span></a>
-						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
 					</div>
 				</div>
 				<p class="examples" data-reveal style="--d: 3">
@@ -172,7 +175,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 						<div class="frag frag-file" data-ui aria-hidden="true">
 							<span class="file-icon"><svg width="34" height="34" viewBox="192 192 640 640"><path transform="translate(0 15)" fill="#F4F1EA" d={mark}></path></svg></span>
 							<span class="file-name">Sumi-setup.exe</span>
-							<span class="file-size">1.1 MB</span>
+							<span class="file-size">{t.fileSize}</span>
 						</div>
 					</article>
 				</div>
@@ -191,48 +194,53 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 							<span class="rm-art"></span><span class="rm-more"><b>Tank!</b> <span class="rm-dim">Seatbelts</span></span><span class="rm-swap" data-time>00:00</span>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[1].title}</strong><span>{t.roadmap[1].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[1].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[1].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-screen" data-ui aria-hidden="true"><span class="rm-pill rm-hide" style="--w0: 132px"><span data-time>00:00</span></span></span>
+						<span class="rm-copy"><strong>{t.roadmap[2].title}</strong><span>{t.roadmap[2].text}</span></span>
+						<span class="rm-tag rm-next">{t.roadmap[2].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-music" data-ui aria-hidden="true" style="--w0: 200px; --w1: 300px">
 							<span class="rm-art"></span><span class="rm-more"><b>Tank!</b> <span class="rm-dim">Seatbelts</span></span><span class="rm-eq"><i></i><i></i><i></i><i></i></span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[2].title}</strong><span>{t.roadmap[2].text}</span></span>
-						<span class="rm-tag">{t.roadmap[2].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
+						<span class="rm-tag">{t.roadmap[3].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 150px; --w1: 240px"><span data-time>00:00</span><span class="rm-dots"><i></i><i></i></span><span class="rm-more rm-dim">Discord</span></span>
-						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
-						<span class="rm-tag">{t.roadmap[3].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
+						<span class="rm-tag">{t.roadmap[4].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-ask" data-ui aria-hidden="true" style="--w0: 210px; --w1: 320px">
 							<svg width="13" height="13" viewBox="0 0 24 24"><path fill="#f472b6" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
 							<span class="rm-dim">{t.askLabel}…</span><span class="rm-more rm-chip">Claude</span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
-						<span class="rm-tag">{t.roadmap[4].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[5].title}</strong><span>{t.roadmap[5].text}</span></span>
+						<span class="rm-tag">{t.roadmap[5].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-timer" data-ui aria-hidden="true" style="--w0: 112px; --w1: 236px"><span>24:59</span><span class="rm-more">{t.timesUp}</span></span>
-						<span class="rm-copy"><strong>{t.roadmap[5].title}</strong><span>{t.roadmap[5].text}</span></span>
-						<span class="rm-tag">{t.roadmap[5].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[6].title}</strong><span>{t.roadmap[6].text}</span></span>
+						<span class="rm-tag">{t.roadmap[6].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 112px; --w1: 220px">
 							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"></path></svg>
 							<span>12°</span><span class="rm-more rm-dim">{t.sunny}</span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[6].title}</strong><span>{t.roadmap[6].text}</span></span>
-						<span class="rm-tag">{t.roadmap[6].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
+						<span class="rm-tag">{t.roadmap[7].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-battery" data-ui aria-hidden="true" style="--w0: 120px; --w1: 236px">
 							<span class="rm-more">{t.charging}</span><span>64%</span>
 							<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2.5"></rect><path d="M22 11v2"></path><path d="M12 8.5l-3 4h4l-2 3"></path></svg>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
-						<span class="rm-tag">{t.roadmap[7].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[8].title}</strong><span>{t.roadmap[8].text}</span></span>
+						<span class="rm-tag">{t.roadmap[8].tag}</span>
 					</li>
 				</ol>
 			</section>
@@ -328,12 +336,13 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			document.fonts.ready.then(fit);
 			fit();
 
-			// Compact while scrolling down, like the app at rest.
+			// Compact while scrolling down, like the app at rest. A touchpad's few pixels back and forth don't count.
 			let lastY = scrollY;
 			addEventListener(
 				'scroll',
 				() => {
-					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && scrollY > 160 && scrollY > lastY;
+					if (scrollY > 160 && Math.abs(scrollY - lastY) < 24) return;
+					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && !nav.querySelector(':focus-visible') && scrollY > 160 && scrollY > lastY;
 					if (compact !== nav.classList.contains('compact')) {
 						nav.classList.toggle('compact', compact);
 						fit();
@@ -342,6 +351,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				},
 				{ passive: true },
 			);
+			// Compact hides the menu button; keyboard focus brings it back and keeps it while it stays.
+			nav.addEventListener('focusin', (e) => {
+				if (!nav.classList.contains('compact') || !(e.target as Element).matches(':focus-visible')) return;
+				nav.classList.remove('compact');
+				fit();
+			});
 
 			// A language picked by hand wins over the browser's next time.
 			document.querySelectorAll<HTMLAnchorElement>('[data-lang]').forEach((a) =>
@@ -364,40 +379,61 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			};
 			tick();
 
-			// The hero island: a dot that opens into the time, then follows the scroll through its states.
+			// The hero island: a dot that opens into the time, then plays through its states on its own.
 			const hero = document.querySelector<HTMLElement>('.hero')!;
 			const isle = hero.querySelector<HTMLElement>('.isle')!;
-			const steps = [...hero.querySelectorAll<HTMLElement>('.step')];
+			const stepsEl = hero.querySelector<HTMLElement>('.steps')!;
+			const steps = [...stepsEl.querySelectorAll<HTMLElement>('.step')];
 			const states = ['time', 'music', 'timer'];
 			let current = -1;
 			const show = (i: number) => {
-				if (i === current) return;
 				current = i;
+				isle.dataset.from = isle.dataset.state;
 				isle.dataset.state = states[i];
 				steps.forEach((s, j) => s.classList.toggle('on', j === i));
 			};
-			// Left alone, the island moves on by itself; scrolling takes over.
-			let idle = 0;
-			const autoplay = () => {
-				clearTimeout(idle);
-				if (reduce) return;
-				idle = window.setTimeout(() => {
-					if (hero.getBoundingClientRect().bottom > innerHeight * 0.5) show((current + 1) % states.length);
-					autoplay();
+			// WCAG 2.2.2: it plays two rounds and rests on the time, and holds still under the pointer, off screen
+			// and in a background tab, so it never keeps moving next to what someone is reading.
+			let left = reduce ? 0 : states.length * 2;
+			let seen = false;
+			let held = false;
+			let next = 0;
+			const play = () => {
+				clearTimeout(next);
+				if (current < 0 || !left || !seen || held || document.hidden) return;
+				next = window.setTimeout(() => {
+					left -= 1;
+					show((current + 1) % states.length);
+					play();
 				}, 3200);
 			};
 			setTimeout(() => {
 				show(0);
-				autoplay();
+				play();
 			}, reduce ? 0 : 450);
-			const onScroll = () => {
-				if (current < 0) return;
-				const r = hero.getBoundingClientRect();
-				const p = Math.min(0.999, Math.max(0, -r.top / (r.height - innerHeight)));
-				show(Math.floor(p * states.length));
-				autoplay();
+			new IntersectionObserver(([e]) => {
+				seen = e.isIntersecting;
+				play();
+			}, { threshold: 0.5 }).observe(hero);
+			document.addEventListener('visibilitychange', play);
+			[isle, stepsEl].forEach((el) => {
+				el.addEventListener('pointerenter', () => {
+					held = true;
+					play();
+				});
+				el.addEventListener('pointerleave', () => {
+					held = false;
+					play();
+				});
+			});
+
+			// The scroll cue leaves for good with the first real scroll.
+			const scrolled = () => {
+				if (scrollY < 16) return;
+				hero.classList.add('scrolled');
+				removeEventListener('scroll', scrolled);
 			};
-			addEventListener('scroll', () => requestAnimationFrame(onScroll), { passive: true });
+			addEventListener('scroll', scrolled, { passive: true });
 
 			// The command bar, working as it will in the app.
 			const input = document.querySelector<HTMLInputElement>('.ask-input')!;
@@ -424,7 +460,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			const update = () => {
 				const v = input.value.trim();
 				const seconds = parseTimer(v);
+				// The timer takes the top row and the last engine steps aside, so the bar keeps its height.
 				timerRow.hidden = !seconds;
+				rows[rows.length - 1].hidden = !!seconds;
 				if (seconds) timerRow.querySelector('span')!.textContent = (timerRow.dataset.template ?? '').replace('{t}', clock(seconds));
 				rows.forEach((row, i) => {
 					row.href = urls[row.dataset.engine!] + encodeURIComponent(v);
@@ -433,9 +471,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				timerRow.classList.toggle('is-active', !!seconds);
 			};
 			let countdown = 0;
+			let ending = 0;
 			const startTimer = (seconds: number) => {
 				clearInterval(countdown);
+				clearTimeout(ending);
 				let left = seconds;
+				nav.classList.remove('done');
 				nav.classList.add('timing');
 				timerEl.hidden = false;
 				timerValue.textContent = clock(left);
@@ -446,7 +487,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 					if (left <= 0) {
 						clearInterval(countdown);
 						nav.classList.add('done');
-						setTimeout(() => {
+						ending = window.setTimeout(() => {
 							nav.classList.remove('timing', 'done');
 							timerEl.hidden = true;
 							fit();
@@ -455,13 +496,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 				}, 1000);
 			};
 			const stopTimer = () => {
-			clearInterval(countdown);
-			nav.classList.remove('timing', 'done');
-			timerEl.hidden = true;
-			fit();
-		};
-		nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
-		timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
+				clearInterval(countdown);
+				clearTimeout(ending);
+				nav.classList.remove('timing', 'done');
+				timerEl.hidden = true;
+				fit();
+			};
+			nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
+			timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
 			input.addEventListener('input', update);
 			input.addEventListener('keydown', (e) => {
 				if (e.key !== 'Enter') return;
@@ -611,8 +653,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		--step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
 		--step-head: clamp(2.25rem, 1.3rem + 3.6vw, 4.5rem);
 		--step-display: clamp(2.75rem, 1rem + 5.6vw, 7.5rem);
-		/* A real spring (stiffness 150, damping 15): overshoots 8%, settles in 0.9s. */
-		--spring: linear(0, 0.037, 0.128, 0.244, 0.381, 0.513, 0.643, 0.755, 0.854, 0.93, 0.992, 1.034, 1.063, 1.079, 1.086, 1.085, 1.079, 1.07, 1.058, 1.047, 1.035, 1.025, 1.016, 1.009, 1.003, 0.998, 0.995, 0.994, 0.993, 0.993, 0.993, 0.994, 0.995, 0.996, 0.997, 0.997, 0.998, 0.999, 1, 1, 1);
+		/* The island's springs and content timings come from the app, in the head: see src/lib/curves.ts. */
 		--settle: cubic-bezier(0.22, 1, 0.36, 1);
 		color-scheme: light;
 	}
@@ -639,8 +680,9 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		outline-offset: 3px;
 		border-radius: 4px;
 	}
+	/* Content stops at 1360px and centres; backgrounds and the ink water still run edge to edge. */
 	.wrap {
-		padding-inline: var(--m);
+		padding-inline: max(var(--m), (100% - 1360px) / 2);
 	}
 	.h2 {
 		margin: 0;
@@ -673,24 +715,28 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		border-radius: 24px;
 		box-shadow: 0 12px 32px rgb(11 11 15 / 0.24);
 		transition:
-			width 0.45s var(--settle),
-			height 0.45s var(--settle),
-			border-radius 0.45s var(--settle),
-			scale 0.5s var(--spring);
+			width var(--close-w),
+			height var(--close-h),
+			border-radius var(--close-h),
+			scale var(--release);
 	}
 	.nav.open,
 	.nav.answering {
 		border-radius: 28px;
 		transition:
-			width 0.9s var(--spring),
-			height 0.9s var(--spring),
-			border-radius 0.9s var(--spring);
+			width var(--open-w),
+			height var(--open-h),
+			border-radius var(--open-h);
 	}
-	.nav.compact,
+	.nav.compact {
+		transition:
+			width var(--shrink-w),
+			scale var(--release);
+	}
 	.nav.timing {
 		transition:
-			width 0.9s var(--spring),
-			scale 0.5s var(--spring);
+			width var(--grow-w),
+			scale var(--release);
 	}
 	.nav:hover:not(.open) {
 		scale: 1.03;
@@ -721,13 +767,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		cursor: pointer;
 		transition:
 			background 0.2s,
-			scale 0.4s var(--spring);
+			scale var(--release);
 	}
 	.nav-timer-stop:hover {
 		background: rgb(251 191 36 / 0.3);
 	}
 	.nav-timer-stop:active {
 		scale: 0.9;
+		transition: scale var(--press);
 	}
 	.answer {
 		display: none;
@@ -830,10 +877,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		color: #fff;
 	}
 	.nav-toggle svg {
-		transition: rotate 0.6s var(--spring);
+		transition: rotate var(--close-w);
 	}
 	.nav.open .nav-toggle svg {
 		rotate: 180deg;
+		transition: rotate var(--open-w);
 	}
 	.nav.compact .nav-toggle {
 		display: none;
@@ -849,10 +897,11 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-weight: 600;
 		font-size: 15px;
 		text-decoration: none;
-		transition: scale 0.4s var(--spring);
+		transition: scale var(--release);
 	}
 	.nav-download:active {
-		scale: 0.96;
+		scale: var(--press-scale);
+		transition: scale var(--press);
 	}
 	.menu {
 		display: none;
@@ -903,17 +952,13 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-size: 14px;
 	}
 
-	/* Hero: the island takes the place of a word and lives through three states as the page scrolls. */
+	/* Hero: the island takes the place of a word and plays through three states. One screen, no pinning. */
 	.hero {
-		height: 270svh;
-	}
-	.hero-stage {
-		position: sticky;
-		top: 0;
-		height: 100svh;
+		min-height: 100svh;
 		display: flex;
 		flex-direction: column;
 		padding: 96px var(--m) 0;
+		container-type: inline-size;
 	}
 	.sentence {
 		display: flex;
@@ -951,7 +996,12 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		background: #000;
 		color: #fff;
 		letter-spacing: 0;
-		transition: width 0.9s var(--spring);
+		transition: width var(--grow-w);
+	}
+	/* Music is the widest state and the timer is wider than the time: those steps down shrink, without a bounce. */
+	.isle[data-from='music'],
+	.isle[data-from='timer'][data-state='time'] {
+		transition: width var(--shrink-w);
 	}
 	.isle[data-state='time'] {
 		width: 2.15em;
@@ -1053,6 +1103,35 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	}
 	.step.on {
 		display: block;
+	}
+	/* Scroll cue: a hairline above the painting that ink runs down twice, under 5 s. Gone at the first scroll. */
+	.cue {
+		position: relative;
+		align-self: center;
+		width: 1px;
+		height: 48px;
+		margin-bottom: 24px;
+		overflow: hidden;
+		transition:
+			opacity 0.25s,
+			visibility 0s 0.25s;
+	}
+	.cue::before,
+	.cue::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: var(--ink);
+	}
+	.cue::before {
+		opacity: 0.4;
+	}
+	.cue::after {
+		translate: 0 -100%;
+	}
+	.hero.scrolled .cue {
+		opacity: 0;
+		visibility: hidden;
 	}
 
 	/* The command bar, at headline size. */
@@ -1164,13 +1243,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		cursor: pointer;
 		transition:
 			background 0.2s,
-			scale 0.4s var(--spring);
+			scale var(--release);
 	}
 	.example:hover {
 		background: #e2dccd;
 	}
 	.example:active {
-		scale: 0.96;
+		scale: var(--press-scale);
+		transition: scale var(--press);
 	}
 
 	/* Quiet: statements on one axis, each with its proof at the right margin. */
@@ -1371,34 +1451,43 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 		transition:
-			width 0.45s var(--settle),
-			height 0.45s var(--settle),
-			border-radius 0.45s var(--settle);
+			width var(--unpeek-w),
+			height var(--unpeek-h),
+			border-radius var(--unpeek-h);
 	}
 	.rm-row:hover .rm-pill {
 		width: var(--w1);
 		height: 44px;
 		border-radius: 22px;
 		transition:
-			width 0.9s var(--spring),
-			height 0.9s var(--spring),
-			border-radius 0.9s var(--spring);
+			width var(--peek-w),
+			height var(--peek-h),
+			border-radius var(--peek-h);
 	}
+	/* Comes in from a blur and leaves with a plain fade, as in the app. The blur returns once it's gone. */
 	.rm-more {
 		display: inline-block;
 		max-width: 0;
 		opacity: 0;
+		scale: var(--enter-scale);
+		filter: blur(var(--enter-blur));
 		overflow: hidden;
 		transition:
-			max-width 0.45s var(--settle),
-			opacity 0.2s;
+			max-width var(--unpeek-w),
+			opacity var(--exit),
+			scale 0s var(--exit-time),
+			filter 0s var(--exit-time);
 	}
 	.rm-row:hover .rm-more {
 		max-width: 220px;
 		opacity: 1;
+		scale: 1;
+		filter: none;
 		transition:
-			max-width 0.9s var(--spring),
-			opacity 0.4s var(--settle) 0.12s;
+			max-width var(--peek-w),
+			opacity var(--enter) var(--enter-delay),
+			scale var(--enter) var(--enter-delay),
+			filter var(--enter) var(--enter-delay);
 	}
 	.rm-dim {
 		color: #a1a1aa;
@@ -1413,15 +1502,34 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 	}
 	.rm-peek .rm-art {
 		width: 0;
-		transition: width 0.45s var(--settle);
+		transition: width var(--unpeek-w);
 	}
 	.rm-row:hover .rm-peek .rm-art {
 		width: 30px;
 		height: 30px;
-		transition: width 0.9s var(--spring), height 0.9s var(--spring);
+		transition:
+			width var(--peek-w),
+			height var(--peek-h);
 	}
 	.rm-row:hover .rm-swap {
 		display: none;
+	}
+	/* Fullscreen: the top of the box is the top of the screen, and the island slides up through it as in the app. */
+	.rm-screen {
+		display: flex;
+		align-items: center;
+		height: 44px;
+		overflow: clip;
+	}
+	.rm-hide {
+		transition: translate var(--show);
+	}
+	.rm-row:hover .rm-hide {
+		width: var(--w0);
+		height: 34px;
+		border-radius: 17px;
+		translate: 0 -40px;
+		transition: translate var(--hide) var(--hide-delay);
 	}
 	.rm-music {
 		justify-content: space-between;
@@ -1518,6 +1626,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		display: block;
 		width: 100%;
 		height: 100%;
+		/* What the text inverts against when there is no simulation: reduced motion, no WebGL 2. */
+		background: var(--paper);
 	}
 	.ink-body {
 		position: relative;
@@ -1574,13 +1684,14 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 		color: var(--ink);
 		font-weight: 600;
 		text-decoration: none;
-		transition: scale 0.5s var(--spring);
+		transition: scale var(--release);
 	}
 	.btn:hover {
 		scale: 1.03;
 	}
 	.btn:active {
 		scale: 0.97;
+		transition: scale var(--press);
 	}
 	.end-links {
 		justify-self: end;
@@ -1643,71 +1754,95 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			translate: 0 28px;
 			transition:
 				opacity 0.8s var(--settle) calc(var(--d, 0) * 80ms),
-				translate 1s var(--spring) calc(var(--d, 0) * 80ms);
+				translate var(--open-h) calc(var(--d, 0) * 80ms);
 		}
 		.js [data-reveal].in {
 			opacity: 1;
 			translate: 0 0;
 		}
+		/* Content in the islands comes and goes as in the app: in from a blur, one piece after another, out with a quick fade. */
 		.nav.closing .menu-cols a,
 		.nav.closing .menu-foot {
 			opacity: 0;
-			translate: 0 -6px;
-			filter: blur(4px);
+			scale: var(--exit-scale);
 			transition:
-				opacity 0.2s,
-				translate 0.2s,
-				filter 0.2s;
+				opacity var(--exit),
+				scale var(--exit);
 		}
 		@starting-style {
 			.nav.open .menu-cols a,
 			.nav.open .menu-foot {
 				opacity: 0;
-				translate: 0 -6px;
-				filter: blur(4px);
+				scale: var(--enter-scale);
+				filter: blur(var(--enter-blur));
 			}
 		}
 		.nav.open .menu-cols a,
 		.nav.open .menu-foot {
+			--after: calc(var(--enter-delay) + var(--i) * var(--enter-stagger));
 			transition:
-				opacity 0.45s var(--settle) calc(0.14s + var(--i) * 0.045s),
-				translate 0.6s var(--spring) calc(0.14s + var(--i) * 0.045s),
-				filter 0.45s var(--settle) calc(0.14s + var(--i) * 0.045s);
+				opacity var(--enter) var(--after),
+				scale var(--enter) var(--after),
+				filter var(--enter) var(--after);
 		}
 		.layer {
+			display: none;
 			opacity: 0;
-			scale: 0.9;
-			filter: blur(6px);
+			scale: var(--exit-scale);
 			transition:
-				opacity 0.25s,
-				scale 0.25s,
-				filter 0.25s,
-				visibility 0s 0.25s;
-		}
-		@starting-style {
-			.step.on {
-				opacity: 0;
-				translate: 0 0.5em;
-				filter: blur(6px);
-			}
+				opacity var(--exit),
+				scale var(--exit),
+				visibility var(--exit),
+				display var(--exit) allow-discrete;
 		}
 		.isle[data-state='time'] .layer-time,
 		.isle[data-state='music'] .layer-music,
-		.isle[data-state='timer'] .layer-timer,
-		.step.on {
+		.isle[data-state='timer'] .layer-timer {
+			display: flex;
 			opacity: 1;
 			scale: 1;
+			filter: none;
+			transition:
+				opacity var(--enter) var(--enter-delay),
+				scale var(--enter) var(--enter-delay),
+				filter var(--enter) var(--enter-delay);
+		}
+		@starting-style {
+			.isle[data-state='time'] .layer-time,
+			.isle[data-state='music'] .layer-music,
+			.isle[data-state='timer'] .layer-timer {
+				opacity: 0;
+				scale: var(--enter-scale);
+				filter: blur(var(--enter-blur));
+			}
+			.step.on {
+				opacity: 0;
+				translate: 0 0.5em;
+				filter: blur(var(--enter-blur));
+			}
+		}
+		.step.on {
+			opacity: 1;
 			translate: 0 0;
 			filter: none;
 			transition:
-				opacity 0.5s var(--settle) 0.18s,
-				scale 0.8s var(--spring) 0.18s,
-				translate 0.8s var(--spring) 0.18s,
-				filter 0.5s var(--settle) 0.18s,
-				visibility 0s;
+				opacity var(--enter) var(--enter-delay),
+				translate var(--enter) var(--enter-delay),
+				filter var(--enter) var(--enter-delay);
 		}
 		.band img {
 			animation: settle-in 2.4s var(--settle) both;
+		}
+		.cue::before {
+			animation: settle-in 0.5s var(--settle) 2.2s both;
+		}
+		.cue::after {
+			animation: drip 1.8s cubic-bezier(0.65, 0, 0.35, 1) 2.2s 2 both;
+		}
+		@keyframes drip {
+			to {
+				translate: 0 100%;
+			}
 		}
 		@keyframes settle-in {
 			from {
@@ -1722,7 +1857,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			flex-wrap: wrap;
 			justify-content: flex-start;
 			gap: 0.12em 0.22em;
-			font-size: 12.5vw;
+			/* Small enough that the island at its widest, music, still fits beside the first half. */
+			font-size: min(12.5vw, 100cqi / 7.6);
 		}
 		.half-b {
 			flex-basis: 100%;
@@ -1739,7 +1875,8 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			gap: 16px;
 			padding: 20px 16px;
 		}
-		.rm-pill {
+		.rm-pill,
+		.rm-screen {
 			grid-column: 1 / -1;
 			max-width: 100%;
 		}
@@ -1750,7 +1887,7 @@ const og = new URL(`${base}og.png`, Astro.site).href;
 			font-size: 30vw;
 		}
 		.quiet-row {
-			grid-template-columns: 1fr;
+			grid-template-columns: minmax(0, 1fr);
 			gap: 24px;
 		}
 		.frag {

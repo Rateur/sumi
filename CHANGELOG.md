@@ -2,6 +2,28 @@
 
 What changed in each release, in plain words. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org).
 
+## [Unreleased]
+
+## [0.2.0] - 2026-11-17
+
+The island moves. Rest the cursor on it and it widens, click it and it opens. The rest of the time, it stays out of your way.
+
+### Added
+
+- The island springs between its shapes. Rest the cursor on it and it widens to add the date. Click it and it opens at once into a panel with the time and the full date.
+- The motion feels alive: width and height spring on their own, content comes in from a blur, the time glides to its new place, and changed digits roll over. The island gives under a press.
+- Esc or a click elsewhere closes the panel. Both still reach the app underneath.
+- A tab, a text selection or a window dragged across the top of the screen passes over the island.
+- With reduced motion turned on in Windows, sizes change at once and the content crossfades.
+- With a contrast theme turned on in Windows, the island is outlined in the theme's colors.
+
+### Known limits
+
+- With touch or a pen, it takes two taps to open the island: the first one reaches the app underneath.
+- While an elevated app such as Task Manager has focus, Esc and clicks don't close the panel. Switching apps does.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- Windows still warns about an unknown publisher, because the installer isn't signed yet.
+
 ## [0.1.0] - 2026-11-12
 
 The first build. It does one thing: a black island at the top of your screen that shows the time.
@@ -18,4 +40,6 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Rateur/sumi/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Rateur/sumi/releases/tag/v0.1.0

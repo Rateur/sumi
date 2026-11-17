@@ -6,9 +6,19 @@ use tauri::tray::TrayIconBuilder;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // A hang must not draw a frozen "Not responding" copy over the top of the screen.
+    #[cfg(windows)]
+    unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::DisableProcessWindowsGhosting();
+    }
+
     tauri::Builder::default()
-        .manage(island::IslandRect::default())
-        .invoke_handler(tauri::generate_handler![island::set_island_rect])
+        .manage(island::IslandRects::default())
+        .manage(island::IslandExpanded::default())
+        .invoke_handler(tauri::generate_handler![
+            island::set_island_rects,
+            island::set_island_expanded
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(

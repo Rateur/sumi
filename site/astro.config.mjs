@@ -8,6 +8,8 @@ export default defineConfig({
 	trailingSlash: 'always',
 	// The home page reads the app version from the repository's package.json.
 	vite: { server: { fs: { allow: ['..'] } } },
+	// The docs have no index of their own; trimming a docs URL lands on the first page.
+	redirects: { '/docs': '/sumi/docs/install/', '/fr/docs': '/sumi/fr/docs/install/' },
 	integrations: [
 		starlight({
 			title: 'Sumi',

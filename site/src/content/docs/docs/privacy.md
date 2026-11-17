@@ -3,7 +3,7 @@ title: Privacy
 description: Sumi collects nothing.
 ---
 
-Sumi has no account, no telemetry and no analytics. Version 0.1.0 doesn't use the network at all.
+Sumi has no account, no telemetry and no analytics. Version 0.2.0 doesn't use the network at all.
 
 Features that need the network will stay off until you turn them on:
 
