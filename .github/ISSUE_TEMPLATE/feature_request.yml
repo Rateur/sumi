@@ -2,6 +2,9 @@ name: Feature idea
 description: Something the island could do.
 labels: ["enhancement", "needs triage"]
 body:
+  - type: markdown
+    attributes:
+      value: Check the [roadmap](https://github.com/Rateur/sumi#roadmap) and the open issues first. Ideas outside the roadmap are decided case by case, so please don't start a pull request before I reply.
   - type: textarea
     id: need
     attributes:
@@ -19,4 +22,6 @@ body:
       label: Sumi stays free and local
       options:
         - label: This works without a paid API, an account or a server.
+          required: true
+        - label: I understand Sumi stays small, and the answer may be no.
           required: true
