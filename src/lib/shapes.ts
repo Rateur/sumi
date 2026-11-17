@@ -35,6 +35,8 @@ const COMPACT: Record<Activity['kind'], Size> = {
   call: { width: 144, height: 34 },
   timer: { width: 96, height: 34 },
   music: { width: 200, height: 34 },
+  // Never used: the time on the island is the idle view.
+  clock: SIZES.idle,
 }
 
 // The kinds without a peek of their own stay compact.

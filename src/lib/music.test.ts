@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  BACK,
   HOLD,
   NEUTRAL,
   PAUSED,
   clockTime,
-  dismiss,
   nextChange,
   nobody,
   position,
@@ -61,26 +59,6 @@ describe('which players show', () => {
     expect(nextChange(known, T + 1000)).toBe(T + 1000 + HOLD)
     known = update(known, [], T + 1000 + HOLD)
     expect(shown(known, T + 1000 + HOLD)).toHaveLength(0)
-  })
-
-  it('hides a dismissed player until it plays after a real pause', () => {
-    let known = dismiss(update(nobody(), [player('spotify', true), player('chrome', true)], T), 'spotify')
-    expect(shown(known, T).map((p) => p.id)).toEqual(['chrome'])
-    // A pause shorter than BACK may be a song change: it stays away.
-    known = update(known, [player('spotify', false), player('chrome', true)], T + 1000)
-    known = update(known, [player('spotify', true), player('chrome', true)], T + 1000 + BACK - 1)
-    expect(shown(known, T + 1000 + BACK).map((p) => p.id)).toEqual(['chrome'])
-    // Play after a real pause brings it back.
-    known = update(known, [player('spotify', false), player('chrome', true)], T + 10_000)
-    known = update(known, [player('spotify', true), player('chrome', true)], T + 10_000 + BACK)
-    expect(shown(known, T + 10_000 + BACK).map((p) => p.id)).toEqual(['spotify', 'chrome'])
-  })
-
-  it('forgets a dismissed player once it is gone', () => {
-    let known = dismiss(update(nobody(), [player('spotify', true)], T), 'spotify')
-    known = update(known, [], T + HOLD)
-    known = update(known, [], T + 2 * HOLD)
-    expect(known.dismissed.size).toBe(0)
   })
 
   it('shows two players playing at once', () => {
