@@ -20,7 +20,7 @@ export function motion(from: View, to: View): Motion {
   const [a, b] = [sizeOf(from), sizeOf(to)]
   const grows = b.width * b.height >= a.width * a.height
   const pulse =
-    to.name === 'compact' && from.name !== 'expanded' && !('activity' in from && from.activity.id === to.activity.id)
+    to.name === 'compact' && from.name !== 'expanded' && !('activity' in from && from.activity?.id === to.activity.id)
   const [width, height]: Axis[] =
     to.name === 'expanded'
       ? [[0.46, 0.26], [0.52, 0.18]]

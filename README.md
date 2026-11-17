@@ -31,7 +31,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] The island at the top of the screen, with the time (0.1.0)
 - [x] Spring animations: rest the cursor on the island and it widens, click it and it opens (0.2.0)
 - [x] Hides itself while a game or video is fullscreen (0.3.0)
-- [ ] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, play/pause, progress
+- [ ] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress
 - [ ] An orange or green dot when an app uses your microphone or camera
 - [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine
 - [ ] Timers: type `25m`

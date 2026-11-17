@@ -4,6 +4,16 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+### Added
+
+- Music from any app that Windows' media controls can see, such as Spotify, browsers or VLC. The island shows the artwork and an equalizer in its colour. Click it for the title and artist, the progress, and previous, play or pause and next.
+- Two players at once share the island and the bubble. Click the bubble to swap them.
+- A new song swells the island, unless Windows says you're busy. Paused music stays two minutes, then the time comes back.
+
+### Known limits
+
+- A browser shows one player, the tab it last played, and often without artwork.
+
 ## [0.3.0] - 2026-11-17
 
 The island gets out of the way of games, videos and slideshows.

@@ -35,6 +35,13 @@ describe('arrange', () => {
     expect(arrange([c, b, a, timer], shown)).toEqual({ island: timer, bubble: a, waiting: [b, c] })
   })
 
+  it('gives the island to the one picked from the bubble, but never ahead of a call', () => {
+    const shown = arrange([a, b])
+    expect(arrange([a, b], shown, 'b')).toEqual({ island: b, bubble: a, waiting: [] })
+    expect(arrange([a, timer], undefined, 'a')).toEqual({ island: a, bubble: timer, waiting: [] })
+    expect(arrange([a, call], undefined, 'a')).toEqual({ island: call, bubble: a, waiting: [] })
+  })
+
   it('hands the island back when the higher priority ends', () => {
     const shown = arrange([timer, a])
     expect(arrange([a], shown)).toEqual({ island: a, bubble: undefined, waiting: [] })

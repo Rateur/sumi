@@ -1,15 +1,39 @@
 import type { Activity } from './activities'
+import type { Player } from './music'
 
 const SONGS = [
   { title: 'Midnight City', artist: 'M83', color: '#A78BFA' },
   { title: 'Intro', artist: 'The xx', color: '#F472B6' },
 ]
 
+// A minute into a four-minute song, with every control on.
+const playing = (id: string, title: string, artist: string): Player => ({
+  id,
+  title,
+  artist,
+  playing: true,
+  canPlayPause: true,
+  canNext: true,
+  canPrevious: true,
+  endMs: 240_000,
+  positionMs: 60_000,
+  updatedMs: Date.now(),
+  rate: 1,
+})
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000 }),
   done: () => ({ id: 'done', kind: 'timer', endsAt: Date.now() + 3000 }),
-  music: () => ({ id: 'music', kind: 'music', ...SONGS[0] }),
+  music: () => ({ id: 'music', kind: 'music', ...SONGS[0], player: playing('music', SONGS[0].title, SONGS[0].artist) }),
+  video: () => ({
+    id: 'video',
+    kind: 'music',
+    title: 'Lofi beats',
+    artist: 'YouTube',
+    color: '#F87171',
+    player: playing('video', 'Lofi beats', 'YouTube'),
+  }),
 }
 
 const KEYS: Record<string, string> = {
@@ -17,6 +41,7 @@ const KEYS: Record<string, string> = {
   t: 'timer',
   d: 'done',
   m: 'music',
+  v: 'video',
   p: 'peek',
   n: 'track',
   h: 'hover',
@@ -29,8 +54,8 @@ const KEYS: Record<string, string> = {
 
 /**
  * Dev only, in the browser. Each transition has a key and a name for `window.__sumiDemo.trigger(name)`:
- * C call, T timer, D a timer that ends in 3 s, M music (a second activity splits the bubble off, ending
- * it merges it back), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
+ * C call, T timer, D a timer that ends in 3 s, M music, V a second player (a second activity splits the
+ * bubble off, ending it merges it back; a click on the bubble swaps the two), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
  * comma press and period cancel the press (E releases it into the panel).
  */
 export function demo(island: {
