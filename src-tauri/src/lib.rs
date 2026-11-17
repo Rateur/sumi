@@ -21,6 +21,7 @@ pub fn run() {
             island::set_island_rects,
             island::set_island_expanded,
             media::media_control,
+            media::media_seek,
             media::media_players
         ])
         .setup(|app| {

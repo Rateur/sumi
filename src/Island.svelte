@@ -20,6 +20,7 @@
   import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
   import {
     clockTime,
+    dismiss,
     nextChange,
     nobody,
     position,
@@ -516,7 +517,7 @@
     peekTimer = setTimeout(() => (peeking = undefined), 3000)
   }
 
-  // Every player Windows can see. A paused one stays two minutes, and one that vanishes for a moment is held.
+  // Every player Windows can see. A paused one stays a minute, and one that vanishes for a moment is held.
   let players: Players = nobody()
   let latest: Player[] = []
   let heard = false
@@ -528,6 +529,11 @@
     players = update(players, latest, t)
     music = songs(showing(players, t), artwork)
     if (prefer && !music.some((a) => a.id === prefer)) prefer = undefined
+    // The player's own word after a seek takes over from the place the bar was dropped at.
+    const answer = scrub && !scrub.held && latest.find((p) => p.id === scrub!.id)
+    if (answer && (answer.positionMs !== scrub!.from.positionMs || answer.updatedMs !== scrub!.from.updatedMs)) {
+      scrub = undefined
+    }
     clearTimeout(change)
     const next = nextChange(players, t)
     change = next === undefined ? undefined : setTimeout(refresh, next - t)
@@ -588,17 +594,63 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
+  // The small round button sends the music out of sight and brings the time back. Each player returns when it plays
+  // after a pause.
+  function away() {
+    for (const a of music) players = dismiss(players, a.id)
+    expanded = false
+    refresh()
+  }
+
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
     const picked = arrangement.bubble
     if (picked && arrangement.island?.kind !== 'call') prefer = picked.id
   }
 
+  // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
+  let track = $state<HTMLElement>()
+  let scrub = $state<{ id: string; ms: number; held: boolean; at: number; from: Player }>()
+  const playback = $derived.by(() => {
+    const p = parts.player?.player
+    if (!p || scrub?.id !== p.id) return p
+    return { ...p, positionMs: scrub.ms, updatedMs: scrub.at, playing: p.playing && !scrub.held }
+  })
+
+  function hold(ms: number, held: boolean) {
+    const p = parts.player?.player
+    if (!p) return
+    const at = Date.now()
+    scrub = { id: p.id, ms: Math.round(Math.min(p.endMs, Math.max(0, ms))), held, at, from: p }
+    if (held) return
+    tick = at
+    if (tauri) invoke('media_seek', { id: p.id, ms: scrub.ms })
+    const mine = scrub
+    // A player that ignores the seek gets its own place back.
+    setTimeout(() => scrub === mine && (scrub = undefined), 3000)
+  }
+
+  // A drag ends without a seek if the panel closes, or another player or song takes it.
+  $effect(() => {
+    const p = parts.player?.player
+    untrack(() => {
+      if (scrub?.held && (scrub.id !== p?.id || scrub.from.title !== p?.title)) scrub = undefined
+    })
+  })
+
+  // Where the cursor is on the bar, in ms of the song shown.
+  const under = ({ clientX }: PointerEvent) => {
+    const end = parts.player?.player?.endMs
+    if (!track || !end) return 0
+    const { left, width } = track.getBoundingClientRect()
+    return ((clientX - left) / width) * end
+  }
+
   // In the panel the browser moves the progress bar on its own, and the times tick once a second while it plays.
   let bar = $state<HTMLElement>()
   let tick = $state(Date.now())
   $effect(() => {
-    const p = parts.player?.player
+    const p = playback
     if (!bar || !p || p.endMs <= 0) return
     const at = position(p, Date.now())
     const animation = bar.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
@@ -617,7 +669,7 @@
     }
   })
   $effect(() => {
-    const p = parts.player?.player
+    const p = playback
     if (!p?.playing || p.endMs <= 0 || hidden) return
     tick = Date.now()
     const timer = setInterval(() => (tick = Date.now()), 1000)
@@ -769,11 +821,39 @@
       </span>
       {#if parts.player.player}
         {@const p = parts.player.player}
-        {#if p.endMs > 0}
+        {#if playback && playback.endMs > 0}
+          {@const at = position(playback, tick)}
           <span class="progress muted" in:enter={{ step: 2 }} out:exit>
-            <span>{clockTime(position(p, tick))}</span>
-            <span class="bar"><span bind:this={bar} style:background={parts.player.color}></span></span>
-            <span>-{clockTime(p.endMs - position(p, tick))}</span>
+            <span>{clockTime(at)}</span>
+            <span
+              class="scrub"
+              class:held={scrub?.held && scrub.id === playback.id}
+              role="slider"
+              tabindex={playback.canSeek ? 0 : -1}
+              aria-label="Position"
+              aria-disabled={!playback.canSeek}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(playback.endMs / 1000)}
+              aria-valuenow={Math.round(at / 1000)}
+              aria-valuetext={clockTime(at)}
+              onpointerdown={(event) => {
+                if (event.button !== 0 || !playback?.canSeek) return
+                event.currentTarget.setPointerCapture(event.pointerId)
+                hold(under(event), true)
+              }}
+              onpointermove={(event) => scrub?.held && hold(under(event), true)}
+              onpointerup={(event) => scrub?.held && hold(under(event), false)}
+              onpointercancel={() => scrub?.held && (scrub = undefined)}
+              onkeydown={(event) => {
+                const step = { ArrowLeft: -5000, ArrowRight: 5000 }[event.key]
+                if (step && playback.canSeek) hold(position(playback, Date.now()) + step, false)
+              }}
+            >
+              <span class="bar" bind:this={track}>
+                <span bind:this={bar} style:background={parts.player.color}></span>
+              </span>
+            </span>
+            <span>-{clockTime(playback.endMs - at)}</span>
           </span>
         {/if}
         <span class="controls" in:enter={{ step: 3 }} out:exit>
@@ -791,6 +871,9 @@
           </button>
           <button type="button" aria-label="Next" disabled={!p.canNext} onclick={() => control('next')}>
             {@render icon('next')}
+          </button>
+          <button type="button" class="away" aria-label="Show the time" onclick={away}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 1.5" /></svg>
           </button>
         </span>
       {/if}
@@ -1012,12 +1095,27 @@
     gap: 10px;
   }
 
-  .bar {
+  /* Taller than the bar it holds, so it is easy to catch. Like on the iPhone, the bar thickens under the cursor. */
+  .scrub {
     flex: 1;
+    display: grid;
+    align-items: center;
+    height: 16px;
+    outline: none;
+  }
+
+  .bar {
     height: 4px;
-    border-radius: 2px;
+    border-radius: 4px;
     overflow: hidden;
     background: rgb(255 255 255 / 0.18);
+    transition: height 0.15s;
+  }
+
+  .scrub[aria-disabled='false']:hover .bar,
+  .scrub.held .bar,
+  .scrub:focus-visible .bar {
+    height: 7px;
   }
 
   .bar > span {
@@ -1028,6 +1126,7 @@
   }
 
   .controls {
+    position: relative;
     grid-area: controls;
     display: flex;
     justify-content: center;
@@ -1060,6 +1159,28 @@
     width: 20px;
     height: 20px;
     fill: currentColor;
+  }
+
+  /* The way back to the time, set apart from the playback buttons. */
+  .controls .away {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 26px;
+    height: 26px;
+    translate: 0 -50%;
+    background: rgb(255 255 255 / 0.14);
+    color: rgb(255 255 255 / 0.8);
+  }
+
+  .controls .away svg {
+    width: 15px;
+    height: 15px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .controls .main svg {

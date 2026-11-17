@@ -15,6 +15,7 @@ const playing = (id: string, title: string, artist: string): Player => ({
   canPlayPause: true,
   canNext: true,
   canPrevious: true,
+  canSeek: true,
   endMs: 240_000,
   positionMs: 60_000,
   updatedMs: Date.now(),

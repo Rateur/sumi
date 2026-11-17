@@ -7,8 +7,10 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 ### Added
 
 - Music from any app that Windows' media controls can see, such as Spotify, browsers or VLC. The island shows the artwork and an equalizer in its colour. Click it for the title and artist, the progress, and previous, play or pause and next.
+- Drag the progress bar to move through the song, in players that allow it.
+- The round button next to the controls brings the time back. The music keeps playing, and returns when you play it after a pause.
 - Two players at once share the island and the bubble. Click the bubble to swap them.
-- A new song swells the island, unless Windows says you're busy. Paused music stays two minutes, then the time comes back.
+- A new song swells the island, unless Windows says you're busy. Paused music stays a minute, then the time comes back.
 
 ### Known limits
 

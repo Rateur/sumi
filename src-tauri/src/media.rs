@@ -21,6 +21,7 @@ pub struct Player {
     pub can_play_pause: bool,
     pub can_next: bool,
     pub can_previous: bool,
+    pub can_seek: bool,
     pub end_ms: i64,
     pub position_ms: i64,
     pub updated_ms: i64,
@@ -48,6 +49,7 @@ enum Msg {
     Media(String),
     Playback,
     Control(String, Action),
+    Seek(String, i64),
 }
 
 /// The thread's mailbox and its last snapshot.
@@ -61,6 +63,14 @@ pub struct Media {
 pub fn media_control(media: tauri::State<'_, Media>, id: String, action: Action) {
     if let Ok(tx) = media.tx.lock() {
         let _ = tx.send(Msg::Control(id, action));
+    }
+}
+
+/// Moves one player to `ms` from the start of its song, for a drag on the progress bar.
+#[tauri::command]
+pub fn media_seek(media: tauri::State<'_, Media>, id: String, ms: i64) {
+    if let Ok(tx) = media.tx.lock() {
+        let _ = tx.send(Msg::Seek(id, ms));
     }
 }
 
@@ -245,6 +255,11 @@ mod win {
                             control(&w.session, action);
                         }
                     }
+                    Msg::Seek(id, ms) => {
+                        if let Some(w) = watched.iter().find(|w| w.id == id) {
+                            let _ = w.session.TryChangePlaybackPositionAsync(ms.max(0) * 10_000);
+                        }
+                    }
                 }
                 next = rx.recv_timeout(BURST).ok();
             }
@@ -376,6 +391,7 @@ mod win {
                 || can.IsPauseEnabled().unwrap_or(false),
             can_next: can.IsNextEnabled().unwrap_or(false),
             can_previous: can.IsPreviousEnabled().unwrap_or(false),
+            can_seek: can.IsPlaybackPositionEnabled().unwrap_or(false),
             end_ms: ms(line.EndTime().ok()?.Duration),
             position_ms: ms(line.Position().ok()?.Duration),
             updated_ms: ms(line.LastUpdatedTime().ok()?.UniversalTime - UNIX_EPOCH),
@@ -459,6 +475,7 @@ mod tests {
             can_play_pause: true,
             can_next: true,
             can_previous: true,
+            can_seek: true,
             end_ms: 200_000,
             position_ms,
             updated_ms,
