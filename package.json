@@ -1,11 +1,12 @@
 {
   "name": "sumi",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "showcase": "vite build --mode showcase --base ./ --outDir site/public/island --emptyOutDir",
     "tauri": "tauri",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "test": "vitest run",

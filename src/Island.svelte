@@ -3,10 +3,12 @@
   import { listen } from '@tauri-apps/api/event'
   import { untrack } from 'svelte'
   import { prefersReducedMotion } from 'svelte/motion'
-  import { MediaQuery } from 'svelte/reactivity'
+  import { MediaQuery, SvelteMap } from 'svelte/reactivity'
+  import { fade as dissolve } from 'svelte/transition'
   import { innerHeight, innerWidth } from 'svelte/reactivity/window'
-  import { arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
+  import { CLOCK, arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
   import {
+    formatBubbleTime,
     formatCountdown,
     formatLongDate,
     formatShortDate,
@@ -14,8 +16,20 @@
     msUntilNextMinute,
     msUntilNextSecond,
   } from './lib/clock'
+  import { dominant } from './lib/color'
   import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
   import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
+  import {
+    clockTime,
+    nextChange,
+    nobody,
+    position,
+    shown as showing,
+    songs,
+    update,
+    type Player,
+    type Players,
+  } from './lib/music'
   import { Spring } from './lib/spring'
 
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
@@ -32,12 +46,15 @@
 
   const tauri = isTauri()
   const forced = new MediaQuery('forced-colors: active')
-  let island: HTMLButtonElement
+  let island: HTMLDivElement
   let content: HTMLElement | undefined
   let clock = $state<HTMLElement>()
   let art = $state<HTMLElement>()
   let eq = $state<HTMLElement>()
   let activities = $state<Activity[]>([])
+  // Music comes from Rust; `prefer` is the activity picked with a click on the bubble.
+  let music = $state<Activity[]>([])
+  let prefer = $state<string>()
   let hovered = $state(false)
   let expanded = $state(false)
   let peeking = $state<string>()
@@ -49,9 +66,9 @@
   let hoverTime = 400
 
   let shown: Arrangement | undefined
-  const arrangement = $derived.by(() => (shown = arrange(activities, shown)))
+  const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
   const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
-  const key = $derived('activity' in view ? `${view.name}:${view.activity.id}` : view.name)
+  const key = $derived('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name)
   const size = $derived(sizeOf(view))
   const reduced = $derived(prefersReducedMotion.current)
 
@@ -62,8 +79,9 @@
     return {
       date: name === 'hover',
       time: name === 'idle' || name === 'hover' || activity?.kind === 'call',
-      panel: name === 'expanded',
+      panel: name === 'expanded' && !activity,
       music: activity?.kind === 'music' ? activity : undefined,
+      player: name === 'expanded' && activity?.kind === 'music' ? activity : undefined,
       track: name === 'peek' && activity?.kind === 'music' ? activity : undefined,
       call: activity?.kind === 'call' ? activity : undefined,
       timer: activity?.kind === 'timer' ? activity : undefined,
@@ -161,7 +179,8 @@
     clearTimeout(delayed)
     delayed = undefined
     const target = sizeOf(to)
-    if (reduced) {
+    // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
+    if (reduced || (hidden && drop.resting)) {
       width.jump(target.width)
       height.jump(target.height)
       return wake()
@@ -198,6 +217,14 @@
     pulse(160, 150)
   }
 
+  /** Swells the bubble for a moment, once it has split off. */
+  function nudge(t = performance.now()) {
+    if (reduced || phase !== 'shown') return
+    bubble.to(BUBBLE, 0.44, 0, t)
+    bubble.kick(110, t)
+    wake()
+  }
+
   function fade(to: number, ms: number, t = performance.now()) {
     goo = true
     ramp = { from: sigma, to, start: t, end: t + ms }
@@ -212,7 +239,7 @@
 
   function split() {
     if (phase === 'split' || phase === 'shown') return
-    if (reduced || forced.current) {
+    if (reduced || forced.current || (hidden && drop.resting)) {
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -234,7 +261,7 @@
 
   function merge() {
     if (phase === 'none' || phase === 'merge') return
-    if (reduced || forced.current) {
+    if (reduced || forced.current || (hidden && drop.resting)) {
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -429,21 +456,24 @@
     wake()
   }
 
-  // A timer that runs out, or a new song while the island is compact, swells it for a moment.
+  // A timer that runs out, or a new song while the island is compact, swells it for a moment. A new song in the
+  // bubble swells the bubble.
   const done = $derived(arrangement.island?.kind === 'timer' && now.getTime() >= arrangement.island.endsAt)
   $effect(() => {
     if (done) untrack(alert)
   })
 
+  const newSong = (now?: Activity, was?: Activity) =>
+    now?.kind === 'music' && was?.kind === 'music' && now.id === was.id && now.title !== was.title
   let song: Activity | undefined
+  let aside: Activity | undefined
   $effect(() => {
-    const playing = arrangement.island
+    const [playing, beside] = [arrangement.island, arrangement.bubble]
     untrack(() => {
-      const was = song
-      if (playing?.kind === 'music' && was?.kind === 'music' && playing.id === was.id && playing.title !== was.title) {
-        if (view.name === 'compact') alert()
-      }
-      song = playing
+      // While Windows says you're busy, the song changes in place.
+      if (newSong(playing, song) && view.name === 'compact' && peeks(playing, presence)) alert()
+      if (newSong(beside, aside) && peeks(beside, presence)) nudge()
+      ;[song, aside] = [playing, beside]
     })
   })
 
@@ -497,7 +527,159 @@
     peekTimer = setTimeout(() => (peeking = undefined), 3000)
   }
 
-  if (import.meta.env.DEV) {
+  // Every player Windows can see. A paused one stays a minute, and one that vanishes for a moment is held.
+  let players: Players = nobody()
+  let latest: Player[] = []
+  let heard = false
+  let change: ReturnType<typeof setTimeout> | undefined
+  const artwork = new SvelteMap<string, { url: string; color?: string }>()
+
+  function refresh() {
+    const t = Date.now()
+    players = update(players, latest, t)
+    music = songs(showing(players, t), artwork)
+    if (prefer && (prefer === CLOCK.id ? !music.length : !music.some((a) => a.id === prefer))) prefer = undefined
+    // The player's own word after a seek takes over from the place the bar was dropped at.
+    const answer = scrub && !scrub.held && latest.find((p) => p.id === scrub!.id)
+    if (answer && (answer.positionMs !== scrub!.from.positionMs || answer.updatedMs !== scrub!.from.updatedMs)) {
+      scrub = undefined
+    }
+    clearTimeout(change)
+    const next = nextChange(players, t)
+    change = next === undefined ? undefined : setTimeout(refresh, next - t)
+  }
+
+  // Until the new artwork's colour is known, the last one stays: no flash of grey between songs.
+  async function paint(id: string, url: string | null) {
+    if (!url) {
+      artwork.delete(id)
+      return refresh()
+    }
+    artwork.set(id, { url, color: artwork.get(id)?.color })
+    refresh()
+    const color = await tint(url)
+    if (artwork.get(id)?.url !== url) return
+    artwork.set(id, { url, color })
+    refresh()
+  }
+
+  /** The artwork's main colour, read from a 16 px copy, once per picture. */
+  async function tint(url: string): Promise<string | undefined> {
+    try {
+      const image = new Image()
+      image.src = url
+      await image.decode()
+      const context = new OffscreenCanvas(16, 16).getContext('2d')
+      context?.drawImage(image, 0, 0, 16, 16)
+      return context ? dominant(context.getImageData(0, 0, 16, 16).data) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  $effect(() => {
+    if (!tauri) return
+    const stops = [
+      listen<Player[]>('media://players', ({ payload }) => {
+        heard = true
+        latest = payload
+        refresh()
+      }),
+      listen<{ id: string; url: string | null }>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
+    ]
+    // What Rust sent before these listeners existed.
+    invoke<{ players: Player[]; artwork: Record<string, string> }>('media_players').then((snapshot) => {
+      if (!heard) latest = snapshot.players
+      Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
+      refresh()
+    })
+    return () => {
+      stops.forEach((stop) => stop.then((unlisten) => unlisten()))
+      clearTimeout(change)
+    }
+  })
+
+  function control(action: 'play' | 'pause' | 'next' | 'previous') {
+    const id = parts.player?.id
+    if (tauri && id) invoke('media_control', { id, action })
+  }
+
+  // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
+  function swap() {
+    const picked = arrangement.bubble
+    if (picked && arrangement.island?.kind !== 'call') prefer = picked.id
+  }
+
+  // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
+  let track = $state<HTMLElement>()
+  let scrub = $state<{ id: string; ms: number; held: boolean; at: number; from: Player }>()
+  const playback = $derived.by(() => {
+    const p = parts.player?.player
+    if (!p || scrub?.id !== p.id) return p
+    return { ...p, positionMs: scrub.ms, updatedMs: scrub.at, playing: p.playing && !scrub.held }
+  })
+
+  function hold(ms: number, held: boolean) {
+    const p = parts.player?.player
+    if (!p) return
+    const at = Date.now()
+    scrub = { id: p.id, ms: Math.round(Math.min(p.endMs, Math.max(0, ms))), held, at, from: p }
+    if (held) return
+    tick = at
+    if (tauri) invoke('media_seek', { id: p.id, ms: scrub.ms })
+    const mine = scrub
+    // A player that ignores the seek gets its own place back.
+    setTimeout(() => scrub === mine && (scrub = undefined), 3000)
+  }
+
+  // A drag ends without a seek if the panel closes, or another player or song takes it.
+  $effect(() => {
+    const p = parts.player?.player
+    untrack(() => {
+      if (scrub?.held && (scrub.id !== p?.id || scrub.from.title !== p?.title)) scrub = undefined
+    })
+  })
+
+  // Where the cursor is on the bar, in ms of the song shown.
+  const under = ({ clientX }: PointerEvent) => {
+    const end = parts.player?.player?.endMs
+    if (!track || !end) return 0
+    const { left, width } = track.getBoundingClientRect()
+    return ((clientX - left) / width) * end
+  }
+
+  // In the panel the browser moves the progress bar on its own, and the times tick once a second while it plays.
+  let bar = $state<HTMLElement>()
+  let tick = $state(Date.now())
+  $effect(() => {
+    const p = playback
+    if (!bar || !p || p.endMs <= 0) return
+    const at = position(p, Date.now())
+    const animation = bar.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
+      duration: Math.max(1, (p.endMs - at) / (p.rate > 0 ? p.rate : 1)),
+      fill: 'forwards',
+    })
+    if (!p.playing || hidden) animation.pause()
+    return () => {
+      // Keeps the bar where it is while its content leaves, instead of snapping back to empty.
+      try {
+        animation.commitStyles()
+      } catch {
+        // The bar may already be gone.
+      }
+      animation.cancel()
+    }
+  })
+  $effect(() => {
+    const p = playback
+    if (!p?.playing || p.endMs <= 0 || hidden) return
+    tick = Date.now()
+    const timer = setInterval(() => (tick = Date.now()), 1000)
+    return () => clearInterval(timer)
+  })
+
+  // The site's live examples run the same demo, from `npm run showcase`.
+  if (import.meta.env.DEV || import.meta.env.MODE === 'showcase') {
     import('./lib/demo').then(({ demo }) =>
       demo({
         get activities() {
@@ -538,18 +720,47 @@
   {/each}
 {/snippet}
 
+{#snippet icon(name: 'previous' | 'play' | 'pause' | 'next')}
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    {#if name === 'play'}
+      <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" />
+    {:else if name === 'pause'}
+      <rect x="5.5" y="4" width="4.5" height="16" rx="1.2" /><rect x="14" y="4" width="4.5" height="16" rx="1.2" />
+    {:else if name === 'previous'}
+      <path
+        d="M11.5 6.2v11.6a.8.8 0 0 1-1.25.66L3 13.32a.8.8 0 0 1 0-1.32l7.25-5.46a.8.8 0 0 1 1.25.66Zm10 0v11.6a.8.8 0 0 1-1.25.66L13 13.32a.8.8 0 0 1 0-1.32l7.25-5.46a.8.8 0 0 1 1.25.66Z"
+      />
+    {:else}
+      <path
+        d="M12.5 6.2v11.6a.8.8 0 0 0 1.25.66L21 13.32a.8.8 0 0 0 0-1.32l-7.25-5.46a.8.8 0 0 0-1.25.66Zm-10 0v11.6a.8.8 0 0 0 1.25.66L11 13.32a.8.8 0 0 0 0-1.32L3.75 6.54a.8.8 0 0 0-1.25.66Z"
+      />
+    {/if}
+  </svg>
+{/snippet}
+
 {#snippet dots(call: Extract<Activity, { kind: 'call' }>)}
   {#if call.mic}<span class="dot mic"></span>{/if}
   {#if call.camera}<span class="dot camera"></span>{/if}
 {/snippet}
 
 {#snippet glyph(activity: Activity)}
-  {#if activity.kind === 'call'}
+  {#if activity.kind === 'clock'}
+    <time class="countdown hour" datetime={now.toISOString()}>{@render digits(formatBubbleTime(now))}</time>
+  {:else if activity.kind === 'call'}
     <span class="dots">{@render dots(activity)}</span>
   {:else if activity.kind === 'timer'}
     <span class="countdown">{@render digits(formatCountdown(activity.endsAt - now.getTime(), true))}</span>
+  {:else if activity.art}
+    <span class="art" style:background={activity.color}><img src={activity.art} alt="" /></span>
   {:else}
-    <span class="art" style:background={activity.color}></span>
+    <!-- A player without artwork, such as a browser, shows its equalizer. -->
+    <span
+      class="equalizer"
+      class:still={reduced || hidden || activity.player?.playing === false}
+      style:color={activity.color}
+    >
+      <span></span><span></span><span></span><span></span>
+    </span>
   {/if}
 {/snippet}
 
@@ -577,27 +788,97 @@
   {/if}
 </div>
 
-<button
-  type="button"
+<div
   class="island"
-  aria-expanded={expanded}
+  role="group"
   bind:this={island}
   style={place(geometry.clip)}
-  onclick={open}
   onpointerdown={(event) => event.button === 0 && press(true)}
   onpointercancel={() => press(false)}
   onpointerenter={() => tauri || point(true)}
   onpointerleave={() => (tauri ? press(false) : point(false))}
 >
+  <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
+  {#if !expanded}
+    <button type="button" class="opener" aria-label="Open" aria-expanded="false" onclick={open}></button>
+  {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
   <span
     class="content view {view.name}"
+    class:player={!!parts.player}
     bind:this={content}
     style:width="{size.width}px"
     style:height="{size.height}px"
   >
     {#if parts.music}
-      <span class="art" bind:this={art} style:background={parts.music.color} in:enter out:exit></span>
+      <span class="art" bind:this={art} style:background={parts.music.color} in:enter out:exit>
+        {#if parts.music.art}
+          {#key parts.music.art}
+            <img src={parts.music.art} alt="" transition:dissolve={{ duration: reduced ? 0 : 160 }} />
+          {/key}
+        {/if}
+      </span>
+    {/if}
+    {#if parts.player}
+      <span class="meta" in:enter={{ step: 1 }} out:exit>
+        <span>{parts.player.title}</span>
+        <span class="muted">{parts.player.artist}</span>
+      </span>
+      {#if parts.player.player}
+        {@const p = parts.player.player}
+        {#if playback && playback.endMs > 0}
+          {@const at = position(playback, tick)}
+          <span class="progress muted" in:enter={{ step: 2 }} out:exit>
+            <span>{clockTime(at)}</span>
+            <span
+              class="scrub"
+              class:held={scrub?.held && scrub.id === playback.id}
+              role="slider"
+              tabindex={playback.canSeek ? 0 : -1}
+              aria-label="Position"
+              aria-disabled={!playback.canSeek}
+              aria-valuemin={0}
+              aria-valuemax={Math.round(playback.endMs / 1000)}
+              aria-valuenow={Math.round(at / 1000)}
+              aria-valuetext={clockTime(at)}
+              onpointerdown={(event) => {
+                if (event.button !== 0 || !playback?.canSeek) return
+                event.currentTarget.setPointerCapture(event.pointerId)
+                hold(under(event), true)
+              }}
+              onpointermove={(event) => scrub?.held && hold(under(event), true)}
+              onpointerup={(event) => scrub?.held && hold(under(event), false)}
+              onpointercancel={() => scrub?.held && (scrub = undefined)}
+              onkeydown={(event) => {
+                const step = { ArrowLeft: -5000, ArrowRight: 5000 }[event.key]
+                if (step && playback.canSeek) hold(position(playback, Date.now()) + step, false)
+              }}
+            >
+              <span class="bar" bind:this={track}>
+                <span bind:this={bar} style:background={parts.player.color}></span>
+              </span>
+            </span>
+            <span>-{clockTime(playback.endMs - at)}</span>
+          </span>
+        {/if}
+        <span class="controls" in:enter={{ step: 3 }} out:exit>
+          <button type="button" aria-label="Previous" disabled={!p.canPrevious} onclick={() => control('previous')}>
+            {@render icon('previous')}
+          </button>
+          <button
+            type="button"
+            class="main"
+            aria-label={p.playing ? 'Pause' : 'Play'}
+            disabled={!p.canPlayPause}
+            onclick={() => control(p.playing ? 'pause' : 'play')}
+          >
+            {@render icon(p.playing ? 'pause' : 'play')}
+          </button>
+          <button type="button" aria-label="Next" disabled={!p.canNext} onclick={() => control('next')}>
+            {@render icon('next')}
+          </button>
+        </span>
+      {/if}
     {/if}
     {#if parts.date}
       <span class="muted" in:enter out:exit>{formatShortDate(now)}</span>
@@ -626,7 +907,7 @@
     {#if parts.music}
       <span
         class="equalizer"
-        class:still={reduced || hidden}
+        class:still={reduced || hidden || parts.music.player?.playing === false}
         bind:this={eq}
         style:color={parts.music.color}
         in:enter={{ step: 1 }}
@@ -636,7 +917,7 @@
       </span>
     {/if}
   </span>
-</button>
+</div>
 
 <!-- Each size of the font is readied the first time it is laid out, a stall of 30 to 40 ms. -->
 <!-- This hidden copy pays it at launch instead of on the first hover and the first open. -->
@@ -650,7 +931,7 @@
 </span>
 
 {#if geometry.dot}
-  <div class="island bubble" style={place(geometry.dot)}>
+  <button type="button" class="island bubble" aria-label="Show in the island" style={place(geometry.dot)} onclick={swap}>
     {#if arrangement.bubble && revealed}
       {#key arrangement.bubble.id}
         <span class="content" in:enter|global out:exit|global={{ shrinks: true }}>
@@ -658,7 +939,7 @@
         </span>
       {/key}
     {/if}
-  </div>
+  </button>
 {/if}
 
 <style>
@@ -771,6 +1052,121 @@
     font-size: 15px;
   }
 
+  .opener {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: default;
+  }
+
+  /* The music panel: artwork, title and equalizer, then the progress, then the controls. */
+  .player {
+    display: grid;
+    grid-template:
+      'art meta eq' auto
+      'bar bar bar' auto
+      'controls controls controls' auto / auto minmax(0, 1fr) auto;
+    align-content: center;
+    gap: 12px;
+    padding: 0 20px;
+  }
+
+  .player .muted {
+    font-size: 13px;
+  }
+
+  .meta {
+    grid-area: meta;
+    display: grid;
+    gap: 2px;
+    text-align: left;
+  }
+
+  .meta > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .progress {
+    grid-area: bar;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* Taller than the bar it holds, so it is easy to catch. Like on the iPhone, the bar thickens under the cursor. */
+  .scrub {
+    flex: 1;
+    display: grid;
+    align-items: center;
+    height: 16px;
+    outline: none;
+  }
+
+  .bar {
+    height: 4px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgb(255 255 255 / 0.18);
+    transition: height 0.15s;
+  }
+
+  .scrub[aria-disabled='false']:hover .bar,
+  .scrub.held .bar,
+  .scrub:focus-visible .bar {
+    height: 7px;
+  }
+
+  .bar > span {
+    display: block;
+    height: 100%;
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+
+  .controls {
+    grid-area: controls;
+    display: flex;
+    justify-content: center;
+    gap: 36px;
+  }
+
+  .controls button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    color: #fff;
+    cursor: default;
+    transition: scale 0.15s;
+  }
+
+  .controls button:active:not(:disabled) {
+    scale: 0.88;
+  }
+
+  .controls button:disabled {
+    opacity: 0.35;
+  }
+
+  .controls svg {
+    width: 20px;
+    height: 20px;
+    fill: currentColor;
+  }
+
+  .controls .main svg {
+    width: 26px;
+    height: 26px;
+  }
+
   .big {
     font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
     font-size: 44px;
@@ -801,10 +1197,33 @@
   }
 
   .art {
+    display: grid;
     flex: none;
     width: 22px;
     height: 22px;
+    overflow: hidden;
     border-radius: 6px;
+  }
+
+  /* The old and the new artwork share one cell while they cross-fade. */
+  .art > img {
+    grid-area: 1 / 1;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .player .art {
+    grid-area: art;
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+  }
+
+  .player .equalizer {
+    grid-area: eq;
+    align-self: start;
+    margin-top: 4px;
   }
 
   .peek .art {
@@ -824,6 +1243,11 @@
 
   .bubble .countdown {
     font-size: 10px;
+  }
+
+  /* The time in the bubble is the island's time, in its white. */
+  .countdown.hour {
+    color: #fff;
   }
 
   .dots {

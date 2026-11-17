@@ -91,8 +91,9 @@ pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
 
 /// Whether the island takes the cursor this tick. A button already held when the cursor arrives,
 /// as in a tab drag, a text selection or a window drag, passes through until every button is up.
+/// A drag that starts on the island, on the progress bar for one, keeps the cursor until it ends.
 pub fn takes_cursor(took: bool, inside: bool, held: bool) -> bool {
-    inside && (took || !held)
+    (took && held) || (inside && (took || !held))
 }
 
 /// Reads the buttons and Esc without taking them: the click or the key still reaches the app underneath.
@@ -231,7 +232,10 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             if expanded.0.load(Ordering::Relaxed) {
                 let now = (keys, foreground());
                 if before
-                    .is_some_and(|(keys, front)| front != now.1 || dismisses(keys, now.0, inside))
+                    // A press the island took is on it, even when a quick drag left its edge before this tick.
+                    .is_some_and(|(keys, front)| {
+                        front != now.1 || dismisses(keys, now.0, inside || over == Some(true))
+                    })
                 {
                     expanded.0.store(false, Ordering::Relaxed);
                     let _ = app.emit("island://dismiss", ());
@@ -308,7 +312,6 @@ mod tests {
     fn takes_the_cursor_only_over_the_island() {
         assert!(takes_cursor(false, true, false));
         assert!(!takes_cursor(false, false, false));
-        assert!(!takes_cursor(true, false, true));
     }
 
     #[test]
@@ -320,6 +323,9 @@ mod tests {
     #[test]
     fn a_press_on_the_island_keeps_it() {
         assert!(takes_cursor(true, true, true));
+        // Even out of the island, until the button is up.
+        assert!(takes_cursor(true, false, true));
+        assert!(!takes_cursor(true, false, false));
     }
 
     #[test]

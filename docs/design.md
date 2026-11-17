@@ -12,8 +12,8 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date. |
 | Compact | Call 144, timer 96, music 200 × 34 px* | An activity runs: content on the left and right ends. |
 | Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
-| Expanded | Clock 280 × 120 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. |
-| Bubble | 34 px circle | A second activity, 8 px right of the island. |
+| Expanded | Clock 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
+| Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
@@ -22,12 +22,25 @@ The island sits 8 px below the top edge, centered on the chosen screen. Sizes ar
 
 ## Who gets the island
 
-When several things happen at once, the highest one takes the island, the next one the bubble, and the rest wait. Between equals, what is already shown keeps its place.
+When several things happen at once, the highest one takes the island, the next one the bubble, and the rest wait. Between equals, what is already shown keeps its place. A click on the bubble swaps it with the island, except over a call.
+
+The time is last in line: it has the island when nothing runs, and the bubble when one thing does, so it never leaves the screen. Picked from the bubble, it keeps the island until the music ends.
 
 1. Call, microphone or camera
 2. Timer
 3. Music
 4. Time or weather
+
+## Music
+
+- Any player that Windows' media controls can see: Spotify, browsers, VLC and the rest. Two players at once take the island and the bubble.
+- A player shows once it plays. Paused, it stays a minute, then the time comes back; playing again brings it back. A player that disappears for a moment between two songs is held for 2.5 s, so the island doesn't blink.
+- A new song swells the island, unless Windows says you're busy. The title and artist are in the panel.
+- The progress bar and the times are worked out from the last position Windows gave, so nothing is sent while a song plays. A live stream without a length has no bar.
+- The bar can be dragged, in players that allow it. It thickens under the cursor, as on the iPhone, and stays where it is dropped until the player answers, 3 s at most. A drag that starts on the island keeps the cursor until the button is up, even past the island's edge.
+- A drag on the bar ends without a seek if the panel closes or another song takes it.
+- A new song swells the island when it is on the island, and the bubble when it is in the bubble.
+- The artwork reaches the island as data, never as a file. Its main color is read from a 16 px copy, and lightened until it shows on black.
 
 ## Input
 

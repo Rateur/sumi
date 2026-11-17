@@ -14,7 +14,13 @@ describe('resolveView', () => {
   })
 
   it('opens the panel on click, over everything else', () => {
-    expect(resolveView({ activity: music, hovered: true, expanded: true, peeking: 'm' })).toEqual({ name: 'expanded' })
+    expect(resolveView({ activity: timer, hovered: true, expanded: true, peeking: 't' })).toEqual({ name: 'expanded' })
+  })
+
+  it('opens music into its own, larger panel', () => {
+    const view = resolveView({ activity: music, hovered: false, expanded: true, peeking: 'm' })
+    expect(view).toEqual({ name: 'expanded', activity: music })
+    expect(sizeOf(view).width).toBeGreaterThan(sizeOf({ name: 'expanded' }).width)
   })
 
   it('shows an activity compact, even under the cursor', () => {

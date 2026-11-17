@@ -1,5 +1,6 @@
 mod fullscreen;
 mod island;
+mod media;
 
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
@@ -18,7 +19,10 @@ pub fn run() {
         .manage(island::IslandExpanded::default())
         .invoke_handler(tauri::generate_handler![
             island::set_island_rects,
-            island::set_island_expanded
+            island::set_island_expanded,
+            media::media_control,
+            media::media_seek,
+            media::media_players
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -53,6 +57,7 @@ pub fn run() {
             // Setup runs on the main thread, whose message loop delivers the hook's events.
             fullscreen::watch_foreground();
             island::follow_cursor(app.handle().clone(), window);
+            media::watch(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

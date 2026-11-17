@@ -3,7 +3,8 @@ import type { Activity } from './activities'
 export type View =
   | { name: 'idle' }
   | { name: 'hover' }
-  | { name: 'expanded' }
+  // Music opens into its own panel; anything else opens the clock's.
+  | { name: 'expanded'; activity?: Activity }
   | { name: 'compact' | 'peek'; activity: Activity }
 
 export interface Size {
@@ -28,10 +29,14 @@ const SIZES = {
   expanded: { width: 280, height: 120 },
 } satisfies Record<string, Size>
 
+const PLAYER: Size = { width: 360, height: 164 }
+
 const COMPACT: Record<Activity['kind'], Size> = {
   call: { width: 144, height: 34 },
   timer: { width: 96, height: 34 },
   music: { width: 200, height: 34 },
+  // Never used: the time on the island is the idle view.
+  clock: SIZES.idle,
 }
 
 // The kinds without a peek of their own stay compact.
@@ -47,12 +52,13 @@ export function resolveView(state: {
   peeking?: string
 }): View {
   const { activity, hovered, expanded, peeking } = state
-  if (expanded) return { name: 'expanded' }
+  if (expanded) return activity?.kind === 'music' ? { name: 'expanded', activity } : { name: 'expanded' }
   if (activity) return { name: activity.id === peeking ? 'peek' : 'compact', activity }
   return { name: hovered ? 'hover' : 'idle' }
 }
 
 export function sizeOf(view: View): Size {
+  if (view.name === 'expanded' && view.activity) return PLAYER
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]
   return SIZES[view.name]

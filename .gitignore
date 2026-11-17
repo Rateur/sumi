@@ -3,6 +3,7 @@ node_modules/
 
 # Build output
 dist/
+site/public/island/
 target/
 src-tauri/gen/schemas/
 

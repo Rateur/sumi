@@ -1,15 +1,45 @@
 import type { Activity } from './activities'
+import type { Player } from './music'
 
 const SONGS = [
   { title: 'Midnight City', artist: 'M83', color: '#A78BFA' },
   { title: 'Intro', artist: 'The xx', color: '#F472B6' },
 ]
 
+// A minute into a four-minute song, with every control on.
+const playing = (id: string, title: string, artist: string): Player => ({
+  id,
+  title,
+  artist,
+  playing: true,
+  canPlayPause: true,
+  canNext: true,
+  canPrevious: true,
+  canSeek: true,
+  endMs: 240_000,
+  positionMs: 60_000,
+  updatedMs: Date.now(),
+  rate: 1,
+})
+
+// The site's examples bring their own song: `?title=…&artist=…&art=…&color=…`.
+const params = new URLSearchParams(location.search)
+const own = Object.fromEntries(['title', 'artist', 'art', 'color'].flatMap((k) => (params.has(k) ? [[k, params.get(k)]] : [])))
+const song = { ...SONGS[0], ...own }
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000 }),
   done: () => ({ id: 'done', kind: 'timer', endsAt: Date.now() + 3000 }),
-  music: () => ({ id: 'music', kind: 'music', ...SONGS[0] }),
+  music: () => ({ id: 'music', kind: 'music', ...song, player: playing('music', song.title, song.artist) }),
+  video: () => ({
+    id: 'video',
+    kind: 'music',
+    title: 'Lofi beats',
+    artist: 'YouTube',
+    color: '#F87171',
+    player: playing('video', 'Lofi beats', 'YouTube'),
+  }),
 }
 
 const KEYS: Record<string, string> = {
@@ -17,6 +47,7 @@ const KEYS: Record<string, string> = {
   t: 'timer',
   d: 'done',
   m: 'music',
+  v: 'video',
   p: 'peek',
   n: 'track',
   h: 'hover',
@@ -29,8 +60,8 @@ const KEYS: Record<string, string> = {
 
 /**
  * Dev only, in the browser. Each transition has a key and a name for `window.__sumiDemo.trigger(name)`:
- * C call, T timer, D a timer that ends in 3 s, M music (a second activity splits the bubble off, ending
- * it merges it back), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
+ * C call, T timer, D a timer that ends in 3 s, M music, V a second player (a second activity splits the
+ * bubble off, ending it merges it back; a click on the bubble swaps the two), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
  * comma press and period cancel the press (E releases it into the panel).
  */
 export function demo(island: {
@@ -62,6 +93,12 @@ export function demo(island: {
     fullscreen: island.fullscreen,
   }
   addEventListener('keydown', ({ key }) => actions[KEYS[key]]?.())
+  // `?show=music&show=video` starts in those states. A page that frames the island drives it by name, and hears
+  // when it can.
+  const run = (name: unknown) => typeof name === 'string' && Object.hasOwn(actions, name) && actions[name]()
+  params.getAll('show').forEach(run)
+  addEventListener('message', ({ origin, data }) => origin === location.origin && run(data))
+  if (parent !== window) parent.postMessage('sumi:ready', location.origin)
   Object.assign(window, {
     __sumiDemo: { transitions: Object.keys(actions), trigger: (name: string) => actions[name]() },
   })
