@@ -23,6 +23,14 @@ describe('resolveView', () => {
     expect(sizeOf(view).width).toBeGreaterThan(sizeOf({ name: 'expanded' }).width)
   })
 
+  it('opens the privacy tag into a panel with a row per app, over any activity', () => {
+    const view = resolveView({ activity: music, hovered: false, expanded: true, privacy: 2 })
+    expect(view).toEqual({ name: 'expanded', privacy: 2 })
+    expect(sizeOf(view)).toEqual({ width: 300, height: 140 })
+    expect(sizeOf({ name: 'expanded', privacy: 0 })).toEqual({ width: 300, height: 72 })
+    expect(sizeOf({ name: 'expanded', privacy: 9 })).toEqual(sizeOf({ name: 'expanded', privacy: 4 }))
+  })
+
   it('shows an activity compact, even under the cursor', () => {
     expect(resolveView({ ...rest, activity: music, hovered: true })).toEqual({ name: 'compact', activity: music })
   })

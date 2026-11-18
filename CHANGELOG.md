@@ -4,6 +4,17 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+### Added
+
+- A small black disc beside the island shows an orange dot while an app uses the microphone, and a green one while an app uses the camera, as on the iPhone. Rest the cursor on it for the app's name, and click it for every app using them, and for how long.
+- Mute the microphone for every app from that panel. While it's muted, a crossed microphone stays beside the island.
+- The panel also opens Windows' own privacy settings for the camera or the microphone.
+
+### Known limits
+
+- An app that captures sound or video outside Windows' audio and camera layers isn't seen.
+- The mute is Windows' mute of the default microphone. An app's own mute button, in Discord or Teams for example, doesn't show.
+
 ## [0.4.0] - 2026-11-17
 
 Your music on the island, from any player, with the time in a bubble beside it.

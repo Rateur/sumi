@@ -18,7 +18,21 @@
   } from './lib/clock'
   import { dominant } from './lib/color'
   import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
-  import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
+  import { label, lasted, light, quiet, tagged, type Privacy } from './lib/privacy'
+  import {
+    BUBBLE,
+    DEVICES,
+    GAP,
+    TAG,
+    TAG_GAP,
+    TOP,
+    layout,
+    radius,
+    resolveView,
+    sizeOf,
+    type Rect,
+    type View,
+  } from './lib/shapes'
   import {
     clockTime,
     nextChange,
@@ -64,11 +78,32 @@
   let now = $state(new Date())
   // Windows' default. Rust sends the user's own each time the cursor arrives.
   let hoverTime = 400
+  // Who uses the microphone or the camera, from Rust. `tagHover` is the cursor on the privacy tag beside the island,
+  // and `looking` its panel open in place of the island's own.
+  let privacy = $state<Privacy>(quiet())
+  let onTag = false
+  let tagHover = $state(false)
+  let tagTimer: ReturnType<typeof setTimeout> | undefined
+  let looking = $state(false)
 
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
-  const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
-  const key = $derived('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name)
+  const view = $derived(
+    resolveView({
+      activity: arrangement.island,
+      hovered,
+      expanded,
+      peeking,
+      privacy: looking && tagged(privacy) ? privacy.apps.length : undefined,
+    }),
+  )
+  const key = $derived(
+    'privacy' in view && view.privacy !== undefined
+      ? `privacy:${view.privacy}`
+      : 'activity' in view && view.activity
+        ? `${view.name}:${view.activity.id}`
+        : view.name,
+  )
   const size = $derived(sizeOf(view))
   const reduced = $derived(prefersReducedMotion.current)
 
@@ -76,10 +111,12 @@
   const parts = $derived.by(() => {
     const name = revealed ? view.name : undefined
     const activity = name && 'activity' in view ? view.activity : undefined
+    const devices = name === 'expanded' && 'privacy' in view && view.privacy !== undefined
     return {
       date: name === 'hover',
       time: name === 'idle' || name === 'hover' || activity?.kind === 'call',
-      panel: name === 'expanded' && !activity,
+      panel: name === 'expanded' && !activity && !devices,
+      devices,
       music: activity?.kind === 'music' ? activity : undefined,
       player: name === 'expanded' && activity?.kind === 'music' ? activity : undefined,
       track: name === 'peek' && activity?.kind === 'music' ? activity : undefined,
@@ -101,14 +138,16 @@
   })
 
   // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
-  // of the island, `bubble` is its size and `drop` lifts everything off the screen in fullscreen.
+  // of the island, `bubble` is its size, `tag` the privacy tag's width, and `drop` lifts everything off the screen
+  // in fullscreen.
   const start = untrack(() => size)
   const width = new Spring(start.width)
   const height = new Spring(start.height)
   const drop = new Spring(0)
   const travel = new Spring(0)
   const bubble = new Spring(0)
-  const springs = [width, height, drop, travel, bubble]
+  const tag = new Spring(0)
+  const springs = [width, height, drop, travel, bubble, tag]
 
   let goo = $state(false)
   let sigma = $state(0)
@@ -129,7 +168,14 @@
       drop: drop.value,
     })
     const clip = { width: Math.min(w, width.value), height: Math.min(h, height.value) }
-    return { fill, dot, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
+    // The privacy tag sits beside whatever is rightmost, level with the top row, and grows from a point.
+    const right = dot && dot.x + dot.width > fill.x + fill.width ? dot : fill
+    const [tw, th] = [tag.value, Math.min(tag.value, TAG)]
+    const flag =
+      tw > 0.5
+        ? { x: right.x + right.width + TAG_GAP, y: TOP + drop.value + (BUBBLE - th) / 2, width: tw, height: th }
+        : undefined
+    return { fill, dot, tag: flag, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
   }
 
   // Frames run only while something moves: at rest there is no loop, no IPC and no filter.
@@ -393,7 +439,8 @@
   let sent: (Rect & { radius: number })[] = []
   function report(moving: boolean) {
     if (!tauri) return
-    const rects = hidden && drop.resting ? [] : [geometry.fill, geometry.dot].filter((r) => r !== undefined)
+    const rects =
+      hidden && drop.resting ? [] : [geometry.fill, geometry.dot, geometry.tag].filter((r) => r !== undefined)
     const padded = rects.map(({ x, y, width, height }) => ({
       x: x - 1,
       y: y - 1,
@@ -422,11 +469,16 @@
     wake()
   }
 
-  function open() {
+  function open(devices = false) {
     if (hidden) return
     pressed = false
+    looking = devices
     expanded = true
   }
+
+  $effect(() => {
+    if (!expanded) looking = false
+  })
 
   // In fullscreen the content leaves, then the island slides up off the screen, shadow included.
   // Coming back, the content waits until the island is 60 % of the way down.
@@ -437,6 +489,7 @@
     if (on) {
       // It comes back compact: no panel, no hover, no press, no peek.
       clearTimeout(hoverTimer)
+      pointTag(false)
       clearTimeout(peekTimer)
       press(false)
       pointer = false
@@ -486,7 +539,7 @@
     rest = undefined
     clearTimeout(hoverTimer)
     if (!inside) press(false)
-    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside), inside ? hoverTime : LEAVE)
+    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
   }
 
   // A cursor still moving on the island starts the wait over from where it is.
@@ -604,6 +657,53 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
+  $effect(() => {
+    if (!tauri) return
+    let heard = false
+    const stop = listen<Privacy>('privacy://state', ({ payload }) => {
+      heard = true
+      privacy = payload
+    })
+    // What Rust found before this listener existed.
+    invoke<Privacy>('privacy_state').then((state) => heard || (privacy = state))
+    return () => {
+      stop.then((unlisten) => unlisten())
+    }
+  })
+
+  // The tag springs open to fit what it holds: the dot, a crossed microphone, and the app's name under the cursor.
+  let tagContent = $state(0)
+  $effect(() => {
+    // The row's width counts its padding already.
+    const target = tagged(privacy) ? Math.max(TAG, tagContent) : 0
+    untrack(() => {
+      // A tag that goes away under the cursor takes its hover with it.
+      if (!target) pointTag(false)
+      if (target === tag.target) return
+      if (reduced || forced.current || (hidden && drop.resting)) tag.jump(target)
+      else if (target > tag.value) tag.to(target, 0.4, 0.3, performance.now())
+      else tag.to(target, 0.3, 0, performance.now())
+      wake()
+    })
+  })
+
+  function pointTag(inside: boolean) {
+    onTag = inside
+    clearTimeout(tagTimer)
+    if (!inside) tagHover = false
+    else tagTimer = setTimeout(() => (tagHover = true), hoverTime)
+  }
+
+  function mute() {
+    if (tauri) invoke('privacy_mute', { muted: !privacy.muted })
+    else privacy = { ...privacy, muted: !privacy.muted }
+  }
+
+  function settings() {
+    if (tauri) invoke('privacy_settings', { camera: light(privacy) === 'camera' })
+    expanded = false
+  }
+
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
     const picked = arrangement.bubble
@@ -688,6 +788,12 @@
         set activities(next) {
           activities = next
         },
+        get privacy() {
+          return privacy
+        },
+        set privacy(next) {
+          privacy = next
+        },
         peek,
         hover: () => (hovered = !hovered),
         expand: () => (expanded ? (expanded = false) : open()),
@@ -735,6 +841,13 @@
         d="M12.5 6.2v11.6a.8.8 0 0 0 1.25.66L21 13.32a.8.8 0 0 0 0-1.32l-7.25-5.46a.8.8 0 0 0-1.25.66Zm-10 0v11.6a.8.8 0 0 0 1.25.66L11 13.32a.8.8 0 0 0 0-1.32L3.75 6.54a.8.8 0 0 0-1.25.66Z"
       />
     {/if}
+  </svg>
+{/snippet}
+
+{#snippet microphone(crossed: boolean)}
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    {#if crossed}<path d="M4 4l16 16" />{/if}
   </svg>
 {/snippet}
 
@@ -786,6 +899,9 @@
   {#if geometry.dot}
     <div class="fill" style={place(geometry.dot)}></div>
   {/if}
+  {#if geometry.tag}
+    <div class="fill" style={place(geometry.tag)}></div>
+  {/if}
 </div>
 
 <div
@@ -800,12 +916,13 @@
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
   {#if !expanded}
-    <button type="button" class="opener" aria-label="Open" aria-expanded="false" onclick={open}></button>
+    <button type="button" class="opener" aria-label="Open" aria-expanded="false" onclick={() => open()}></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
   <span
     class="content view {view.name}"
     class:player={!!parts.player}
+    class:devices={parts.devices}
     bind:this={content}
     style:width="{size.width}px"
     style:height="{size.height}px"
@@ -886,6 +1003,39 @@
     {#if parts.time}
       <time bind:this={clock} datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
     {/if}
+    {#if parts.devices}
+      {@const many = privacy.apps.length > DEVICES.rows}
+      {#each privacy.apps.slice(0, many ? DEVICES.rows - 1 : DEVICES.rows) as app, i (app.name)}
+        <span class="device" in:enter={{ step: i }} out:exit>
+          <span class="dot {app.camera ? 'camera' : 'mic'}"></span>
+          <span class="name">{app.name}<span class="hidden">, {app.camera ? 'camera' : 'microphone'}</span></span>
+          <span class="muted">{lasted(app.sinceMs, now.getTime())}</span>
+        </span>
+      {/each}
+      {#if many}
+        <span class="device muted" in:enter={{ step: DEVICES.rows - 1 }} out:exit>
+          +{privacy.apps.length - DEVICES.rows + 1}
+        </span>
+      {/if}
+      <span class="actions" in:enter={{ step: privacy.apps.length }} out:exit>
+        {#if privacy.canMute}
+          <button
+            type="button"
+            class:on={privacy.muted}
+            aria-label="Mute the microphone"
+            aria-pressed={privacy.muted}
+            onclick={mute}
+          >
+            {@render microphone(privacy.muted)}
+          </button>
+        {/if}
+        <button type="button" aria-label="Privacy settings" onclick={settings}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+          </svg>
+        </button>
+      </span>
+    {/if}
     {#if parts.panel}
       <time class="big" datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
       <span class="muted" in:enter={{ step: 1 }} out:exit>{formatLongDate(now)}</span>
@@ -938,6 +1088,31 @@
           {@render glyph(arrangement.bubble)}
         </span>
       {/key}
+    {/if}
+  </button>
+{/if}
+
+{#if geometry.tag}
+  <button
+    type="button"
+    class="island tag"
+    aria-label={[
+      label(privacy) && `${label(privacy)}: ${light(privacy) === 'camera' ? 'camera' : 'microphone'} in use`,
+      privacy.muted && privacy.canMute && 'microphone muted',
+    ]
+      .filter(Boolean)
+      .join(', ')}
+    style={place(geometry.tag)}
+    onclick={() => open(true)}
+    onpointerenter={() => pointTag(true)}
+    onpointerleave={() => pointTag(false)}
+  >
+    {#if revealed}
+      <span class="row" bind:clientWidth={tagContent}>
+        {#if privacy.muted && privacy.canMute}{@render microphone(true)}{/if}
+        {#if light(privacy)}<span class="dot {light(privacy)}"></span>{/if}
+        {#if tagHover && label(privacy)}<span class="label" in:enter out:exit>{label(privacy)}</span>{/if}
+      </span>
     {/if}
   </button>
 {/if}
@@ -1234,6 +1409,114 @@
 
   .bubble .art {
     border-radius: 50%;
+  }
+
+  /* The privacy tag: what it holds sits in a row from its left end, and the shape springs open around it. */
+  .tag .row {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    padding: 0 6px;
+  }
+
+  .tag .dot {
+    width: 8px;
+    height: 8px;
+  }
+
+  .tag svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .tag .label {
+    max-width: 160px;
+    overflow: hidden;
+    font-size: 12px;
+    text-overflow: ellipsis;
+  }
+
+  .hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The privacy panel: a row per app, then the mute and settings buttons. */
+  .devices {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0;
+    padding: 16px 18px 14px;
+  }
+
+  .device {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 34px;
+  }
+
+  .device .name {
+    flex: 1;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    height: 42px;
+    margin-top: auto;
+  }
+
+  .actions button {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.14);
+    color: #fff;
+    cursor: default;
+    transition: scale 0.15s;
+  }
+
+  .actions button:active {
+    scale: 0.88;
+  }
+
+  /* Muted, the button turns white, as Control Center's do when on. */
+  .actions .on {
+    background: #fff;
+    color: #000;
+  }
+
+  .actions svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .tag svg,
+  .actions svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .countdown {

@@ -3073,6 +3073,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-log",
  "windows",
+ "windows-core",
  "windows-sys 0.61.2",
 ]
 
