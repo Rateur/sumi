@@ -3,9 +3,8 @@ import type { Activity } from './activities'
 export type View =
   | { name: 'idle' }
   | { name: 'hover' }
-  // Music opens into its own panel, the privacy tag into the list of apps using a device (`privacy` rows), and
-  // anything else into the clock's.
-  | { name: 'expanded'; activity?: Activity; privacy?: number }
+  // Music opens into its own panel; anything else opens the clock's.
+  | { name: 'expanded'; activity?: Activity }
   | { name: 'compact' | 'peek'; activity: Activity }
 
 export interface Size {
@@ -35,9 +34,14 @@ const SIZES = {
 
 const PLAYER: Size = { width: 360, height: 164 }
 
-/** The privacy panel: one row per app, up to `rows` (the last one then counts the rest), then the mute and settings
- * buttons. It stays within the island's window. */
-export const DEVICES = { width: 300, row: 34, frame: 72, rows: 4 }
+/** The privacy tag's card: a row per app, up to `rows` (the last one then counts the rest), then its buttons. */
+export const CARD = { width: 248, row: 38, frame: 64, rows: 4 }
+
+/** The card's size for so many apps. With none, only the buttons show, for a muted microphone. */
+export const cardSize = (apps: number): Size => ({
+  width: CARD.width,
+  height: CARD.frame + Math.min(apps, CARD.rows) * CARD.row,
+})
 
 const COMPACT: Record<Activity['kind'], Size> = {
   call: { width: 144, height: 34 },
@@ -58,20 +62,14 @@ export function resolveView(state: {
   hovered: boolean
   expanded: boolean
   peeking?: string
-  /** Set while the privacy panel is open: how many apps it lists. */
-  privacy?: number
 }): View {
-  const { activity, hovered, expanded, peeking, privacy } = state
-  if (expanded && privacy !== undefined) return { name: 'expanded', privacy }
+  const { activity, hovered, expanded, peeking } = state
   if (expanded) return activity?.kind === 'music' ? { name: 'expanded', activity } : { name: 'expanded' }
   if (activity) return { name: activity.id === peeking ? 'peek' : 'compact', activity }
   return { name: hovered ? 'hover' : 'idle' }
 }
 
 export function sizeOf(view: View): Size {
-  if (view.name === 'expanded' && view.privacy !== undefined) {
-    return { width: DEVICES.width, height: DEVICES.frame + Math.min(view.privacy, DEVICES.rows) * DEVICES.row }
-  }
   if (view.name === 'expanded' && view.activity) return PLAYER
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]

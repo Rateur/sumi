@@ -26,6 +26,7 @@ pub fn run() {
             privacy::privacy_state,
             privacy::privacy_mute,
             privacy::privacy_settings,
+            privacy::privacy_show,
             media::media_players
         ])
         .setup(|app| {

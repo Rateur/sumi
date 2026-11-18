@@ -6,9 +6,11 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ### Added
 
-- A small black disc beside the island shows an orange dot while an app uses the microphone, and a green one while an app uses the camera, as on the iPhone. Rest the cursor on it for the app's name, and click it for every app using them, and for how long.
-- Mute the microphone for every app from that panel. While it's muted, a crossed microphone stays beside the island.
-- The panel also opens Windows' own privacy settings for the camera or the microphone.
+- While an app uses the microphone or the camera, a small black disc splits off beside the island, with an orange dot for the microphone and a green one for the camera, as on the iPhone. The island and its music never move for it.
+- Rest the cursor on the disc and it opens into a card: each app with its icon, what it uses, and for how long. It closes once the cursor leaves.
+- Mute the microphone for every app from the card. While it's muted, a crossed microphone stays in the disc.
+- Windows can't turn the camera off for every app without admin rights. The card's camera button, or a click on an app, brings that app's window forward, where its own camera button is.
+- The card also opens Windows' privacy settings for the camera or the microphone.
 
 ### Known limits
 
