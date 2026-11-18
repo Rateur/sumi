@@ -14,6 +14,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
 | Expanded | Clock 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
+| Privacy tag | 20 px circle | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
@@ -26,7 +27,7 @@ When several things happen at once, the highest one takes the island, the next o
 
 The time is last in line: it has the island when nothing runs, and the bubble when one thing does, so it never leaves the screen. Picked from the bubble, it keeps the island until the music ends.
 
-1. Call, microphone or camera
+1. Call
 2. Timer
 3. Music
 4. Time or weather
@@ -41,6 +42,14 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 - A drag on the bar ends without a seek if the panel closes or another song takes it.
 - A new song swells the island when it is on the island, and the bubble when it is in the bubble.
 - The artwork reaches the island as data, never as a file. Its main color is read from a 16 px copy, and lightened until it shows on black.
+
+## Microphone and camera
+
+- Apple's rule: one dot, green while an app uses a camera, with or without the microphone, orange for the microphone alone. It sits in its own 20 px black disc, 6 px right of the island or the bubble, level with the island's top row. The island itself never changes for it, so the music and the time keep their places.
+- The microphone comes from Windows' audio sessions, counting only those that capture right now, since Teams and others keep theirs open after a call. The camera comes from Media Foundation's sensor activity. Both call back when something changes. The registry list behind Windows' privacy page isn't read: recent Windows 11 builds stopped updating it, and a crash leaves stale entries in it for months.
+- A WebView2 process counts as the app that hosts it. Names come from the exe's description, "Discord" or "Google Chrome", and otherwise from its file name.
+- Rest the cursor on the disc and it opens to the first app's name, with a count of the others. A click opens the panel: a row per app with how long it has used its device, then mute and Windows' privacy settings.
+- Mute is Windows' own mute of the default microphones, for every app. While it's on, a crossed microphone stays in the disc, even when no app listens.
 
 ## Input
 
