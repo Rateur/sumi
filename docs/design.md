@@ -48,8 +48,9 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 - Apple's rule: one dot, green while an app uses a camera, with or without the microphone, orange for the microphone alone. It sits in its own 20 px black disc, 6 px right of the island or the bubble, level with the island's top row. The island itself never changes for it, so the music and the time keep their places.
 - The microphone comes from Windows' audio sessions, counting only those that capture right now, since Teams and others keep theirs open after a call. The camera comes from Media Foundation's sensor activity. Both call back when something changes. The registry list behind Windows' privacy page isn't read: recent Windows 11 builds stopped updating it, and a crash leaves stale entries in it for months.
 - A WebView2 process counts as the app that hosts it. Names come from the exe's description, "Discord" or "Google Chrome", and otherwise from its file name.
-- Rest the cursor on the disc and it opens to the first app's name, with a count of the others. A click opens the panel: a row per app with how long it has used its device, then mute and Windows' privacy settings.
-- Mute is Windows' own mute of the default microphones, for every app. While it's on, a crossed microphone stays in the disc, even when no app listens.
+- Rest the cursor on the disc and it opens to the first app's name, with a count of the others. A click opens the panel: a row per app with how long it has used its device, four at most with the last counting the rest, then mute and Windows' privacy settings. Once nothing is left to show, the clock's panel takes its place.
+- Mute is Windows' own mute of the default microphones, for every app. It counts as on only when every default microphone is muted. While it's on, a crossed microphone stays in the disc, even when no app listens.
+- Media Foundation is loaded at run time: Windows N editions ship without it, and Sumi must still start there, with the microphone alone.
 
 ## Input
 

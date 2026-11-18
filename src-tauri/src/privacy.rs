@@ -154,17 +154,20 @@ mod win {
     use windows::Win32::Media::MediaFoundation::{
         IMFSensorActivitiesReport, IMFSensorActivitiesReportCallback,
         IMFSensorActivitiesReportCallback_Impl, IMFSensorActivityMonitor, MF_VERSION,
-        MFCreateSensorActivityMonitor, MFSTARTUP_LITE, MFStartup,
+        MFSTARTUP_LITE,
     };
     use windows::Win32::Storage::FileSystem::{
         GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
     };
     use windows::Win32::System::Com::{
-        CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
+        CLSCTX_ALL, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoTaskMemFree,
     };
     use windows::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
         TH32CS_SNAPPROCESS,
+    };
+    use windows::Win32::System::LibraryLoader::{
+        GetProcAddress, LOAD_LIBRARY_SEARCH_SYSTEM32, LoadLibraryExW,
     };
     use windows::Win32::System::Threading::{
         OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
@@ -342,9 +345,11 @@ mod win {
                 else {
                     continue;
                 };
-                let id = unsafe { device.GetId() }
-                    .map(|id| unsafe { id.to_string() }.unwrap_or_default());
-                let Ok(id) = id else { continue };
+                let Ok(raw) = (unsafe { device.GetId() }) else {
+                    continue;
+                };
+                let id = unsafe { raw.to_string() }.unwrap_or_default();
+                unsafe { CoTaskMemFree(Some(raw.0.cast_const().cast())) };
                 if ids.contains(&id) {
                     continue;
                 }
@@ -393,10 +398,13 @@ mod win {
             pids
         }
 
+        /// Muted only when every default microphone is: a live headset beside a muted laptop mic still hears.
         fn muted(&self) -> bool {
-            self.defaults
-                .first()
-                .is_some_and(|v| unsafe { v.GetMute() }.is_ok_and(BOOL::as_bool))
+            !self.defaults.is_empty()
+                && self
+                    .defaults
+                    .iter()
+                    .all(|v| unsafe { v.GetMute() }.is_ok_and(BOOL::as_bool))
         }
 
         fn mute(&self, muted: bool) {
@@ -436,21 +444,14 @@ mod win {
         let client: IMMNotificationClient = ping.to_interface();
         let _ = unsafe { enumerator.RegisterEndpointNotificationCallback(&client) };
         // The camera half: kept alive as long as the loop. Without Media Foundation, only the microphone shows.
-        let _monitor: Option<IMFSensorActivityMonitor> =
-            unsafe { MFStartup(MF_VERSION, MFSTARTUP_LITE) }
-                .ok()
-                .and_then(|()| {
-                    let callback: IMFSensorActivitiesReportCallback = Sensors(tx.clone()).into();
-                    let monitor = unsafe { MFCreateSensorActivityMonitor(&callback) }.ok()?;
-                    unsafe { monitor.Start() }.ok()?;
-                    Some(monitor)
-                });
+        let _monitor = camera_monitor(tx);
 
         let own = std::process::id();
         let mut capture = Capture::open(&enumerator, &ping);
         let mut camera: Vec<u32> = Vec::new();
         let mut since: HashMap<String, i64> = HashMap::new();
-        let mut names: HashMap<u32, String> = HashMap::new();
+        // Each pid's exe and name. A pid Windows has since given to another exe gets a new name.
+        let mut names: HashMap<u32, (String, String)> = HashMap::new();
         let mut last: Option<Privacy> = None;
         let mut next = Some(Msg::Sessions);
         loop {
@@ -476,11 +477,17 @@ mod win {
                     return None;
                 }
                 let host = host(pid, &processes);
-                if let Some(name) = names.get(&host) {
+                let exe = processes
+                    .get(&host)
+                    .map(|(_, exe)| exe.clone())
+                    .unwrap_or_default();
+                if let Some((known, name)) = names.get(&host)
+                    && *known == exe
+                {
                     return Some(name.clone());
                 }
                 let name = app_name(host, &processes)?;
-                names.insert(host, name.clone());
+                names.insert(host, (exe, name.clone()));
                 Some(name)
             };
             let mic: Vec<String> = mic.into_iter().filter_map(&mut name).collect();
@@ -525,6 +532,40 @@ mod win {
                 SW_SHOWNORMAL,
             );
         }
+    }
+
+    /// Media Foundation, found at run time: Windows N editions ship without it unless the Media Feature Pack is in,
+    /// and a load-time import would keep Sumi from starting there at all.
+    fn camera_monitor(tx: &Sender<Msg>) -> Option<IMFSensorActivityMonitor> {
+        type Startup = unsafe extern "system" fn(u32, u32) -> windows::core::HRESULT;
+        type Create = unsafe extern "system" fn(
+            *mut core::ffi::c_void,
+            *mut *mut core::ffi::c_void,
+        ) -> windows::core::HRESULT;
+        let load = |dll: &str| unsafe {
+            LoadLibraryExW(&HSTRING::from(dll), None, LOAD_LIBRARY_SEARCH_SYSTEM32).ok()
+        };
+        let (plat, sensors) = (load("mfplat.dll")?, load("mfsensorgroup.dll")?);
+        let startup = unsafe { GetProcAddress(plat, windows::core::s!("MFStartup")) }?;
+        let create =
+            unsafe { GetProcAddress(sensors, windows::core::s!("MFCreateSensorActivityMonitor")) }?;
+        // SAFETY: both are documented with exactly these signatures.
+        let (startup, create): (Startup, Create) = unsafe {
+            (
+                std::mem::transmute::<unsafe extern "system" fn() -> isize, Startup>(startup),
+                std::mem::transmute::<unsafe extern "system" fn() -> isize, Create>(create),
+            )
+        };
+        unsafe { startup(MF_VERSION, MFSTARTUP_LITE) }.ok().ok()?;
+        let callback: IMFSensorActivitiesReportCallback = Sensors(tx.clone()).into();
+        let mut monitor = std::ptr::null_mut();
+        unsafe { create(callback.as_raw(), &mut monitor) }
+            .ok()
+            .ok()?;
+        // SAFETY: on success the call hands over one reference to the new monitor.
+        let monitor = unsafe { IMFSensorActivityMonitor::from_raw(monitor) };
+        unsafe { monitor.Start() }.ok()?;
+        Some(monitor)
     }
 
     fn unix_ms() -> i64 {

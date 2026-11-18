@@ -35,8 +35,9 @@ const SIZES = {
 
 const PLAYER: Size = { width: 360, height: 164 }
 
-/** The privacy panel: one row per app, then the mute and settings buttons. */
-const DEVICES = { width: 300, row: 34, frame: 72 }
+/** The privacy panel: one row per app, up to `rows` (the last one then counts the rest), then the mute and settings
+ * buttons. It stays within the island's window. */
+export const DEVICES = { width: 300, row: 34, frame: 72, rows: 4 }
 
 const COMPACT: Record<Activity['kind'], Size> = {
   call: { width: 144, height: 34 },
@@ -69,7 +70,7 @@ export function resolveView(state: {
 
 export function sizeOf(view: View): Size {
   if (view.name === 'expanded' && view.privacy !== undefined) {
-    return { width: DEVICES.width, height: DEVICES.frame + view.privacy * DEVICES.row }
+    return { width: DEVICES.width, height: DEVICES.frame + Math.min(view.privacy, DEVICES.rows) * DEVICES.row }
   }
   if (view.name === 'expanded' && view.activity) return PLAYER
   if (view.name === 'compact') return COMPACT[view.activity.kind]

@@ -19,7 +19,20 @@
   import { dominant } from './lib/color'
   import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
   import { label, lasted, light, quiet, tagged, type Privacy } from './lib/privacy'
-  import { BUBBLE, GAP, TAG, TAG_GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
+  import {
+    BUBBLE,
+    DEVICES,
+    GAP,
+    TAG,
+    TAG_GAP,
+    TOP,
+    layout,
+    radius,
+    resolveView,
+    sizeOf,
+    type Rect,
+    type View,
+  } from './lib/shapes'
   import {
     clockTime,
     nextChange,
@@ -68,7 +81,9 @@
   // Who uses the microphone or the camera, from Rust. `tagHover` is the cursor on the privacy tag beside the island,
   // and `looking` its panel open in place of the island's own.
   let privacy = $state<Privacy>(quiet())
+  let onTag = false
   let tagHover = $state(false)
+  let tagTimer: ReturnType<typeof setTimeout> | undefined
   let looking = $state(false)
 
   let shown: Arrangement | undefined
@@ -79,7 +94,7 @@
       hovered,
       expanded,
       peeking,
-      privacy: looking ? privacy.apps.length : undefined,
+      privacy: looking && tagged(privacy) ? privacy.apps.length : undefined,
     }),
   )
   const key = $derived(
@@ -154,7 +169,7 @@
     })
     const clip = { width: Math.min(w, width.value), height: Math.min(h, height.value) }
     // The privacy tag sits beside whatever is rightmost, level with the top row, and grows from a point.
-    const right = dot ?? fill
+    const right = dot && dot.x + dot.width > fill.x + fill.width ? dot : fill
     const [tw, th] = [tag.value, Math.min(tag.value, TAG)]
     const flag =
       tw > 0.5
@@ -474,7 +489,7 @@
     if (on) {
       // It comes back compact: no panel, no hover, no press, no peek.
       clearTimeout(hoverTimer)
-      tagHover = false
+      pointTag(false)
       clearTimeout(peekTimer)
       press(false)
       pointer = false
@@ -524,7 +539,7 @@
     rest = undefined
     clearTimeout(hoverTimer)
     if (!inside) press(false)
-    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !tagHover), inside ? hoverTime : LEAVE)
+    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
   }
 
   // A cursor still moving on the island starts the wait over from where it is.
@@ -662,6 +677,8 @@
     // The row's width counts its padding already.
     const target = tagged(privacy) ? Math.max(TAG, tagContent) : 0
     untrack(() => {
+      // A tag that goes away under the cursor takes its hover with it.
+      if (!target) pointTag(false)
       if (target === tag.target) return
       if (reduced || forced.current || (hidden && drop.resting)) tag.jump(target)
       else if (target > tag.value) tag.to(target, 0.4, 0.3, performance.now())
@@ -669,6 +686,13 @@
       wake()
     })
   })
+
+  function pointTag(inside: boolean) {
+    onTag = inside
+    clearTimeout(tagTimer)
+    if (!inside) tagHover = false
+    else tagTimer = setTimeout(() => (tagHover = true), hoverTime)
+  }
 
   function mute() {
     if (tauri) invoke('privacy_mute', { muted: !privacy.muted })
@@ -980,13 +1004,19 @@
       <time bind:this={clock} datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
     {/if}
     {#if parts.devices}
-      {#each privacy.apps as app, i (app.name)}
+      {@const many = privacy.apps.length > DEVICES.rows}
+      {#each privacy.apps.slice(0, many ? DEVICES.rows - 1 : DEVICES.rows) as app, i (app.name)}
         <span class="device" in:enter={{ step: i }} out:exit>
           <span class="dot {app.camera ? 'camera' : 'mic'}"></span>
-          <span class="name">{app.name}</span>
+          <span class="name">{app.name}<span class="hidden">, {app.camera ? 'camera' : 'microphone'}</span></span>
           <span class="muted">{lasted(app.sinceMs, now.getTime())}</span>
         </span>
       {/each}
+      {#if many}
+        <span class="device muted" in:enter={{ step: DEVICES.rows - 1 }} out:exit>
+          +{privacy.apps.length - DEVICES.rows + 1}
+        </span>
+      {/if}
       <span class="actions" in:enter={{ step: privacy.apps.length }} out:exit>
         {#if privacy.canMute}
           <button
@@ -1066,13 +1096,16 @@
   <button
     type="button"
     class="island tag"
-    aria-label={label(privacy)
-      ? `${label(privacy)}: ${light(privacy) === 'camera' ? 'camera' : 'microphone'} in use`
-      : 'Microphone muted'}
+    aria-label={[
+      label(privacy) && `${label(privacy)}: ${light(privacy) === 'camera' ? 'camera' : 'microphone'} in use`,
+      privacy.muted && privacy.canMute && 'microphone muted',
+    ]
+      .filter(Boolean)
+      .join(', ')}
     style={place(geometry.tag)}
     onclick={() => open(true)}
-    onpointerenter={() => (tagHover = true)}
-    onpointerleave={() => (tagHover = false)}
+    onpointerenter={() => pointTag(true)}
+    onpointerleave={() => pointTag(false)}
   >
     {#if revealed}
       <span class="row" bind:clientWidth={tagContent}>
@@ -1401,7 +1434,19 @@
   }
 
   .tag .label {
+    max-width: 160px;
+    overflow: hidden;
     font-size: 12px;
+    text-overflow: ellipsis;
+  }
+
+  .hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   /* The privacy panel: a row per app, then the mute and settings buttons. */
@@ -1409,6 +1454,7 @@
     flex-direction: column;
     align-items: stretch;
     justify-content: flex-start;
+    gap: 0;
     padding: 16px 18px 14px;
   }
 
