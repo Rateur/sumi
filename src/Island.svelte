@@ -142,6 +142,8 @@
   let phase: 'none' | 'split' | 'shown' | 'merge' = 'none'
   let delayed: ReturnType<typeof setTimeout> | undefined
   let reveal = 0
+  // Where the open card's left edge stays while it is open.
+  let anchor: number | undefined
   let geometry = $state.raw(shape())
   let raf = 0
 
@@ -160,10 +162,12 @@
     const right = dot && dot.x + dot.width > fill.x + fill.width ? dot : fill
     const [tw, th] = [tagW.value, tagH.value]
     const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
+    const beside = right.x + right.width + TAG_GAP
+    anchor = card ? (anchor ?? beside) : undefined
     const flag =
       tw > 0.5
         ? {
-            x: right.x + right.width + TAG_GAP + tagShift.value + inset,
+            x: (anchor ?? beside) + tagShift.value + inset,
             y: TOP + drop.value + (BUBBLE - TAG) / 2 + inset,
             width: tw,
             height: th,
@@ -355,9 +359,15 @@
     wake()
   }
 
+  let retracting: ReturnType<typeof setTimeout> | undefined
   function retract() {
     if (tagPhase === 'none' || tagPhase === 'merge') return
-    closeCard()
+    if (card || tagH.value > TAG + 0.5) {
+      closeCard()
+      clearTimeout(retracting)
+      retracting = setTimeout(() => tagged(privacy) || retract(), 320)
+      return
+    }
     if (reduced || forced.current || (hidden && drop.resting)) {
       tagW.jump(0)
       tagH.jump(0)
@@ -752,10 +762,19 @@
   })
 
   // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
+  let tagRest: { x: number; y: number } | undefined
   function pointTag(inside: boolean) {
     onTag = inside
+    tagRest = undefined
     clearTimeout(tagTimer)
-    tagTimer = setTimeout(() => (card = inside && tagged(privacy)), inside ? 180 : LEAVE)
+    tagTimer = setTimeout(() => (card = inside && tagged(privacy)), inside ? hoverTime : LEAVE)
+  }
+
+  function moveTag({ clientX: x, clientY: y }: PointerEvent) {
+    if (!onTag || card) return
+    if (tagRest && Math.abs(x - tagRest.x) <= REST && Math.abs(y - tagRest.y) <= REST) return
+    if (tagRest) pointTag(true)
+    tagRest = { x, y }
   }
 
   function closeCard() {
@@ -786,9 +805,9 @@
   }
 
   // Windows can't turn the camera off for every app the way it mutes the microphone: the app's own window can.
-  function show(name: string) {
-    if (tauri) invoke('privacy_show', { name })
+  async function show(name: string) {
     closeCard()
+    if (tauri && !(await invoke<boolean>('privacy_show', { name }))) settings()
   }
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
@@ -1161,6 +1180,7 @@
     aria-label="Microphone and camera"
     style={place(geometry.tag)}
     onpointerenter={() => pointTag(true)}
+    onpointermove={moveTag}
     onpointerleave={() => pointTag(false)}
   >
     {#if !card}
@@ -1181,7 +1201,7 @@
       ></button>
     {/if}
     {#if revealed && !card}
-      <span class="disc" bind:clientWidth={tagContent} in:enter out:exit={{ shrinks: false }}>
+      <span class="disc" bind:clientWidth={tagContent} in:enter|global out:exit|global={{ shrinks: false }}>
         {#if privacy.muted && privacy.canMute}<span class="crossed">{@render microphone(true)}</span>{/if}
         {#if uses}<span class="dot" class:mic={uses === 'mic'} class:camera={uses === 'camera'}></span>{/if}
       </span>
@@ -1192,10 +1212,12 @@
           <button
             type="button"
             class="app"
-            aria-label="Show {app.name}"
+            aria-label="Show {app.name}: {[app.mic && 'microphone', app.camera && 'camera']
+              .filter(Boolean)
+              .join(', ')}{lasted(app.sinceMs, now.getTime()) && `, ${lasted(app.sinceMs, now.getTime())}`}"
             onclick={() => show(app.name)}
-            in:enter={{ step: i }}
-            out:exit={{ shrinks: true }}
+            in:enter|global={{ step: i }}
+            out:exit|global={{ shrinks: true }}
           >
             {#if app.icon}
               <canvas class="icon" use:paintIcon={app.icon} aria-hidden="true"></canvas>
@@ -1212,11 +1234,11 @@
           </button>
         {/each}
         {#if many}
-          <span class="app muted more" in:enter={{ step: rows.length }} out:exit={{ shrinks: true }}>
+          <span class="app muted more" in:enter|global={{ step: rows.length }} out:exit|global={{ shrinks: true }}>
             +{privacy.apps.length - rows.length}
           </span>
         {/if}
-        <span class="actions" in:enter={{ step: rows.length + 1 }} out:exit={{ shrinks: true }}>
+        <span class="actions" in:enter|global={{ step: rows.length + 1 }} out:exit|global={{ shrinks: true }}>
           {#if privacy.canMute && (privacy.muted || privacy.apps.some((a) => a.mic))}
             <button
               type="button"
