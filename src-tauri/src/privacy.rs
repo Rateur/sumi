@@ -19,6 +19,15 @@ pub struct App {
     pub mic: bool,
     pub camera: bool,
     pub since_ms: i64,
+    pub icon: Option<Icon>,
+}
+
+/// An app's icon as straight RGBA pixels in base64, `side` px square, for the page to paint without an image
+/// encoder in the app.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Icon {
+    pub side: u32,
+    pub rgba: String,
 }
 
 /// What the page draws: the apps, oldest first, and the microphone's mute.
@@ -46,6 +55,8 @@ enum Msg {
 pub struct Devices {
     tx: Mutex<Sender<Msg>>,
     snapshot: Mutex<Privacy>,
+    /// The processes behind each app shown, for bringing its own window forward.
+    owners: Mutex<HashMap<String, Vec<u32>>>,
 }
 
 #[tauri::command]
@@ -65,6 +76,23 @@ pub fn privacy_mute(devices: tauri::State<'_, Devices>, muted: bool) {
     }
 }
 
+/// Brings an app's window to the front, where its own camera and microphone buttons are: Windows can't turn the
+/// camera off for every app without admin rights, the way it mutes the microphone.
+/// Answers whether a window came forward. It runs on the window's own thread, which has the input queue that
+/// bringing another app forward needs.
+#[tauri::command]
+pub fn privacy_show(devices: tauri::State<'_, Devices>, name: String) -> bool {
+    let pids = devices
+        .owners
+        .lock()
+        .ok()
+        .and_then(|owners| owners.get(&name).cloned());
+    #[cfg(windows)]
+    return pids.is_some_and(|pids| win::show(&pids));
+    #[cfg(not(windows))]
+    return pids.is_some_and(|_| false);
+}
+
 /// Opens Windows' own page for the camera or the microphone, which lists every app's access and lets you change it.
 #[tauri::command]
 pub fn privacy_settings(camera: bool) {
@@ -81,6 +109,7 @@ pub fn watch(app: &AppHandle) {
     app.manage(Devices {
         tx: Mutex::new(tx.clone()),
         snapshot: Mutex::default(),
+        owners: Mutex::default(),
     });
     let app = app.clone();
     std::thread::spawn(move || run(&app, &tx, &rx));
@@ -109,6 +138,7 @@ fn gather(
                     mic: false,
                     camera: false,
                     since_ms,
+                    icon: None,
                 });
                 apps.last_mut().expect("just pushed")
             }
@@ -175,7 +205,7 @@ mod win {
     };
     use windows::core::{BOOL, ComObject, GUID, HSTRING, Interface, PCWSTR, PWSTR, Ref, implement};
 
-    use super::{Devices, Msg, Privacy, gather};
+    use super::{Devices, Icon, Msg, Privacy, gather};
 
     /// Several callbacks come in a row when an app opens the microphone: one wait gathers them into one message.
     const BURST: Duration = Duration::from_millis(150);
@@ -451,7 +481,9 @@ mod win {
         let mut camera: Vec<u32> = Vec::new();
         let mut since: HashMap<String, i64> = HashMap::new();
         // Each pid's exe and name. A pid Windows has since given to another exe gets a new name.
-        let mut names: HashMap<u32, (String, String)> = HashMap::new();
+        let mut names: HashMap<u32, (String, String, Option<String>)> = HashMap::new();
+        let mut icons: HashMap<String, Option<Icon>> = HashMap::new();
+        // The processes behind each app shown, for bringing its own window forward.
         let mut last: Option<Privacy> = None;
         let mut next = Some(Msg::Sessions);
         loop {
@@ -472,6 +504,9 @@ mod win {
 
             let mic = capture.listen(&ping);
             let processes = processes();
+            // Which path each name came from, for its icon, and which processes.
+            let mut paths: HashMap<String, String> = HashMap::new();
+            let mut hosts: HashMap<String, Vec<u32>> = HashMap::new();
             let mut name = |pid: u32| -> Option<String> {
                 if pid == own || pid == 0 {
                     return None;
@@ -481,20 +516,41 @@ mod win {
                     .get(&host)
                     .map(|(_, exe)| exe.clone())
                     .unwrap_or_default();
-                if let Some((known, name)) = names.get(&host)
-                    && *known == exe
-                {
-                    return Some(name.clone());
+                let (name, path) = match names.get(&host) {
+                    Some((known, name, path)) if *known == exe => (name.clone(), path.clone()),
+                    _ => {
+                        let path = image_path(host);
+                        let name = app_name(host, path.clone(), &processes)?;
+                        names.insert(host, (exe, name.clone(), path.clone()));
+                        (name, path)
+                    }
+                };
+                if let Some(path) = path {
+                    paths.entry(name.clone()).or_insert(path);
                 }
-                let name = app_name(host, &processes)?;
-                names.insert(host, (exe, name.clone()));
+                hosts.entry(name.clone()).or_default().push(host);
                 Some(name)
             };
             let mic: Vec<String> = mic.into_iter().filter_map(&mut name).collect();
             let camera_names: Vec<String> = camera.iter().copied().filter_map(&mut name).collect();
             names.retain(|pid, _| processes.contains_key(pid));
+            let mut apps = gather(&mic, &camera_names, &mut since, unix_ms());
+            if let Ok(mut owners) = app.state::<Devices>().owners.lock() {
+                *owners = hosts
+                    .into_iter()
+                    .map(|(name, pids)| (name, roots(&pids, &processes)))
+                    .collect();
+            }
+            for app in &mut apps {
+                if let Some(path) = paths.get(&app.name) {
+                    app.icon = icons
+                        .entry(path.clone())
+                        .or_insert_with(|| icon(path))
+                        .clone();
+                }
+            }
             let state = Privacy {
-                apps: gather(&mic, &camera_names, &mut since, unix_ms()),
+                apps,
                 muted: capture.muted(),
                 can_mute: !capture.defaults.is_empty(),
             };
@@ -568,6 +624,108 @@ mod win {
         Some(monitor)
     }
 
+    /// Brings forward the frontmost window of these processes. A Store app's window belongs to ApplicationFrameHost,
+    /// with the app's own window inside it.
+    /// The processes that own an app's windows: from the one capturing, up its parents of the same exe, as a
+    /// browser's or Electron app's helper process leads to the main one.
+    fn roots(pids: &[u32], processes: &HashMap<u32, (u32, String)>) -> Vec<u32> {
+        let mut roots = Vec::new();
+        for &pid in pids {
+            let mut pid = pid;
+            for _ in 0..8 {
+                let Some((parent, exe)) = processes.get(&pid) else {
+                    break;
+                };
+                match processes.get(parent) {
+                    Some((_, up)) if up.eq_ignore_ascii_case(exe) => pid = *parent,
+                    _ => break,
+                }
+            }
+            roots.push(pid);
+        }
+        roots.extend_from_slice(pids);
+        roots.dedup();
+        roots
+    }
+
+    pub(super) fn show(pids: &[u32]) -> bool {
+        use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+        use windows_sys::Win32::Foundation::{HWND, LPARAM};
+        use windows_sys::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            BringWindowToTop, EnumChildWindows, EnumWindows, GW_OWNER, GetClassNameW,
+            GetForegroundWindow, GetWindow, GetWindowTextLengthW, GetWindowThreadProcessId,
+            IsIconic, IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, SW_RESTORE,
+            SetForegroundWindow, ShowWindow,
+        };
+
+        struct Search {
+            pids: Vec<u32>,
+            found: HWND,
+        }
+        fn owned(hwnd: HWND, pids: &[u32]) -> bool {
+            let mut pid = 0;
+            unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
+            pids.contains(&pid)
+        }
+        unsafe extern "system" fn child(hwnd: HWND, search: LPARAM) -> i32 {
+            let search = unsafe { &mut *(search as *mut Search) };
+            i32::from(!owned(hwnd, &search.pids))
+        }
+        unsafe extern "system" fn each(hwnd: HWND, search: LPARAM) -> i32 {
+            let found = unsafe {
+                let mut cloaked = 0u32;
+                let _ =
+                    DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED as u32, (&raw mut cloaked).cast(), 4);
+                IsWindowVisible(hwnd) != 0
+                    && GetWindow(hwnd, GW_OWNER).is_null()
+                    && GetWindowTextLengthW(hwnd) > 0
+                    && cloaked == 0
+            } && {
+                let search_ref = unsafe { &mut *(search as *mut Search) };
+                let mut class = [0u16; 32];
+                let len = unsafe { GetClassNameW(hwnd, class.as_mut_ptr(), 32) };
+                let frame = String::from_utf16_lossy(&class[..usize::try_from(len).unwrap_or(0)])
+                    == "ApplicationFrameWindow";
+                owned(hwnd, &search_ref.pids)
+                    || (frame && unsafe { EnumChildWindows(hwnd, Some(child), search) } == 0)
+            };
+            if found {
+                unsafe { (*(search as *mut Search)).found = hwnd };
+            }
+            i32::from(!found)
+        }
+
+        let mut search = Search {
+            pids: pids.to_vec(),
+            found: std::ptr::null_mut(),
+        };
+        unsafe { EnumWindows(Some(each), (&raw mut search) as LPARAM) };
+        let hwnd = search.found;
+        if hwnd.is_null() {
+            return false;
+        }
+        unsafe {
+            if IsIconic(hwnd) != 0 {
+                ShowWindow(hwnd, SW_RESTORE);
+            }
+            // The click reached WebView2's process, not this one, so Windows wouldn't let it pick the foreground
+            // window: sharing input with the current foreground thread for a moment does.
+            let mut msg = MSG::default();
+            PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_NOREMOVE);
+            let front = GetWindowThreadProcessId(GetForegroundWindow(), std::ptr::null_mut());
+            let me = GetCurrentThreadId();
+            let attached =
+                front != 0 && front != me && AttachThreadInput(me, front, true).as_bool();
+            SetForegroundWindow(hwnd);
+            BringWindowToTop(hwnd);
+            if attached {
+                let _ = AttachThreadInput(me, front, false);
+            }
+        }
+        true
+    }
+
     fn unix_ms() -> i64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -618,8 +776,11 @@ mod win {
     }
 
     /// The name people know an app by: its exe's description ("Discord", "Google Chrome"), else the exe's name.
-    fn app_name(pid: u32, processes: &HashMap<u32, (u32, String)>) -> Option<String> {
-        let path = image_path(pid);
+    fn app_name(
+        pid: u32,
+        path: Option<String>,
+        processes: &HashMap<u32, (u32, String)>,
+    ) -> Option<String> {
         let described = path.as_deref().and_then(description);
         described.or_else(|| {
             let exe = path.or_else(|| processes.get(&pid).map(|(_, exe)| exe.clone()))?;
@@ -630,6 +791,92 @@ mod win {
                     .unwrap_or(file)
                     .to_string(),
             )
+        })
+    }
+
+    /// The exe's own icon, at the size Windows draws large icons, read as 32-bit pixels. Old icons without any alpha
+    /// are opaque.
+    fn icon(path: &str) -> Option<Icon> {
+        use base64::{Engine, engine::general_purpose::STANDARD};
+        use windows_sys::Win32::Graphics::Gdi::{
+            BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
+            DeleteObject, GetDIBits,
+        };
+        use windows_sys::Win32::UI::Shell::ExtractIconExW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
+
+        let wide: Vec<u16> = path.encode_utf16().chain([0]).collect();
+        let mut large = std::ptr::null_mut();
+        let found =
+            unsafe { ExtractIconExW(wide.as_ptr(), 0, &mut large, std::ptr::null_mut(), 1) };
+        if found == 0 || large.is_null() {
+            return None;
+        }
+        let mut info = ICONINFO::default();
+        let mut pixels = Vec::new();
+        let mut side = 0u32;
+        if unsafe { GetIconInfo(large, &mut info) } != 0 && !info.hbmColor.is_null() {
+            let dc = unsafe { CreateCompatibleDC(std::ptr::null_mut()) };
+            let mut bmi = BITMAPINFO::default();
+            bmi.bmiHeader.biSize = u32::try_from(size_of::<BITMAPINFOHEADER>()).unwrap_or(0);
+            // A first call with no buffer fills in the bitmap's size.
+            let sized = unsafe {
+                GetDIBits(
+                    dc,
+                    info.hbmColor,
+                    0,
+                    0,
+                    std::ptr::null_mut(),
+                    &mut bmi,
+                    DIB_RGB_COLORS,
+                )
+            };
+            let width = bmi.bmiHeader.biWidth;
+            if sized != 0 && width > 0 && width <= 256 && bmi.bmiHeader.biHeight.abs() == width {
+                bmi.bmiHeader.biBitCount = 32;
+                bmi.bmiHeader.biCompression = BI_RGB;
+                bmi.bmiHeader.biHeight = -width;
+                let side_px = width.unsigned_abs();
+                pixels = vec![0u8; (side_px * side_px * 4) as usize];
+                let read = unsafe {
+                    GetDIBits(
+                        dc,
+                        info.hbmColor,
+                        0,
+                        side_px,
+                        pixels.as_mut_ptr().cast(),
+                        &mut bmi,
+                        DIB_RGB_COLORS,
+                    )
+                };
+                if read == width {
+                    side = side_px;
+                }
+            }
+            unsafe { DeleteDC(dc) };
+        }
+        unsafe {
+            if !info.hbmColor.is_null() {
+                DeleteObject(info.hbmColor);
+            }
+            if !info.hbmMask.is_null() {
+                DeleteObject(info.hbmMask);
+            }
+            DestroyIcon(large);
+        }
+        if side == 0 {
+            return None;
+        }
+        let opaque = pixels.chunks(4).all(|p| p[3] == 0);
+        for pixel in pixels.chunks_mut(4) {
+            pixel.swap(0, 2);
+            if opaque {
+                pixel[3] = 255;
+            }
+        }
+        Some(Icon {
+            side,
+            rgba: STANDARD.encode(&pixels),
         })
     }
 

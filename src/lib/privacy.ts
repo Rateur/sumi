@@ -5,6 +5,8 @@ export interface PrivacyApp {
   camera: boolean
   /** Unix time, when Sumi first saw it. */
   sinceMs: number
+  /** The exe's icon, straight RGBA in base64, `side` px square. */
+  icon?: { side: number; rgba: string } | null
 }
 
 export interface Privacy {
