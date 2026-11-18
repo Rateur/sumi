@@ -653,15 +653,16 @@ mod win {
         use windows_sys::Win32::Foundation::{HWND, LPARAM};
         use windows_sys::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            BringWindowToTop, EnumChildWindows, EnumWindows, GW_OWNER, GetClassNameW,
-            GetForegroundWindow, GetWindow, GetWindowTextLengthW, GetWindowThreadProcessId,
-            IsIconic, IsWindowVisible, MSG, PM_NOREMOVE, PeekMessageW, SW_RESTORE,
-            SetForegroundWindow, ShowWindow,
+            EnumChildWindows, EnumWindows, GW_OWNER, GetClassNameW, GetForegroundWindow, GetWindow,
+            GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, MSG,
+            PM_NOREMOVE, PeekMessageW, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindowAsync,
         };
 
         struct Search {
             pids: Vec<u32>,
             found: HWND,
+            /// The second pass also takes a window hidden in the tray or cloaked on another virtual desktop.
+            hidden: bool,
         }
         fn owned(hwnd: HWND, pids: &[u32]) -> bool {
             let mut pid = 0;
@@ -673,14 +674,14 @@ mod win {
             i32::from(!owned(hwnd, &search.pids))
         }
         unsafe extern "system" fn each(hwnd: HWND, search: LPARAM) -> i32 {
+            let hidden = unsafe { (*(search as *mut Search)).hidden };
             let found = unsafe {
                 let mut cloaked = 0u32;
                 let _ =
                     DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED as u32, (&raw mut cloaked).cast(), 4);
-                IsWindowVisible(hwnd) != 0
+                (hidden || (IsWindowVisible(hwnd) != 0 && cloaked == 0))
                     && GetWindow(hwnd, GW_OWNER).is_null()
                     && GetWindowTextLengthW(hwnd) > 0
-                    && cloaked == 0
             } && {
                 let search_ref = unsafe { &mut *(search as *mut Search) };
                 let mut class = [0u16; 32];
@@ -699,15 +700,24 @@ mod win {
         let mut search = Search {
             pids: pids.to_vec(),
             found: std::ptr::null_mut(),
+            hidden: false,
         };
         unsafe { EnumWindows(Some(each), (&raw mut search) as LPARAM) };
+        // A call app minimized to the tray hides its window: shown again, it comes back.
+        if search.found.is_null() {
+            search.hidden = true;
+            unsafe { EnumWindows(Some(each), (&raw mut search) as LPARAM) };
+        }
         let hwnd = search.found;
         if hwnd.is_null() {
             return false;
         }
         unsafe {
+            // Async: a hung app never holds Sumi's main thread waiting for its answer.
             if IsIconic(hwnd) != 0 {
-                ShowWindow(hwnd, SW_RESTORE);
+                ShowWindowAsync(hwnd, SW_RESTORE);
+            } else if IsWindowVisible(hwnd) == 0 {
+                ShowWindowAsync(hwnd, SW_SHOW);
             }
             // The click reached WebView2's process, not this one, so Windows wouldn't let it pick the foreground
             // window: sharing input with the current foreground thread for a moment does.
@@ -717,13 +727,12 @@ mod win {
             let me = GetCurrentThreadId();
             let attached =
                 front != 0 && front != me && AttachThreadInput(me, front, true).as_bool();
-            SetForegroundWindow(hwnd);
-            BringWindowToTop(hwnd);
+            let shown = SetForegroundWindow(hwnd) != 0;
             if attached {
                 let _ = AttachThreadInput(me, front, false);
             }
+            shown
         }
-        true
     }
 
     fn unix_ms() -> i64 {
@@ -851,6 +860,26 @@ mod win {
                 };
                 if read == width {
                     side = side_px;
+                }
+                // Old icons keep their transparency in the AND mask: white there is see-through.
+                if side != 0 && !info.hbmMask.is_null() && pixels.chunks(4).all(|p| p[3] == 0) {
+                    let mut mask = vec![0u8; pixels.len()];
+                    let read = unsafe {
+                        GetDIBits(
+                            dc,
+                            info.hbmMask,
+                            0,
+                            side_px,
+                            mask.as_mut_ptr().cast(),
+                            &mut bmi,
+                            DIB_RGB_COLORS,
+                        )
+                    };
+                    if read == width {
+                        for (pixel, bit) in pixels.chunks_mut(4).zip(mask.chunks(4)) {
+                            pixel[3] = if bit[0] == 0 { 255 } else { 0 };
+                        }
+                    }
                 }
             }
             unsafe { DeleteDC(dc) };
