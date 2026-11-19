@@ -93,10 +93,11 @@ const WORDS = {
 
 /** Lowercase without accents, one character for one, so a match in the folded text slices the typed one. */
 export function fold(text: string): string {
-  return Array.from(text, (c) => {
+  // Printable ASCII but capitals is folded already: only the rest is looked at.
+  return text.replace(/[A-Z]|[^ -~]/gu, (c) => {
     const f = c.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
     return f.length === c.length ? f : c
-  }).join('')
+  })
 }
 
 // --- Reading the line ---
@@ -152,20 +153,15 @@ function prep(typed: string, frozen?: ReadonlySet<string>): Read {
     }
     words.push([piece, at])
   }
-  const read: Read = { text: '', raw: '', at: [] }
+  // Each word is a run of the typed line, so its letters as typed are a slice.
+  const at: number[] = []
   for (const [word, start] of words) {
-    if (read.text) {
-      read.text += ' '
-      read.raw += ' '
-      read.at.push(start)
-    }
-    read.text += word
-    for (let i = 0; i < word.length; i++) {
-      read.raw += s[start + i]
-      read.at.push(start + i)
-    }
+    if (at.length) at.push(start)
+    for (let i = 0; i < word.length; i++) at.push(start + i)
   }
-  return read
+  const text = words.map(([word]) => word).join(' ')
+  const raw = words.map(([word, start]) => s.slice(start, start + word.length)).join(' ')
+  return { text, raw, at }
 }
 
 // Politeness off both ends, as long as something is left: 'merci' alone stays a line.
@@ -237,7 +233,7 @@ const count = (n: string) =>
         )
 // Halves and quarters first ('une et demi heure' before 'demi heure'), then a number and its unit, then a number
 // after a unit ('1 hour thirty').
-const SPELL: [RegExp, (m: RegExpMatchArray) => string][] = [
+const SPELL: [RegExp, (m: RegExpExecArray) => string][] = [
   [words(`${COUNT} (?:et|and) (?:an? )?(?:demie?|half) (${SPOKEN_UNIT})`), (m) => `${count(m[1]) + 0.5} ${m[2]}`],
   [words(`(?:une? )?demi[- ]heure|(?:a )?half[- ](?:an )?hour`), () => '30 min'],
   [words(`(?:un )?quart d'heure|(?:a |one )?quarter (?:of an )?hour`), () => '15 min'],
@@ -249,27 +245,32 @@ const SPELL: [RegExp, (m: RegExpMatchArray) => string][] = [
 const ONE = words(`${COUNT} (${SPOKEN_UNIT})`)
 const AFTER = words(`(${SPOKEN_UNIT}) (?:(?:et|and) )?(${SPELLED})`)
 
-// Rewrites what `re` finds in the folded line, in the line as typed: fold keeps one character for one.
-function rewrite(line: string, re: RegExp, write: (m: RegExpMatchArray) => string): string {
-  let out = ''
-  let last = 0
-  for (const m of fold(line).matchAll(re)) {
-    out += line.slice(last, m.index) + write(m)
-    last = m.index + m[0].length
-  }
-  return out + line.slice(last)
-}
-
 // Spelled durations as digits: 'une demi-heure' is '30 min', 'ten minutes' '10 minutes'. `article` says a lone
 // 'a', 'an', 'un' or 'une' gave one, as in 'une minute' or 'wait a minute': a phrase unless a timer is asked for.
 function spell(line: string): { line: string; article: boolean } {
   let article = false
-  for (const [re, write] of SPELL) line = rewrite(line, re, write)
-  line = rewrite(line, ONE, (m) => {
+  let folded = fold(line)
+  // No unit, no spelled duration: most lines stop here.
+  if (!/sec|min|heure|hour|hr/.test(folded)) return { line, article }
+  // Rewrites what `re` finds in the folded line, in the line as typed: fold keeps one character for one.
+  const rewrite = (re: RegExp, write: (m: RegExpExecArray) => string) => {
+    let out = ''
+    let last = 0
+    re.lastIndex = 0
+    for (let m = re.exec(folded); m; m = re.exec(folded)) {
+      out += line.slice(last, m.index) + write(m)
+      last = m.index + m[0].length
+    }
+    if (!last) return
+    line = out + line.slice(last)
+    folded = fold(line)
+  }
+  for (const [re, write] of SPELL) rewrite(re, write)
+  rewrite(ONE, (m) => {
     article ||= /^(?:an?|une?)$/.test(m[1])
     return `${count(m[1])} ${m[2]}`
   })
-  line = rewrite(line, AFTER, (m) => `${m[1]} ${count(m[2])}`)
+  rewrite(AFTER, (m) => `${m[1]} ${count(m[2])}`)
   return { line, article }
 }
 
@@ -302,6 +303,8 @@ const toMs = (n: string, unit: string) => {
 /** A whole line read as a new timer: its length, and its label of at most 3 words. Anything else is no timer. */
 export function parseTimer(line: string): { ms: number; label?: string } | undefined {
   const { line: raw, article } = spell(line.trim().replace(/\s+/g, ' ').replace(/[’‘ʼ]/g, "'"))
+  // Every duration has a digit once spelled numbers are read.
+  if (!/\d/.test(raw)) return
   const folded = fold(raw)
   if (QUESTION.test(folded) || CONVERSION.test(folded) || NOT_A_TIMER.test(folded) || TIME_OF_DAY.test(raw.toLowerCase()))
     return
@@ -403,21 +406,30 @@ const ALIASES = [
 ]
 const GROUPS = new Map(ALIASES.flatMap((group) => group.map((a) => [key(a), group] as const)))
 
+// Three rows of the table below, kept between calls so a keystroke allocates nothing.
+let rows = [new Int32Array(64), new Int32Array(64), new Int32Array(64)]
+
 // Optimal string alignment: a wrong, missing or extra letter, or two swapped neighbors, is one typo. Past `max`, it
 // stops early and says max + 1.
 function typos(a: string, b: string, max: number): number {
   if (Math.abs(a.length - b.length) > max) return max + 1
-  let before: number[] = []
-  let last = Array.from({ length: b.length + 1 }, (_, j) => j)
+  if (rows[0].length <= b.length) rows = rows.map(() => new Int32Array(b.length + 1))
+  let [before, last, row] = rows
+  for (let j = 0; j <= b.length; j++) last[j] = j
   for (let i = 1; i <= a.length; i++) {
-    const row = [i]
+    row[0] = i
+    let low = i
     for (let j = 1; j <= b.length; j++) {
-      row[j] = Math.min(last[j] + 1, row[j - 1] + 1, last[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], before[j - 2] + 1)
+      let d = Math.min(last[j] + 1, row[j - 1] + 1, last[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d = Math.min(d, before[j - 2] + 1)
+      row[j] = d
+      if (d < low) low = d
     }
-    if (Math.min(...row) > max) return max + 1
+    if (low > max) return max + 1
+    const spare = before
     before = last
     last = row
+    row = spare
   }
   return last[b.length]
 }
@@ -426,27 +438,35 @@ function typos(a: string, b: string, max: number): number {
 // or jumping to the next word ('vsc'). So 'porte' never finds 'exPlORaTEur', nor 'timer' 'TIME doctoR'.
 function shortens(query: string, name: string): boolean {
   let i = 0
-  let skipped = 'x' // the first letter starts a word
-  for (const [j, c] of [...name].entries()) {
-    if (c === query[i] && (j === 0 || name[j - 1] === ' ' || !/[^aeiouy ]/.test(skipped))) {
+  let consonant = true // skipped since the last letter kept: the first one starts a word
+  for (let j = 0; j < name.length; j++) {
+    const c = name[j]
+    if (c === query[i] && (j === 0 || name[j - 1] === ' ' || !consonant)) {
       if (++i === query.length) return true
-      skipped = ''
-    } else skipped += c
+      consonant = false
+    } else if (!'aeiouy '.includes(c)) consonant = true
   }
   return false
 }
+
+// The typos a word allows, by its own length, plural kept: none up to 4 letters, one from 5, two from 9.
+const allows = (w: string) => (w.length >= 9 ? 2 : w.length >= 5 ? 1 : 0)
 
 interface Entry<A> {
   app: A
   // The name's key, then its aliases', and the same with a space in front, for the start of a word.
   keys: string[]
   spaced: string[]
-  // Plural kept, each with its words, for typos.
-  typo: string[][]
+  // Plural kept, for typos against the start of a name.
+  typo: string[]
+  // The first letter of each word, where a shortening starts.
+  initials: string
 }
 
 interface Index<A> {
   entries: Entry<A>[]
+  // Plural kept, each key and each of its words from 5 letters, by length: a typo is at most 2 letters away.
+  byLength: Map<number, [Entry<A>, string][]>
   // Exact keys: aliases first, then names, so an alias wins as the research ranks it.
   exact: Map<string, A>
   // The hyphenated words of names, kept whole when the line is read.
@@ -459,7 +479,7 @@ const INDEXES = new WeakMap<readonly App[], Index<App>>()
 function indexOf<A extends App>(apps: readonly A[]): Index<A> {
   const known = INDEXES.get(apps) as Index<A> | undefined
   if (known) return known
-  const index: Index<A> = { entries: [], exact: new Map(), frozen: new Set() }
+  const index: Index<A> = { entries: [], byLength: new Map(), exact: new Map(), frozen: new Set() }
   const names = new Map<string, A>()
   for (const app of apps) {
     const folded = fold(app.name)
@@ -469,13 +489,16 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
     names.set(name, app)
     const group = GROUPS.get(name)?.filter((a) => key(a) !== name) ?? []
     const keys = [name, ...group.map((a) => key(a))]
+    const typo = [app.name, ...group].map((a) => key(a, true))
     for (const k of keys.slice(1)) if (!index.exact.has(k)) index.exact.set(k, app)
-    index.entries.push({
-      app,
-      keys,
-      spaced: keys.map((k) => ' ' + k),
-      typo: [app.name, ...group].map((a) => key(a, true)).map((k) => [k, ...k.split(' ')]),
-    })
+    const entry = { app, keys, spaced: keys.map((k) => ' ' + k), typo, initials: keys.join(' ').replace(/(\S)\S*/g, '$1') }
+    index.entries.push(entry)
+    for (const w of new Set(typo.flatMap((k) => [k, ...k.split(' ')]))) {
+      if (!allows(w)) continue
+      const same = index.byLength.get(w.length) ?? []
+      same.push([entry, w])
+      index.byLength.set(w.length, same)
+    }
     for (const w of folded.split(/\s+/)) if (w.includes('-')) index.frozen.add(w)
   }
   for (const [name, app] of names) if (!index.exact.has(name)) index.exact.set(name, app)
@@ -491,7 +514,7 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
 export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
   const q = key(query)
   if (!q) return
-  const { entries, exact } = indexOf(apps)
+  const { entries, byLength, exact } = indexOf(apps)
   const named = exact.get(q)
   if (named) return named
   // No Calculator never opens Calendar.
@@ -511,25 +534,29 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
   }
   // Typos and shortenings are for words: '10' is no typo of '11'.
   if (/\d/.test(q)) return
-  // Each word allows as many typos as its own length does, plural kept: none up to 4 letters, one from 5, two from
-  // 9, so 'timer' never finds 'Time' and 'teans' finds 'Teams'. Against the name, its start, or a word.
+  // Each word allows the typos its own length does, so 'timer' never finds 'Time' and 'teans' finds 'Teams'.
+  // Against the name, its start, or a word.
   const typed = key(query, true)
-  let best = Infinity
-  let found: A[] = []
-  for (const e of entries) {
-    let d = Infinity
-    for (const [name, ...parts] of e.typo)
-      for (const w of [name, name.slice(0, typed.length).trim(), ...parts]) {
-        const max = w.length >= 9 ? 2 : w.length >= 5 ? 1 : 0
-        const t = max ? typos(typed, w, max) : Infinity
-        if (t <= max) d = Math.min(d, t)
-      }
-    if (d < best) [best, found] = [d, [e.app]]
-    else if (d === best && d !== Infinity) found.push(e.app)
+  const near = new Map<Entry<A>, number>()
+  const check = (e: Entry<A>, w: string) => {
+    const max = allows(w)
+    const t = max ? typos(typed, w, max) : Infinity
+    if (t <= max && t < (near.get(e) ?? Infinity)) near.set(e, t)
   }
-  if (found.length) return found.length === 1 ? found[0] : undefined
+  for (let n = typed.length - 2; n <= typed.length + 2; n++) for (const [e, w] of byLength.get(n) ?? []) check(e, w)
+  // A name's start, when one of its first two letters is in place: a typo moves at most one.
+  const [a, b] = typed
+  for (const e of entries)
+    for (const k of e.typo)
+      if (k.length > typed.length && (k[0] === a || k[0] === b || k[1] === a || k[1] === b))
+        check(e, k.slice(0, typed.length).trim())
+  if (near.size) {
+    const best = Math.min(...near.values())
+    const found = [...near].filter(([, d]) => d === best)
+    return found.length === 1 ? found[0][0].app : undefined
+  }
   if (q.length < 3) return
-  const short = entries.filter((e) => e.keys.some((k) => shortens(q, k)))
+  const short = entries.filter((e) => e.initials.includes(q[0]) && e.keys.some((k) => shortens(q, k)))
   return short.length === 1 ? short[0].app : undefined
 }
 
