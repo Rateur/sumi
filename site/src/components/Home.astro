@@ -6,7 +6,7 @@ import painting from '../assets/jinshan-band.webp';
 import cover from '../assets/cover.webp';
 import { home, type Lang } from '../i18n/home';
 import { motionVars } from '../../../src/lib/curves';
-import { BUBBLE, GAP } from '../../../src/lib/shapes';
+import { BUBBLE, GAP, TAG, TAG_GAP } from '../../../src/lib/shapes';
 
 interface Props {
 	lang: Lang;
@@ -196,7 +196,7 @@ const island = `${base}island/index.html`;
 						<span class="rm-tag rm-done">{t.roadmap[0].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-hover="hover" data-click="expand" data-opens="panel" title="" tabindex="-1" loading="lazy"></iframe></span>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-hover="hover" title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[1].title}</strong><span>{t.roadmap[1].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[1].tag}</span>
 					</li>
@@ -207,14 +207,14 @@ const island = `${base}island/index.html`;
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(GAP + BUBBLE) / 2}px`}>
-							<iframe src={`${island}?${song}`} data-start="music" data-hover="expand" data-opens="player" title="" tabindex="-1" loading="lazy"></iframe>
+							<iframe src={`${island}?${song}`} data-start="music" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-live aside" data-ui aria-hidden="true">
-							<iframe src={island} data-start="mic" data-hover="card" data-opens="card" data-mouse title="" tabindex="-1" loading="lazy"></iframe>
+						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(TAG_GAP + TAG) / 2}px`}>
+							<iframe src={island} data-start="mic" data-hover="mute" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[4].tag}</span>
@@ -228,25 +228,51 @@ const island = `${base}island/index.html`;
 						<span class="rm-tag rm-next">{t.roadmap[5].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill rm-timer" data-ui aria-hidden="true" style="--w0: 112px; --w1: 236px"><span>24:59</span><span class="rm-more">{t.timesUp}</span></span>
+						<span class="rm-pill rm-tuck" data-ui aria-hidden="true" style="--w0: 112px; --w1: 112px"><span data-time>00:00</span></span>
 						<span class="rm-copy"><strong>{t.roadmap[6].title}</strong><span>{t.roadmap[6].text}</span></span>
 						<span class="rm-tag">{t.roadmap[6].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-icon" data-ui aria-hidden="true">
+							<svg width="34" height="34" viewBox="0 0 1024 1024"><rect width="1024" height="1024" rx="224" fill="#0B0B0F"></rect><path transform="translate(0 15)" fill="#F4F1EA" d="M292 330H732A80 80 0 0 1 732 490H566C540 490 522.5 525.3 553.1 551A64 64 0 1 1 470.9 551C501.5 525.3 484 490 458 490H292A80 80 0 0 1 292 330Z"></path></svg>
+							<i></i>
+						</span>
+						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
+						<span class="rm-tag">{t.roadmap[7].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-pill rm-timer" data-ui aria-hidden="true" style="--w0: 112px; --w1: 236px"><span>24:59</span><span class="rm-more">{t.timesUp}</span></span>
+						<span class="rm-copy"><strong>{t.roadmap[8].title}</strong><span>{t.roadmap[8].text}</span></span>
+						<span class="rm-tag">{t.roadmap[8].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 112px; --w1: 220px">
 							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"></path></svg>
 							<span>12°</span><span class="rm-more rm-dim">{t.sunny}</span>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
-						<span class="rm-tag">{t.roadmap[7].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[9].title}</strong><span>{t.roadmap[9].text}</span></span>
+						<span class="rm-tag">{t.roadmap[9].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-battery" data-ui aria-hidden="true" style="--w0: 120px; --w1: 236px">
 							<span class="rm-more">{t.charging}</span><span>64%</span>
 							<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2.5"></rect><path d="M22 11v2"></path><path d="M12 8.5l-3 4h4l-2 3"></path></svg>
 						</span>
-						<span class="rm-copy"><strong>{t.roadmap[8].title}</strong><span>{t.roadmap[8].text}</span></span>
-						<span class="rm-tag">{t.roadmap[8].tag}</span>
+						<span class="rm-copy"><strong>{t.roadmap[10].title}</strong><span>{t.roadmap[10].text}</span></span>
+						<span class="rm-tag">{t.roadmap[10].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 64px; --w1: 150px">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e4e4e7" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
+							<span class="rm-more rm-dim">{t.roadmap[11].title}</span>
+						</span>
+						<span class="rm-copy"><strong>{t.roadmap[11].title}</strong><span>{t.roadmap[11].text}</span></span>
+						<span class="rm-tag">{t.roadmap[11].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-dock" data-ui aria-hidden="true"><span class="rm-pill" style="--w0: 112px; --w1: 112px"><span data-time>00:00</span></span><i></i></span>
+						<span class="rm-copy"><strong>{t.roadmap[12].title}</strong><span>{t.roadmap[12].text}</span></span>
+						<span class="rm-tag">{t.roadmap[12].tag}</span>
 					</li>
 				</ol>
 			</section>
@@ -442,7 +468,7 @@ const island = `${base}island/index.html`;
 				const row = frame.closest<HTMLElement>('.rm-row')!;
 				const say = (name?: string) => name && frame.contentWindow?.postMessage(name, location.origin);
 				const list = (key: string) => frame.dataset[key]?.split(' ').filter(Boolean) ?? [];
-				let [ready, seen, started, on, opened] = [false, false, false, false, false];
+				let [ready, seen, started, on] = [false, false, false, false];
 				const start = () => {
 					if (!ready || !seen || started) return;
 					started = true;
@@ -459,26 +485,14 @@ const island = `${base}island/index.html`;
 					seen = true;
 					start();
 				}, { threshold: 0.6 }).observe(row);
-				const mark = (open: boolean) => {
-					if (open && frame.dataset.opens) row.dataset.open = frame.dataset.opens;
-					else delete row.dataset.open;
-				};
 				const hover = (next: boolean) => {
 					if (!started || next === on) return;
-					if (!next && opened) say(frame.dataset.click);
-					[on, opened] = [next, false];
+					on = next;
 					list('hover').forEach(say);
-					mark(next && !frame.dataset.click);
 				};
 				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
 				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
-				row.addEventListener('click', (e) => {
-					if (e.pointerType !== 'mouse') return frame.dataset.mouse === undefined && hover(!on);
-					if (!on || !frame.dataset.click) return;
-					opened = !opened;
-					say(frame.dataset.click);
-					mark(opened);
-				});
+				row.addEventListener('click', (e) => e.pointerType !== 'mouse' && hover(!on));
 			});
 
 			// The scroll cue leaves for good with the first real scroll.
@@ -1578,11 +1592,80 @@ const island = `${base}island/index.html`;
 		color: #a1a1aa;
 		font-weight: 500;
 	}
-	/* The real island, from the app's own code: its frame is the top of a screen, and its panels drop over the
-	   lines below as they would over windows. The frame lets the cursor through, so the line under it stays hovered. */
+	/* The real island, from the app's own code, as a preview: each line plays one small thing within its own column,
+	   and nothing around it moves. The frame lets the cursor through, so the line under it stays hovered. */
 	.rm-pill,
-	.rm-live {
+	.rm-live,
+	.rm-icon,
+	.rm-dock {
 		justify-self: center;
+	}
+	/* Tucking: the pill slides up into a thin line, as it will under the top of the screen. */
+	.rm-tuck {
+		transition:
+			width var(--unpeek-w),
+			height var(--unpeek-h),
+			border-radius var(--unpeek-h),
+			translate var(--unpeek-h);
+	}
+	.rm-row:hover .rm-tuck {
+		height: 4px;
+		border-radius: 2px;
+		translate: 0 -15px;
+		transition:
+			width var(--peek-w),
+			height var(--peek-h),
+			border-radius var(--peek-h),
+			translate var(--peek-h);
+	}
+	.rm-tuck > span {
+		transition: opacity var(--enter) var(--enter-delay);
+	}
+	.rm-row:hover .rm-tuck > span {
+		opacity: 0;
+		transition: opacity var(--exit);
+	}
+	/* Sumi's own icon, as the taskbar shows it, with the microphone's dot. */
+	.rm-icon {
+		position: relative;
+		display: grid;
+		transition: scale var(--unpeek-h);
+	}
+	.rm-row:hover .rm-icon {
+		scale: 1.12;
+		transition: scale var(--peek-h);
+	}
+	.rm-icon i {
+		position: absolute;
+		right: -3px;
+		bottom: -3px;
+		width: 11px;
+		height: 11px;
+		border: 2px solid var(--paper);
+		border-radius: 50%;
+		background: #fb923c;
+	}
+	/* The island beside the taskbar, the line under it: hovering brings it down to its spot, 8 px above. */
+	.rm-dock {
+		display: grid;
+		justify-items: center;
+		gap: 8px;
+	}
+	.rm-dock .rm-pill {
+		translate: 0 -6px;
+		transition: translate var(--unpeek-h);
+	}
+	.rm-row:hover .rm-dock .rm-pill {
+		height: 34px;
+		border-radius: 17px;
+		translate: 0 0;
+		transition: translate var(--peek-h);
+	}
+	.rm-dock i {
+		width: 220px;
+		height: 3px;
+		border-radius: 2px;
+		background: #c9c2b2;
 	}
 	.rm-live {
 		position: relative;
@@ -1601,50 +1684,9 @@ const island = `${base}island/index.html`;
 		color-scheme: normal;
 		pointer-events: none;
 	}
-	/* The island and its bubble are centered together, as the eye reads them. */
+	/* The island and its bubble, or its disc, are centered together, as the eye reads them. */
 	.rm-live.split iframe {
 		left: calc(50% - var(--split));
-	}
-	/* The island sits at the column's left, so its card opens within the column, short of the text. The frame is
-	   wide enough to hold the card and its shadow to the right of it. */
-	.rm-live.aside iframe {
-		left: 54px;
-		width: 680px;
-	}
-	.rm-row:has(.rm-live):hover {
-		position: relative;
-		z-index: 3;
-	}
-	/* An open panel pushes the lines below down, with the island's own spring, instead of covering them. */
-	.rm > .rm-row[data-open='panel'] ~ .rm-row {
-		translate: 0 64px;
-	}
-	.rm > .rm-row[data-open='player'] ~ .rm-row {
-		translate: 0 108px;
-	}
-	.rm > .rm-row[data-open='card'] ~ .rm-row {
-		translate: 0 56px;
-	}
-	.rm-row[data-open] {
-		position: relative;
-	}
-	.rm-row[data-open]::after {
-		content: '';
-		position: absolute;
-		top: 100%;
-		right: 0;
-		left: 0;
-		height: 64px;
-	}
-	.rm-row[data-open='player']::after {
-		height: 108px;
-	}
-	.rm-row[data-open='card']::after {
-		height: 56px;
-	}
-	.rm-copy,
-	.rm-tag {
-		transition: translate var(--open-h);
 	}
 	.rm-ask {
 		justify-content: flex-start;
@@ -1958,16 +2000,14 @@ const island = `${base}island/index.html`;
 			gap: 16px;
 			padding: 20px 16px;
 		}
-		.rm-live.split iframe,
-		.rm-live.aside iframe {
+		.rm-live.split iframe {
 			left: 50%;
 			width: min(480px, 100vw);
 		}
-		.rm-row[data-open='player'] > :not(.rm-live) {
-			translate: 0 108px;
-		}
 		.rm-pill,
-		.rm-live {
+		.rm-live,
+		.rm-icon,
+		.rm-dock {
 			grid-column: 1 / -1;
 			max-width: 100%;
 		}
