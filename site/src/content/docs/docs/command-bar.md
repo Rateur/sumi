@@ -7,7 +7,7 @@ Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the righ
 
 ## What to type
 
-- **A timer**: `25m`, `90s`, `1h30`, `10 min timer` or `set a timer for ten minutes`. The bar folds into the timer. Its full controls, a click to pause or stop it, arrive with the timer module in the same version.
+- **A timer**: `25m`, `90s`, `1h30`, `10 min timer` or `set a timer for ten minutes`. The bar folds into the timer: see [Timers](../timers/).
 - **An app**: its name as Start shows it, such as `Discord`, its first four letters or more, such as `disc`, or a verb and its name, such as `open spotify` or `open the settings`. A missing accent is fine, and after a verb, a typo too.
 - **The time or the date**: `what time is it` or `what's the date`. The chip gives the answer, and Enter shows it in the island with the date.
 - **A question**: anything else goes to Claude. Name an assistant first to pick another: `ask chatgpt …`, `gemini …`, `perplexity …`, or `search …` for the search engine.

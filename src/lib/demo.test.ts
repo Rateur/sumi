@@ -1,13 +1,14 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 let songParams: typeof import('./demo').songParams
+let message: typeof import('./demo').message
 const site = 'https://sumi.example'
 const isColor = (value: string) => /^#[0-9a-f]{6}$/i.test(value)
 
 beforeAll(async () => {
   // demo.ts reads the page's location when it loads.
   vi.stubGlobal('location', { search: '', origin: site, href: `${site}/` })
-  ;({ songParams } = await import('./demo'))
+  ;({ songParams, message } = await import('./demo'))
 })
 
 describe('songParams', () => {
@@ -36,5 +37,24 @@ describe('songParams', () => {
 
   it('ignores other params', () => {
     expect(songParams('?show=music&foo=bar', site, isColor, true)).toEqual({})
+  })
+})
+
+describe('message', () => {
+  const actions = ['bar', 'enter']
+
+  it('runs a known action by name', () => {
+    expect(message('enter', actions)).toEqual({ action: 'enter' })
+  })
+
+  it('types the line after type:, spaces and all, or empties it', () => {
+    expect(message('type:ouvre discord', actions)).toEqual({ type: 'ouvre discord' })
+    expect(message('type:', actions)).toEqual({ type: '' })
+  })
+
+  it('ignores anything else, like an object key or a number', () => {
+    expect(message('constructor', actions)).toBeUndefined()
+    expect(message('Bar', actions)).toBeUndefined()
+    expect(message(42, actions)).toBeUndefined()
   })
 })

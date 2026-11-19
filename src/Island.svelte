@@ -82,7 +82,7 @@
     words,
     type Timer,
   } from './lib/timers'
-  import { ASSISTANTS, choices, type Choice, type Lang } from './lib/intent'
+  import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
   import { WORDS, announce, keysOf } from './lib/welcome'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
@@ -131,7 +131,7 @@
   let tagTimer: ReturnType<typeof setTimeout> | undefined
   // The command bar: its line, and the peek it folds into after Enter. Its shortcut, Start's apps and whether Claude's
   // app is installed come from Rust; the demo brings stand-ins.
-  const lang: Lang = navigator.language.toLowerCase().startsWith('fr') ? 'fr' : 'en'
+  const lang: Lang = langOf(location.search, navigator.language)
   let barOpen = $state(false)
   let line = $state('')
   let launch = $state<ReturnType<typeof markOf> & { text: string }>()

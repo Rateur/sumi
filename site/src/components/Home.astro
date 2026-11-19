@@ -20,13 +20,13 @@ const prefix = lang === 'fr' ? `${base}fr/` : base;
 const otherHome = lang === 'fr' ? base : `${base}fr/`;
 const download = 'https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe';
 const repo = 'https://github.com/Rateur/sumi';
-const q = encodeURIComponent(t.askValue);
 const mark =
 	'M292 330H732A80 80 0 0 1 732 490H566C540 490 522.5 525.3 553.1 551A64 64 0 1 1 470.9 551C501.5 525.3 484 490 458 490H292A80 80 0 0 1 292 330Z';
 const og = new URL(`${base}og.png`, Astro.site).href;
-// The app's own island, built by `npm run showcase`, with a made-up song. The tint is what the app reads from the cover.
+// The app's own island, built by `npm run showcase`, in the page's language, with a made-up song. The tint is what the
+// app reads from the cover.
 const song = new URLSearchParams({ title: 'West Lake', artist: 'Ink & Gold', art: cover.src, color: '#c6ab95' });
-const island = `${base}island/index.html`;
+const island = `${base}island/index.html?lang=${lang}`;
 ---
 
 <!doctype html>
@@ -66,11 +66,6 @@ const island = `${base}island/index.html`;
 					<svg aria-hidden="true" width="18" height="18" viewBox="192 192 640 640"><path transform="translate(0 15)" fill="currentColor" d={mark}></path></svg>
 					<span>Sumi</span>
 				</a>
-				<span class="nav-timer" hidden>
-					<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2.5 2M10 2h4"></path></svg>
-					<span class="nav-timer-value">0:00</span>
-					<button class="nav-timer-stop" type="button" aria-label={t.stopTimer}><svg aria-hidden="true" width="9" height="9" viewBox="0 0 10 10"><rect width="10" height="10" rx="2" fill="currentColor"></rect></svg></button>
-				</span>
 				<button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-menu" aria-label={t.menu}>
 					<span class="nav-toggle-text">{t.menu}</span>
 					<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
@@ -98,15 +93,6 @@ const island = `${base}island/index.html`;
 					<a class="menu-lang" href={otherHome} data-lang={lang === 'fr' ? 'en' : 'fr'} lang={lang === 'fr' ? 'en' : 'fr'}>{t.otherLang}</a>
 					<span class="menu-version">v{version}</span>
 				</div>
-			</div>
-			<div class="answer" aria-live="polite">
-				<div class="answer-head">
-					<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24"><path fill="#f472b6" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
-					<span class="answer-who">Claude</span>
-					<button class="answer-close" type="button" aria-label={t.closeAnswer}><svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
-				</div>
-				<p class="answer-text"></p>
-				<p class="answer-source" hidden>{t.wikiSource}</p>
 			</div>
 		</nav>
 
@@ -137,25 +123,18 @@ const island = `${base}island/index.html`;
 
 			<section class="ask wrap" aria-labelledby="ask-title">
 				<h2 id="ask-title" class="h2" data-reveal>{t.askTitle}</h2>
-				<p class="keys" data-reveal style="--d: 1">{t.askKeys}</p>
-				<div class="ask-box" data-ui data-reveal style="--d: 2" data-demo={t.askValue} data-answers={JSON.stringify(t.answers)} data-web-name={t.webName} data-actions={t.actions} data-install={t.installHint} data-nothing={t.wikiNothing}>
-					<label class="ask-field">
-						<svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"><path fill="#f472b6" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
-						<input class="ask-input" type="text" placeholder={t.askPlaceholder} aria-label={t.askLabel} autocomplete="off" spellcheck="false" />
-						<span class="ask-chip" aria-hidden="true">Claude</span>
-					</label>
-					<div class="ask-answer">
-						<button class="ask-row ask-timer" type="button" hidden data-template={t.askTimer}><span></span><kbd>Enter</kbd></button>
-						<a class="ask-row is-active" data-engine="claude" href={`https://claude.ai/new?q=${q}`} target="_blank" rel="noopener">
-							<span>{t.askClaude}</span><kbd>Enter</kbd>
-						</a>
-						<a class="ask-row" data-engine="chatgpt" href={`https://chatgpt.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askChatGPT}</span></a>
-						<a class="ask-row" data-engine="web" href={`https://duckduckgo.com/?q=${q}`} target="_blank" rel="noopener"><span>{t.askWeb}</span></a>
-					</div>
+				<p class="keys" data-reveal style="--d: 1">{t.askLine}</p>
+				<div class="ask-stage fits" data-ui data-reveal style="--d: 2" data-app={t.askApp} data-question={t.askQuestion}>
+					<iframe src={island} title="" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>
+					<a class="ask-download" href={download} hidden>
+						<span class="ask-time" aria-hidden="true" data-time>00:00</span>
+						<span class="ask-cta">
+							<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"></path></svg>
+							{t.askDownload}
+						</span>
+					</a>
 				</div>
-				<p class="examples" data-reveal style="--d: 3">
-					{t.askExamples.map((e) => <button class="example" type="button">{e}</button>)}
-				</p>
+				<p class="ask-note" data-reveal style="--d: 3">{t.askNote}</p>
 			</section>
 
 			<section class="quiet wrap" aria-labelledby="quiet-title">
@@ -208,7 +187,7 @@ const island = `${base}island/index.html`;
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(GAP + BUBBLE) / 2}px`}>
-							<iframe src={`${island}?${song}`} data-start="music" title="" tabindex="-1" loading="lazy"></iframe>
+							<iframe src={`${island}&${song}`} data-start="music" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>
@@ -221,22 +200,21 @@ const island = `${base}island/index.html`;
 						<span class="rm-tag rm-done">{t.roadmap[4].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill rm-ask" data-ui aria-hidden="true" style="--w0: 210px; --w1: 320px">
-							<svg width="13" height="13" viewBox="0 0 24 24"><path fill="#f472b6" d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
-							<span class="rm-dim">{t.askLabel}…</span><span class="rm-more rm-chip">Claude</span>
-						</span>
+						<span class="rm-live fits" data-ui aria-hidden="true"><iframe src={island} data-start="bar" data-type={t.askApp} title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[5].title}</strong><span>{t.roadmap[5].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[5].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[5].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill rm-timer" data-ui aria-hidden="true" style="--w0: 112px; --w1: 236px"><span>24:59</span><span class="rm-more">{t.timesUp}</span></span>
+						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(GAP + BUBBLE) / 2}px`}>
+							<iframe src={island} data-start="pasta" data-hover="hover" title="" tabindex="-1" loading="lazy"></iframe>
+						</span>
 						<span class="rm-copy"><strong>{t.roadmap[6].title}</strong><span>{t.roadmap[6].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[6].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[6].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-tuck" data-ui aria-hidden="true" style="--w0: 112px; --w1: 112px"><span data-time>00:00</span></span>
 						<span class="rm-copy"><strong>{t.roadmap[7].title}</strong><span>{t.roadmap[7].text}</span></span>
-						<span class="rm-tag">{t.roadmap[7].tag}</span>
+						<span class="rm-tag rm-next">{t.roadmap[7].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-icon" data-ui aria-hidden="true">
@@ -244,7 +222,7 @@ const island = `${base}island/index.html`;
 							<i></i>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[8].title}</strong><span>{t.roadmap[8].text}</span></span>
-						<span class="rm-tag">{t.roadmap[8].tag}</span>
+						<span class="rm-tag rm-next">{t.roadmap[8].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 112px; --w1: 220px">
@@ -313,20 +291,15 @@ const island = `${base}island/index.html`;
 			const menu = nav.querySelector<HTMLElement>('.menu')!;
 			const toggle = nav.querySelector<HTMLButtonElement>('.nav-toggle')!;
 			const scrim = document.querySelector<HTMLButtonElement>('.scrim')!;
-			const timerEl = nav.querySelector<HTMLElement>('.nav-timer')!;
-			const timerValue = nav.querySelector<HTMLElement>('.nav-timer-value')!;
-		const answerEl = nav.querySelector<HTMLElement>('.answer')!;
 
 			// The island is sized from its content, never from a guessed number.
 			const fit = () => {
 				const open = nav.classList.contains('open');
-				const answering = nav.classList.contains('answering');
-				const width = open ? Math.min(560, innerWidth - 32) : answering ? Math.min(460, innerWidth - 32) : bar.scrollWidth;
+				const width = open ? Math.min(560, innerWidth - 32) : bar.scrollWidth;
 				nav.style.width = `${width}px`;
 				// The menu takes its final width at once, so its height is measured there, not at the width the island grows from.
 				if (open) menu.style.width = `${width}px`;
-				const extra = open ? menu.scrollHeight : answering ? answerEl.scrollHeight : 0;
-				nav.style.height = `${bar.offsetHeight + extra}px`;
+				nav.style.height = `${bar.offsetHeight + (open ? menu.scrollHeight : 0)}px`;
 			};
 			let closing = 0;
 			const setOpen = (open: boolean) => {
@@ -338,31 +311,20 @@ const island = `${base}island/index.html`;
 				}
 				nav.classList.toggle('open', open);
 				if (open) nav.classList.remove('compact');
-				if (open) nav.classList.remove('answering');
 				toggle.setAttribute('aria-expanded', String(open));
 				scrim.hidden = !open;
 				fit();
 			};
 			toggle.addEventListener('click', () => setOpen(!nav.classList.contains('open')));
 			bar.addEventListener('click', (e) => {
-				if (!nav.classList.contains('compact') || (e.target as Element).closest('.nav-download, .nav-timer-stop')) return;
+				if (!nav.classList.contains('compact') || (e.target as Element).closest('.nav-download')) return;
 				e.preventDefault();
 				setOpen(true);
 			});
-			const closeAnswer = () => {
-			nav.classList.remove('answering');
-			scrim.hidden = !nav.classList.contains('open');
-			fit();
-		};
-		scrim.addEventListener('click', () => {
-			setOpen(false);
-			closeAnswer();
-		});
-		answerEl.querySelector('.answer-close')!.addEventListener('click', closeAnswer);
+			scrim.addEventListener('click', () => setOpen(false));
 			menu.querySelectorAll('a').forEach((a) => a.addEventListener('click', () => setOpen(false)));
 			document.addEventListener('keydown', (e) => {
 				if (e.key !== 'Escape') return;
-				if (nav.classList.contains('answering')) closeAnswer();
 				if (nav.classList.contains('open')) {
 					setOpen(false);
 					toggle.focus();
@@ -378,7 +340,7 @@ const island = `${base}island/index.html`;
 				'scroll',
 				() => {
 					if (scrollY > 160 && Math.abs(scrollY - lastY) < 24) return;
-					const compact = !nav.classList.contains('open') && !nav.classList.contains('answering') && !nav.querySelector(':focus-visible') && scrollY > 160 && scrollY > lastY;
+					const compact = !nav.classList.contains('open') && !nav.querySelector(':focus-visible') && scrollY > 160 && scrollY > lastY;
 					if (compact !== nav.classList.contains('compact')) {
 						nav.classList.toggle('compact', compact);
 						fit();
@@ -460,13 +422,26 @@ const island = `${base}island/index.html`;
 				});
 			});
 
+			// A frame that loaded before this script ran has already said it's ready: its demo is there.
+			const loaded = (frame: HTMLIFrameElement) => !!frame.contentWindow && '__sumiDemo' in frame.contentWindow;
+			// A line typed into a frame's command bar, a key every 70 ms: each step waits its own delay.
+			const typing = (text: string, first = 70) =>
+				[...text].map((_, i): [number, string] => [i ? 70 : first, `type:${text.slice(0, i + 1)}`]);
+
 			// The roadmap's lines already out run the app's own island. Each plays while in view and undoes what it
 			// started when it leaves; hovering the line, or tapping it on a touch screen, plays what that version brought.
 			document.querySelectorAll<HTMLIFrameElement>('.rm-live iframe').forEach((frame) => {
 				const row = frame.closest<HTMLElement>('.rm-row')!;
 				const say = (name?: string) => name && frame.contentWindow?.postMessage(name, location.origin);
 				const list = (key: string) => frame.dataset[key]?.split(' ').filter(Boolean) ?? [];
-				let [ready, seen, started, on] = [false, false, false, false];
+				let [ready, seen, started, on] = [loaded(frame), false, false, false];
+				let keys: number[] = [];
+				const type = (text: string) => {
+					keys.forEach(clearTimeout);
+					if (reduce || !text) return say(`type:${text}`);
+					let at = 0;
+					keys = typing(text).map(([ms, line]) => window.setTimeout(() => say(line), (at += ms)));
+				};
 				const start = () => {
 					if (!ready || !seen || started) return;
 					started = true;
@@ -491,6 +466,7 @@ const island = `${base}island/index.html`;
 					if (!started || next === on) return;
 					on = next;
 					list('hover').forEach(say);
+					if (frame.dataset.type) type(next ? frame.dataset.type : '');
 				};
 				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
 				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
@@ -507,189 +483,77 @@ const island = `${base}island/index.html`;
 			};
 			addEventListener('scroll', scrolled, { passive: true });
 
-			// The command bar, working as it will in the app.
-			const input = document.querySelector<HTMLInputElement>('.ask-input')!;
-			const rows = [...document.querySelectorAll<HTMLAnchorElement>('a.ask-row')];
-			const timerRow = document.querySelector<HTMLButtonElement>('.ask-timer')!;
-			const urls: Record<string, string> = {
-				claude: 'https://claude.ai/new?q=',
-				chatgpt: 'https://chatgpt.com/?q=',
-				web: 'https://duckduckgo.com/?q=',
-			};
-			const parseTimer = (v: string) => {
-				const m = v.trim().match(/^(\d{1,3})\s*(s|m|min|h)$/i);
-				if (!m) return 0;
-				const n = Number(m[1]);
-				const unit = m[2].toLowerCase();
-				return unit === 's' ? n : unit === 'h' ? n * 3600 : n * 60;
-			};
-			const clock = (s: number) => {
-				const h = Math.floor(s / 3600);
-				const m = Math.floor((s % 3600) / 60);
-				const sec = String(s % 60).padStart(2, '0');
-				return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
-			};
-			const update = () => {
-				const v = input.value.trim();
-				const seconds = parseTimer(v);
-				// The timer takes the top row and the last engine steps aside, so the bar keeps its height.
-				timerRow.hidden = !seconds;
-				rows[rows.length - 1].hidden = !!seconds;
-				if (seconds) timerRow.querySelector('span')!.textContent = (timerRow.dataset.template ?? '').replace('{t}', clock(seconds));
-				rows.forEach((row, i) => {
-					row.href = urls[row.dataset.engine!] + encodeURIComponent(v);
-					row.classList.toggle('is-active', !seconds && i === 0);
-				});
-				timerRow.classList.toggle('is-active', !!seconds);
-			};
-			let countdown = 0;
-			let ending = 0;
-			const startTimer = (seconds: number) => {
-				clearInterval(countdown);
-				clearTimeout(ending);
-				let left = seconds;
-				nav.classList.remove('done');
-				nav.classList.add('timing');
-				timerEl.hidden = false;
-				timerValue.textContent = clock(left);
-				fit();
-				countdown = window.setInterval(() => {
-					left -= 1;
-					timerValue.textContent = clock(Math.max(0, left));
-					if (left <= 0) {
-						clearInterval(countdown);
-						nav.classList.add('done');
-						ending = window.setTimeout(() => {
-							nav.classList.remove('timing', 'done');
-							timerEl.hidden = true;
-							fit();
-						}, 2400);
-					}
-				}, 1000);
-			};
-			const stopTimer = () => {
-				clearInterval(countdown);
-				clearTimeout(ending);
-				nav.classList.remove('timing', 'done');
-				timerEl.hidden = true;
-				fit();
-			};
-			nav.querySelector('.nav-timer-stop')!.addEventListener('click', stopTimer);
-			timerRow.addEventListener('click', () => startTimer(parseTimer(input.value)));
-			input.addEventListener('input', update);
-			input.addEventListener('keydown', (e) => {
-				if (e.key !== 'Enter') return;
-				e.preventDefault();
-				const seconds = parseTimer(input.value);
-				if (seconds) startTimer(seconds);
-				else answer('claude');
-			});
-			document.querySelectorAll<HTMLButtonElement>('.example').forEach((b) =>
-				b.addEventListener('click', () => {
-					input.value = b.textContent ?? '';
-					update();
-					input.focus();
-				}),
+			// The bar is wider than its line's column and than a phone: its frames scale to fit.
+			const fits = new ResizeObserver((entries) =>
+				entries.forEach((e) => (e.target as HTMLElement).style.setProperty('--fit', String(e.contentRect.width / 480))),
 			);
-			update();
+			document.querySelectorAll('.fits').forEach((el) => fits.observe(el));
 
-			// The first time the bar comes into view, a question types itself, unless the visitor got there first.
-			const box = document.querySelector<HTMLElement>('.ask-box')!;
-			const typeDemo = () => {
-				if (input.value || document.activeElement === input) return;
-				const text = box.dataset.demo ?? '';
-				if (reduce) {
-					input.value = text;
-					update();
-					return;
-				}
-				let i = 0;
-				const step = () => {
-					if (document.activeElement === input) return;
-					input.value = text.slice(0, ++i);
-					update();
-					if (i < text.length) setTimeout(step, 45 + Math.random() * 50);
-				};
-				setTimeout(step, 500);
+			// The command bar, played once by the app's own island when it comes into view: an app, a timer, a question.
+			// Then the island folds into the download. It holds still under the pointer, off screen and in a background
+			// tab. With reduced motion, the bar rests on a timer.
+			const stage = document.querySelector<HTMLElement>('.ask-stage')!;
+			const askFrame = stage.querySelector('iframe')!;
+			const pill = stage.querySelector<HTMLAnchorElement>('.ask-download')!;
+			const tell = (name: string) => askFrame.contentWindow?.postMessage(name, location.origin);
+			const script: [number, string][] = reduce
+				? [
+						[0, 'bar'],
+						[400, 'type:25m'],
+					]
+				: [
+						[900, 'bar'],
+						...typing(stage.dataset.app ?? '', 400),
+						[900, 'enter'],
+						[2800, 'bar'],
+						...typing('25m', 400),
+						[900, 'enter'],
+						[2600, 'clear'],
+						[700, 'bar'],
+						...typing(stage.dataset.question ?? '', 400),
+						[1200, 'enter'],
+						[2300, 'fold'],
+					];
+			const fold = () => {
+				pill.hidden = false;
+				pill.style.setProperty('--to', `${pill.querySelector<HTMLElement>('.ask-cta')!.offsetWidth}px`);
+				// Laid out at the island's size first, so the fold starts from it.
+				pill.getBoundingClientRect();
+				stage.classList.add('folded');
 			};
+			let [askReady, askSeen, askHeld, step, wait] = [loaded(askFrame), false, false, 0, 0];
+			const advance = () => {
+				clearTimeout(wait);
+				if (!askReady || !askSeen || askHeld || document.hidden || step >= script.length) return;
+				const [ms, name] = script[step];
+				wait = window.setTimeout(() => {
+					step += 1;
+					if (name === 'fold') fold();
+					else tell(name);
+					advance();
+				}, ms);
+			};
+			addEventListener('message', (e) => {
+				if (e.source !== askFrame.contentWindow || e.data !== 'sumi:ready') return;
+				askReady = true;
+				advance();
+			});
 			new IntersectionObserver(
-				([e], o) => {
-					if (!e.isIntersecting) return;
-					typeDemo();
-					o.disconnect();
+				([e]) => {
+					askSeen = e.isIntersecting;
+					advance();
 				},
 				{ threshold: 0.6 },
-			).observe(box);
-
-			// Asking: the island answers. The examples get an exact answer, actions only the app can do point to it,
-			// anything else gets a Wikipedia summary (public API, free and keyless, called only on this click).
-			const answers: Record<string, string> = JSON.parse(box.dataset.answers ?? '{}');
-			const names: Record<string, string> = { claude: 'Claude', chatgpt: 'ChatGPT', web: box.dataset.webName ?? 'Web' };
-			const actions = new RegExp(box.dataset.actions ?? '^$', 'i');
-			const who = answerEl.querySelector<HTMLElement>('.answer-who')!;
-			const said = answerEl.querySelector<HTMLElement>('.answer-text')!;
-			const source = answerEl.querySelector<HTMLElement>('.answer-source')!;
-			const wiki = async (q: string) => {
-				const host = `https://${document.documentElement.lang === 'fr' ? 'fr' : 'en'}.wikipedia.org`;
-				try {
-					const found = await fetch(`${host}/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(q)}`).then((r) => r.json());
-					const title: string | undefined = found?.query?.search?.[0]?.title;
-					if (!title) return '';
-					const page = await fetch(`${host}/api/rest_v1/page/summary/${encodeURIComponent(title)}`).then((r) => r.json());
-					const text: string = page?.extract ?? '';
-					return text.length > 320 ? `${text.slice(0, 317).trimEnd()}…` : text;
-				} catch {
-					return '';
-				}
-			};
-			let typing = 0;
-			let asked = 0;
-			const answer = async (engine: string) => {
-				const q = input.value.trim();
-				if (!q) return input.focus();
-				const ticket = ++asked;
-				clearTimeout(typing);
-				setOpen(false);
-				who.textContent = names[engine];
-				said.textContent = '';
-				said.classList.add('thinking');
-				source.hidden = true;
-				nav.classList.remove('compact');
-				nav.classList.add('answering');
-				scrim.hidden = false;
-				fit();
-				const started = performance.now();
-				let full = answers[q.toLowerCase()];
-				if (!full && actions.test(q)) full = box.dataset.install ?? '';
-				if (!full) {
-					full = await wiki(q);
-					if (full) source.hidden = false;
-					else full = box.dataset.nothing ?? '';
-				}
-			if (ticket !== asked) return;
-			let i = 0;
-			const type = () => {
-				said.textContent = full.slice(0, ++i);
-				fit();
-				if (i < full.length) typing = window.setTimeout(type, 12);
-			};
-			typing = window.setTimeout(
-				() => {
-					said.classList.remove('thinking');
-					if (reduce) {
-						said.textContent = full;
-						fit();
-					} else type();
-				},
-				reduce ? 0 : Math.max(0, 900 - (performance.now() - started)),
-			);
-		};
-		rows.forEach((row) =>
-			row.addEventListener('click', (e) => {
-				e.preventDefault();
-				answer(row.dataset.engine!);
-			}),
-		);
+			).observe(stage);
+			document.addEventListener('visibilitychange', advance);
+			stage.addEventListener('pointerenter', () => {
+				askHeld = true;
+				advance();
+			});
+			stage.addEventListener('pointerleave', () => {
+				askHeld = false;
+				advance();
+			});
 
 		// Each section's parts rise in, once, as they arrive.
 			const io = new IntersectionObserver(
@@ -754,7 +618,6 @@ const island = `${base}island/index.html`;
 	}
 	/* On the dark surfaces the ring is paper; the 3px offset puts it on the dark even around a light pill. */
 	.nav :focus-visible,
-	.ask-box :focus-visible,
 	.end :focus-visible {
 		outline-color: var(--paper);
 	}
@@ -798,8 +661,7 @@ const island = `${base}island/index.html`;
 			border-radius var(--close-h),
 			scale var(--release);
 	}
-	.nav.open,
-	.nav.answering {
+	.nav.open {
 		border-radius: 28px;
 		transition:
 			width var(--open-w),
@@ -809,11 +671,6 @@ const island = `${base}island/index.html`;
 	.nav.compact {
 		transition:
 			width var(--shrink-w),
-			scale var(--release);
-	}
-	.nav.timing {
-		transition:
-			width var(--grow-w),
 			scale var(--release);
 	}
 	.nav:hover:not(.open) {
@@ -828,83 +685,8 @@ const island = `${base}island/index.html`;
 		padding: 0 6px 0 16px;
 		white-space: nowrap;
 	}
-	.nav.open .nav-bar,
-	.nav.answering .nav-bar {
+	.nav.open .nav-bar {
 		width: 100%;
-	}
-	.nav-timer-stop {
-		display: grid;
-		place-items: center;
-		width: 28px;
-		height: 28px;
-		margin-left: 2px;
-		border: 0;
-		border-radius: 50%;
-		background: rgb(251 191 36 / 0.16);
-		color: #fbbf24;
-		cursor: pointer;
-		transition:
-			background 0.2s,
-			scale var(--release);
-	}
-	.nav-timer-stop:hover {
-		background: rgb(251 191 36 / 0.3);
-	}
-	.nav-timer-stop:active {
-		scale: 0.9;
-		transition: scale var(--press);
-	}
-	.answer {
-		display: none;
-		padding: 4px 22px 20px;
-	}
-	.nav.answering .answer {
-		display: block;
-	}
-	.answer-head {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		color: #a8a397;
-		font-size: 14px;
-	}
-	.answer-who {
-		color: #fff;
-		font-weight: 600;
-	}
-	.answer-close {
-		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		margin-left: auto;
-		border: 0;
-		border-radius: 50%;
-		background: none;
-		color: #a8a397;
-		cursor: pointer;
-	}
-	.answer-close:hover {
-		background: rgb(255 255 255 / 0.08);
-		color: #fff;
-	}
-	.answer-text {
-		min-height: 1.45em;
-		margin: 6px 0 0;
-		color: #f4f1ea;
-		font-size: 17px;
-		line-height: 1.45;
-	}
-	.answer-text.thinking::after {
-		content: '•••';
-		letter-spacing: 3px;
-		color: #8c877c;
-		animation: pulse 1s ease-in-out infinite;
-	}
-	.answer-source {
-		margin: 12px 0 0;
-		color: #a8a397;
-		font-size: 14px;
 	}
 	.brand {
 		display: flex;
@@ -915,27 +697,6 @@ const island = `${base}island/index.html`;
 		font-weight: 600;
 		font-size: 15px;
 		text-decoration: none;
-	}
-	.nav-timer {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		padding: 0 10px 0 2px;
-		color: #fbbf24;
-		font-weight: 600;
-		font-size: 15px;
-		font-variant-numeric: tabular-nums;
-	}
-	.nav-timer[hidden] {
-		display: none;
-	}
-	.nav.done .nav-timer {
-		animation: pulse 0.6s var(--settle) 3;
-	}
-	@keyframes pulse {
-		50% {
-			opacity: 0.35;
-		}
 	}
 	.nav-toggle {
 		display: flex;
@@ -1256,7 +1017,7 @@ const island = `${base}island/index.html`;
 		visibility: hidden;
 	}
 
-	/* The command bar, at headline size. */
+	/* The command bar, played by the app's own island at up to 4/3 of its size, then folded into the download. */
 	.ask {
 		padding-top: 200px;
 	}
@@ -1265,116 +1026,117 @@ const island = `${base}island/index.html`;
 		font-size: var(--step-lead);
 		color: var(--muted);
 	}
-	.ask-box {
+	/* As wide as the scaled frame, so its middle is the island's; as tall as the bar or the pill, whichever is taller. */
+	.ask-stage {
+		position: relative;
 		max-width: 640px;
+		height: max(52px * var(--fit, 1), 8px * var(--fit, 1) + 56px);
 		margin-top: 48px;
-		padding: 8px;
-		border-radius: 30px;
-		background: var(--ink);
-		color: var(--paper);
-		box-shadow: 0 24px 60px rgb(11 11 15 / 0.22);
 	}
-	.ask-field {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		height: 60px;
-		padding: 0 10px 0 18px;
-		cursor: text;
-	}
-	.ask-input {
-		flex: 1;
-		min-width: 0;
-		padding: 0;
+	/* 32 px wider each side than the bar, for its shadow. */
+	.ask-stage iframe {
+		position: absolute;
+		top: 0;
+		left: calc(-32px * var(--fit, 1));
+		width: 544px;
+		height: 120px;
 		border: 0;
-		background: none;
-		color: #fff;
-		font: inherit;
-		font-size: 20px;
-		caret-color: var(--accent);
-		outline: none;
+		scale: var(--fit, 1);
+		transform-origin: 0 0;
+		color-scheme: normal;
+		pointer-events: none;
 	}
-	.ask-input::placeholder {
-		color: #8c877c;
-	}
-	.ask-field:focus-within {
-		outline: 2px solid rgb(244 241 234 / 0.5);
-		outline-offset: 2px;
-		border-radius: 22px;
-	}
-	.ask-chip {
-		flex: none;
-		padding: 6px 14px;
-		border-radius: 999px;
-		background: #27272a;
-		font-size: 15px;
-	}
-	.ask-answer {
-		display: grid;
-		gap: 2px;
-		padding-top: 6px;
-	}
-	.ask-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		min-height: 48px;
-		padding: 0 16px;
-		border: 0;
-		border-radius: 16px;
-		background: none;
-		color: #d9d5cc;
-		font: inherit;
-		font-size: 16px;
-		text-align: left;
-		text-decoration: none;
-		cursor: pointer;
-		transition: background 0.2s;
-	}
-	.ask-row[hidden] {
-		display: none;
-	}
-	.ask-row:hover,
-	.ask-row.is-active {
-		background: rgb(255 255 255 / 0.09);
-		color: #fff;
-	}
-	.ask-row kbd {
-		font: inherit;
-		font-size: 14px;
-		color: #a8a397;
-	}
-	.ask-row:not(.is-active) kbd {
+	.ask-stage.folded iframe {
 		visibility: hidden;
 	}
-	.examples {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 8px;
-		margin: 32px 0 0;
+	/* It takes the island's place, size, black and shadow, then springs open into the site's ink pill. */
+	.ask-download {
+		position: absolute;
+		top: calc(8px * var(--fit, 1));
+		left: 50%;
+		display: block;
+		width: calc(132px * var(--fit, 1));
+		height: calc(34px * var(--fit, 1));
+		overflow: hidden;
+		border-radius: calc(17px * var(--fit, 1));
+		background: #000;
+		color: var(--paper);
+		box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
+		translate: -50% 0;
+		text-decoration: none;
 	}
-	.example {
-		min-height: 44px;
-		padding: 0 18px;
-		border: 0;
-		border-radius: 22px;
-		background: var(--paper-2);
-		color: var(--ink);
-		font: inherit;
-		font-size: 16px;
-		cursor: pointer;
+	.ask-download[hidden] {
+		display: none;
+	}
+	.folded .ask-download {
+		width: var(--to);
+		height: 56px;
+		border-radius: 28px;
+		background: var(--ink);
+		box-shadow: 0 12px 32px rgb(11 11 15 / 0.24);
 		transition:
-			background 0.2s,
+			width var(--peek-w),
+			height var(--peek-h),
+			border-radius var(--peek-h),
+			background 0.4s var(--settle),
+			box-shadow 0.4s var(--settle),
 			scale var(--release);
 	}
-	.example:hover {
-		background: #e2dccd;
+	.ask-download:hover {
+		scale: 1.03;
 	}
-	.example:active {
+	.ask-download:active {
 		scale: var(--press-scale);
 		transition: scale var(--press);
 	}
-
+	.ask-time,
+	.ask-cta {
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		left: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		white-space: nowrap;
+		translate: -50% 0;
+	}
+	/* The time as the island writes it, so the hand-over doesn't show. */
+	.ask-time {
+		color: #fff;
+		font: 600 calc(14px * var(--fit, 1)) / 1 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, sans-serif;
+		font-variant-numeric: tabular-nums;
+	}
+	.folded .ask-time {
+		opacity: 0;
+		scale: var(--exit-scale);
+		transition:
+			opacity var(--exit),
+			scale var(--exit);
+	}
+	.ask-cta {
+		gap: 10px;
+		padding: 0 28px;
+		font-weight: 600;
+		opacity: 0;
+		scale: var(--enter-scale);
+		filter: blur(var(--enter-blur));
+	}
+	.folded .ask-cta {
+		opacity: 1;
+		scale: 1;
+		filter: none;
+		transition:
+			opacity var(--enter) var(--enter-delay),
+			scale var(--enter) var(--enter-delay),
+			filter var(--enter) var(--enter-delay);
+	}
+	.ask-note {
+		max-width: 56ch;
+		margin: 32px 0 0;
+		color: var(--muted);
+		font-size: var(--step-small);
+	}
 	/* Quiet: statements on one axis, each with its proof at the right margin. */
 	.quiet {
 		display: grid;
@@ -1688,24 +1450,15 @@ const island = `${base}island/index.html`;
 		color-scheme: normal;
 		pointer-events: none;
 	}
+	/* The bar is wider than the column: its frame, with room for its shadow, scales down around the column's middle. */
+	.rm-live.fits iframe {
+		width: 544px;
+		scale: min(1, var(--fit, 1));
+		transform-origin: 50% 0;
+	}
 	/* The island and its bubble, or its disc, are centered together, as the eye reads them. */
 	.rm-live.split iframe {
 		left: calc(50% - var(--split));
-	}
-	.rm-ask {
-		justify-content: flex-start;
-		gap: 8px;
-		font-weight: 500;
-	}
-	.rm-chip {
-		margin-left: auto;
-		padding: 3px 9px;
-		border-radius: 999px;
-		background: #27272a;
-		font-size: 13px;
-	}
-	.rm-timer {
-		color: #fbbf24;
 	}
 	.rm-battery {
 		color: #4ade80;
@@ -1713,9 +1466,6 @@ const island = `${base}island/index.html`;
 	.rm-battery .rm-more {
 		color: #fff;
 		font-weight: 500;
-	}
-	.rm-timer .rm-more {
-		color: #fff;
 	}
 	.rm-tag {
 		padding: 6px 14px;
@@ -2000,9 +1750,6 @@ const island = `${base}island/index.html`;
 		.steps {
 			align-self: flex-start;
 			text-align: left;
-		}
-		.ask-chip {
-			display: none;
 		}
 		/* The preview gets a fixed track, as tall as the live island, so a hover never changes the row's height. */
 		.rm-row {

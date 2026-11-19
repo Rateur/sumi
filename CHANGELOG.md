@@ -4,6 +4,33 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-19
+
+A command bar for a timer, an app or a question, and timers on the island.
+
+### Added
+
+- Press `Win+Alt+S`, or `Alt+Shift+S` when another app has it, and the island becomes a bar. Type, check the chip that says what Enter will do, then press Enter.
+- Type `25m`, `1h30` or `10 min pasta` for a timer, an app's name or `open discord` for an app from Start, or `what time is it` for the time and date in the island.
+- Anything else is a question for Claude, in its app when it's installed. Start with ChatGPT, Gemini, Perplexity or `search` to pick another. The question is filled in, never sent: you send it from there.
+- French and English both work, and typos are forgiven.
+- Timers: an amber ring and the time left on the island. Click it to pause or cancel, or type `pause`, `+5 min` or `stop` in the bar.
+- When a timer ends, a soft chime plays and the island swells with its name, then folds into a small pill that counts the time since until you dismiss it.
+- The island drops in at every start. At the first launch, it says hello and shows the bar's shortcut.
+
+### Fixed
+
+- Starting Sumi again no longer opens a second island.
+- Mute now mutes every microphone in use, not only the default one.
+- Every song shows its own artwork.
+- Sumi does less work at rest, and after a game in exclusive fullscreen the island comes back in its place.
+
+### Known limits
+
+- Timers live in memory: quitting Sumi or restarting Windows ends them. The chime can't be turned off yet.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- The installer isn't signed yet: your browser may hold the download, and Windows warns about an unknown publisher.
+
 ## [0.5.0] - 2026-11-19
 
 Who uses your microphone or your camera, in a small disc beside the island.
@@ -96,7 +123,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/Rateur/sumi/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Rateur/sumi/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Rateur/sumi/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Rateur/sumi/compare/v0.2.0...v0.3.0

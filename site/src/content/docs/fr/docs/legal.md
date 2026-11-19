@@ -17,8 +17,6 @@ GitHub Pages, un service de GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Fran
 
 Ce site ne dépose aucun cookie et ne mesure pas l'audience. Il retient, dans votre navigateur, la langue que vous choisissez (`sumi-lang`) et, pour l'onglet en cours seulement, l'état du menu de la documentation (`sl-sidebar-state`), sans les envoyer nulle part.
 
-Sur la page d'accueil, une question envoyée dans la démo de la barre de commande part vers Wikipédia, géré par la Wikimedia Foundation aux États-Unis. Voir la [page Confidentialité](../privacy/).
-
 Comme tout hébergeur, GitHub enregistre l'adresse IP des visiteurs pour la sécurité du service : voir la [déclaration de confidentialité de GitHub](https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement).
 
 ## Propriété intellectuelle

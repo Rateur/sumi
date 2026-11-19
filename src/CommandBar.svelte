@@ -152,7 +152,10 @@
     }
   }
 
-  const focus = (node: HTMLInputElement) => node.focus()
+  // In a frame on the site, the bar mustn't take the page's focus: keys would type in it instead of scrolling.
+  const focus = (node: HTMLInputElement) => {
+    if (window === parent) node.focus()
+  }
 </script>
 
 {#snippet face(choice: Choice<Listed>, mark: ReturnType<typeof markOf>)}
