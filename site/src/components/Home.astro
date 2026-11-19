@@ -269,11 +269,6 @@ const island = `${base}island/index.html`;
 						<span class="rm-copy"><strong>{t.roadmap[11].title}</strong><span>{t.roadmap[11].text}</span></span>
 						<span class="rm-tag">{t.roadmap[11].tag}</span>
 					</li>
-					<li class="rm-row" data-reveal>
-						<span class="rm-dock" data-ui aria-hidden="true"><span class="rm-pill" style="--w0: 112px; --w1: 112px"><span data-time>00:00</span></span><i></i></span>
-						<span class="rm-copy"><strong>{t.roadmap[12].title}</strong><span>{t.roadmap[12].text}</span></span>
-						<span class="rm-tag">{t.roadmap[12].tag}</span>
-					</li>
 				</ol>
 			</section>
 
@@ -1616,8 +1611,7 @@ const island = `${base}island/index.html`;
 	   and nothing around it moves. The frame lets the cursor through, so the line under it stays hovered. */
 	.rm-pill,
 	.rm-live,
-	.rm-icon,
-	.rm-dock {
+	.rm-icon {
 		justify-self: center;
 	}
 	/* Tucking: the pill slides up into a thin line, as it will under the top of the screen. */
@@ -1664,28 +1658,6 @@ const island = `${base}island/index.html`;
 		border: 2px solid var(--paper);
 		border-radius: 50%;
 		background: #fb923c;
-	}
-	/* The island beside the taskbar, the line under it: hovering brings it down to its spot, 8 px above. */
-	.rm-dock {
-		display: grid;
-		justify-items: center;
-		gap: 8px;
-	}
-	.rm-dock .rm-pill {
-		translate: 0 -6px;
-		transition: translate var(--unpeek-h);
-	}
-	.rm-row:hover .rm-dock .rm-pill {
-		height: 34px;
-		border-radius: 17px;
-		translate: 0 0;
-		transition: translate var(--peek-h);
-	}
-	.rm-dock i {
-		width: 220px;
-		height: 3px;
-		border-radius: 2px;
-		background: #c9c2b2;
 	}
 	.rm-live {
 		position: relative;
@@ -2033,8 +2005,7 @@ const island = `${base}island/index.html`;
 		}
 		.rm-pill,
 		.rm-live,
-		.rm-icon,
-		.rm-dock {
+		.rm-icon {
 			grid-column: 1 / -1;
 			max-width: 100%;
 		}
