@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
 
 use crate::fullscreen::{self, Presence};
 
@@ -131,17 +131,62 @@ fn foreground() -> usize {
     0
 }
 
+/// The window's width, and the cursor from its top-left corner, in physical pixels. Plain Win32 calls from the
+/// poll's thread: Tauri's getters make the same ones, but each after a round trip to the main thread.
+#[cfg(windows)]
+fn cursor_over(window: usize) -> Option<(i32, i32, i32)> {
+    use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+
+    let mut cursor = POINT { x: 0, y: 0 };
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: each call writes only to a local, and a window that went away makes them fail rather than misread.
+    let read =
+        unsafe { GetCursorPos(&mut cursor) != 0 && GetWindowRect(window as HWND, &mut rect) != 0 };
+    read.then_some((
+        rect.right - rect.left,
+        cursor.x - rect.left,
+        cursor.y - rect.top,
+    ))
+}
+
+#[cfg(not(windows))]
+fn cursor_over(_: usize) -> Option<(i32, i32, i32)> {
+    None
+}
+
 /// Top-left corner that centers a window of `width` on the top edge of an area.
 pub fn top_center(area_x: i32, area_y: i32, area_width: u32, width: u32) -> (i32, i32) {
     let offset = (i64::from(area_width) - i64::from(width)) / 2;
     (area_x + offset as i32, area_y)
 }
 
-/// Moves the window to the top center of the primary screen's work area, if it isn't there yet.
+/// Gives the window back its size and moves it to the top center of the primary screen's work area, if it isn't
+/// there yet. Not while `fullscreen::set_visible` keeps it hidden: during a game, the work area is the game's
+/// resolution, and the window would come back off center.
 pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
     let Some(monitor) = window.primary_monitor()? else {
         return Ok(());
     };
+    // Windows 10 keeps the old pixel size across a change of scale when windows don't draw while dragged.
+    if let Some(config) = window
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == window.label())
+    {
+        let size = LogicalSize::new(config.width, config.height)
+            .to_physical::<u32>(window.scale_factor()?);
+        if window.inner_size()? != size {
+            window.set_size(size)?;
+        }
+    }
     let area = monitor.work_area();
     let (x, y) = top_center(
         area.position.x,
@@ -163,6 +208,14 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 // on the press itself: switch when touch matters or profiling shows a cost.
 pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
     std::thread::spawn(move || {
+        #[cfg(windows)]
+        let hwnd = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
+        #[cfg(not(windows))]
+        let hwnd = 0;
+        let mut width = 0;
+        let mut scale = 1.0;
+        // Ticks left placing the window on every tick: a game's resolution can come back a moment after the game.
+        let mut settle = 0u32;
         let mut over = None;
         let mut before = None;
         let mut tick: u32 = 0;
@@ -179,12 +232,9 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                 let _ = fullscreen::set_visible(&window, false);
             }
             let second = tick.is_multiple_of(30);
-            if second {
-                let _ = place(&window);
-            }
             // F11 and in-page fullscreen keep the same window in front: the once-a-second check catches them.
             if fullscreen::switched() || second {
-                let (next, now) = fullscreen::check(&window, trigger);
+                let (next, now) = fullscreen::check(hwnd, trigger);
                 trigger = next;
                 if now != presence {
                     let hides = now == Presence::Hidden;
@@ -198,8 +248,11 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                             let _ = window.set_ignore_cursor_events(true);
                             hide_at = Some(tick.wrapping_add(HIDE_AFTER));
                         } else if hide_at.take().is_none() {
-                            // Back after the window hid, rather than before.
+                            // Back after the window hid, rather than before. Placed once shown, where the
+                            // screen is now.
                             let _ = fullscreen::set_visible(&window, true);
+                            let _ = place(&window);
+                            settle = 30;
                         }
                     }
                     let _ = app.emit("island://presence", now);
@@ -209,17 +262,19 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             if presence == Presence::Hidden {
                 continue;
             }
-            let (Ok(cursor), Ok(origin), Ok(scale)) = (
-                app.cursor_position(),
-                window.outer_position(),
-                window.scale_factor(),
-            ) else {
+            let Some((now_width, x, y)) = cursor_over(hwnd) else {
                 continue;
             };
-            let (x, y) = (
-                (cursor.x - f64::from(origin.x)) / scale,
-                (cursor.y - f64::from(origin.y)) / scale,
-            );
+            // Windows resizes the window for a new scale: center it again at once, not at the next second.
+            if now_width != width {
+                width = now_width;
+                scale = window.scale_factor().unwrap_or(scale);
+                let _ = place(&window);
+            } else if second || settle > 0 {
+                let _ = place(&window);
+            }
+            settle = settle.saturating_sub(1);
+            let (x, y) = (f64::from(x) / scale, f64::from(y) / scale);
             let inside = app
                 .state::<IslandRects>()
                 .0
