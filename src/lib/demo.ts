@@ -58,6 +58,7 @@ const KEYS: Record<string, string> = {
   k: 'mic',
   j: 'camera',
   u: 'mute',
+  o: 'card',
   ',': 'press',
   '.': 'cancel',
 }
@@ -74,6 +75,7 @@ export function demo(island: {
   peek: (id: string) => void
   hover: () => void
   expand: () => void
+  card: () => void
   press: (down: boolean) => void
   alert: () => void
   fullscreen: () => void
@@ -100,6 +102,7 @@ export function demo(island: {
     },
     hover: island.hover,
     expand: island.expand,
+    card: island.card,
     press: () => island.press(true),
     cancel: () => island.press(false),
     alert: island.alert,

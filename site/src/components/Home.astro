@@ -120,7 +120,8 @@ const island = `${base}island/index.html`;
 							<span class="track">Tank!</span>
 							<span class="eq"><i></i><i></i><i></i><i></i></span>
 						</span>
-						<span class="layer layer-timer"><span class="dot-mic"></span>24:59</span>
+						<span class="layer layer-mic" data-time>00:00</span>
+						<span class="isle-tag"><i></i></span>
 					</span>
 					<span class="half half-b">{t.h1b}</span>
 				</h1>
@@ -212,9 +213,11 @@ const island = `${base}island/index.html`;
 						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 150px; --w1: 240px"><span data-time>00:00</span><span class="rm-dots"><i></i><i></i></span><span class="rm-more rm-dim">Discord</span></span>
+						<span class="rm-live aside" data-ui aria-hidden="true">
+							<iframe src={island} data-start="mic" data-hover="card" data-opens="card" data-mouse title="" tabindex="-1" loading="lazy"></iframe>
+						</span>
 						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[4].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[4].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-ask" data-ui aria-hidden="true" style="--w0: 210px; --w1: 320px">
@@ -222,7 +225,7 @@ const island = `${base}island/index.html`;
 							<span class="rm-dim">{t.askLabel}…</span><span class="rm-more rm-chip">Claude</span>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[5].title}</strong><span>{t.roadmap[5].text}</span></span>
-						<span class="rm-tag">{t.roadmap[5].tag}</span>
+						<span class="rm-tag rm-next">{t.roadmap[5].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill rm-timer" data-ui aria-hidden="true" style="--w0: 112px; --w1: 236px"><span>24:59</span><span class="rm-more">{t.timesUp}</span></span>
@@ -390,7 +393,7 @@ const island = `${base}island/index.html`;
 			const isle = hero.querySelector<HTMLElement>('.isle')!;
 			const stepsEl = hero.querySelector<HTMLElement>('.steps')!;
 			const steps = [...stepsEl.querySelectorAll<HTMLElement>('.step')];
-			const states = ['time', 'music', 'timer'];
+			const states = ['time', 'music', 'mic'];
 			let current = -1;
 			const show = (i: number) => {
 				current = i;
@@ -470,7 +473,7 @@ const island = `${base}island/index.html`;
 				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
 				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
 				row.addEventListener('click', (e) => {
-					if (e.pointerType !== 'mouse') return hover(!on);
+					if (e.pointerType !== 'mouse') return frame.dataset.mouse === undefined && hover(!on);
 					if (!on || !frame.dataset.click) return;
 					opened = !opened;
 					say(frame.dataset.click);
@@ -1047,12 +1050,17 @@ const island = `${base}island/index.html`;
 		background: #000;
 		color: #fff;
 		letter-spacing: 0;
-		transition: width var(--grow-w);
+		transition:
+			width var(--grow-w),
+			margin-right var(--grow-w);
 	}
-	/* Music is the widest state and the timer is wider than the time: those steps down shrink, without a bounce. */
+	/* Music is the widest state, and the microphone's tag makes room for itself: the steps down from them shrink,
+	   without a bounce. */
 	.isle[data-from='music'],
-	.isle[data-from='timer'][data-state='time'] {
-		transition: width var(--shrink-w);
+	.isle[data-from='mic'] {
+		transition:
+			width var(--shrink-w),
+			margin-right var(--shrink-w);
 	}
 	.isle[data-state='time'] {
 		width: 2.15em;
@@ -1060,8 +1068,43 @@ const island = `${base}island/index.html`;
 	.isle[data-state='music'] {
 		width: 3.3em;
 	}
-	.isle[data-state='timer'] {
-		width: 2.35em;
+	/* The microphone leaves the island as it is: only the tag splits off beside it, as in the app. */
+	.isle[data-state='mic'] {
+		width: 2.15em;
+		margin-right: 0.57em;
+	}
+	.isle-tag {
+		position: absolute;
+		top: 50%;
+		left: calc(100% + 0.13em);
+		display: grid;
+		place-items: center;
+		width: 0.44em;
+		height: 0.44em;
+		border-radius: 50%;
+		background: #000;
+		opacity: 0;
+		translate: -0.5em -50%;
+		scale: 0.5;
+		transition:
+			opacity var(--exit),
+			translate var(--shrink-w),
+			scale var(--shrink-w);
+	}
+	.isle-tag i {
+		width: 0.17em;
+		height: 0.17em;
+		border-radius: 50%;
+		background: #fb923c;
+	}
+	.isle[data-state='mic'] .isle-tag {
+		opacity: 1;
+		translate: 0 -50%;
+		scale: 1;
+		transition:
+			opacity 0.12s,
+			translate var(--grow-w),
+			scale var(--grow-w);
 	}
 	.layer {
 		position: absolute;
@@ -1077,7 +1120,7 @@ const island = `${base}island/index.html`;
 	}
 	.isle[data-state='time'] .layer-time,
 	.isle[data-state='music'] .layer-music,
-	.isle[data-state='timer'] .layer-timer {
+	.isle[data-state='mic'] .layer-mic {
 		visibility: visible;
 	}
 	.layer-music {
@@ -1131,15 +1174,6 @@ const island = `${base}island/index.html`;
 		50% {
 			scale: 1 1;
 		}
-	}
-	.layer-timer {
-		color: #fbbf24;
-	}
-	.dot-mic {
-		width: 0.42em;
-		height: 0.42em;
-		border-radius: 50%;
-		background: #fb923c;
 	}
 	.steps {
 		align-self: center;
@@ -1571,6 +1605,12 @@ const island = `${base}island/index.html`;
 	.rm-live.split iframe {
 		left: calc(50% - var(--split));
 	}
+	/* The island sits at the column's left, so its card opens within the column, short of the text. The frame is
+	   wide enough to hold the card and its shadow to the right of it. */
+	.rm-live.aside iframe {
+		left: 54px;
+		width: 680px;
+	}
 	.rm-row:has(.rm-live):hover {
 		position: relative;
 		z-index: 3;
@@ -1581,6 +1621,9 @@ const island = `${base}island/index.html`;
 	}
 	.rm > .rm-row[data-open='player'] ~ .rm-row {
 		translate: 0 108px;
+	}
+	.rm > .rm-row[data-open='card'] ~ .rm-row {
+		translate: 0 56px;
 	}
 	.rm-row[data-open] {
 		position: relative;
@@ -1596,23 +1639,12 @@ const island = `${base}island/index.html`;
 	.rm-row[data-open='player']::after {
 		height: 108px;
 	}
+	.rm-row[data-open='card']::after {
+		height: 56px;
+	}
 	.rm-copy,
 	.rm-tag {
 		transition: translate var(--open-h);
-	}
-	.rm-dots {
-		display: flex;
-		gap: 4px;
-	}
-	.rm-dots i {
-		display: block;
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: #fb923c;
-	}
-	.rm-dots i + i {
-		background: #4ade80;
 	}
 	.rm-ask {
 		justify-content: flex-start;
@@ -1848,7 +1880,7 @@ const island = `${base}island/index.html`;
 		}
 		.isle[data-state='time'] .layer-time,
 		.isle[data-state='music'] .layer-music,
-		.isle[data-state='timer'] .layer-timer {
+		.isle[data-state='mic'] .layer-mic {
 			display: flex;
 			opacity: 1;
 			scale: 1;
@@ -1861,7 +1893,7 @@ const island = `${base}island/index.html`;
 		@starting-style {
 			.isle[data-state='time'] .layer-time,
 			.isle[data-state='music'] .layer-music,
-			.isle[data-state='timer'] .layer-timer {
+			.isle[data-state='mic'] .layer-mic {
 				opacity: 0;
 				scale: var(--enter-scale);
 				filter: blur(var(--enter-blur));
@@ -1926,8 +1958,10 @@ const island = `${base}island/index.html`;
 			gap: 16px;
 			padding: 20px 16px;
 		}
-		.rm-live.split iframe {
+		.rm-live.split iframe,
+		.rm-live.aside iframe {
 			left: 50%;
+			width: min(480px, 100vw);
 		}
 		.rm-row[data-open='player'] > :not(.rm-live) {
 			translate: 0 108px;

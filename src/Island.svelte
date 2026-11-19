@@ -903,6 +903,7 @@
         peek,
         hover: () => (hovered = !hovered),
         expand: () => (expanded ? (expanded = false) : open()),
+        card: () => (card ? closeCard() : (card = tagged(privacy))),
         press,
         alert,
         fullscreen: () => fullscreen(!hidden),
