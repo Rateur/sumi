@@ -518,7 +518,7 @@
     }
   }
 
-  // --- Cursor and fullscreen from Rust ---
+  // --- Clicks, cursor, fullscreen and peeks ---
 
   // The Rust side lets clicks through everywhere except over these rounded rectangles, padded by a pixel.
   let sent: (Rect & { radius: number })[] = []
@@ -734,7 +734,7 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
-  // --- Privacy card ---
+  // --- Privacy state, tag size and card ---
 
   $effect(() => {
     if (!tauri) return
