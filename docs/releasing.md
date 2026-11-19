@@ -8,7 +8,13 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
    npm version 0.2.0 --no-git-tag-version
    ```
 
-   Set the same version in `src-tauri/Cargo.toml`, then run `cargo update -p sumi --offline` in `src-tauri`. Add a section to `CHANGELOG.md`, written for users, not developers. Update the README if what users can do has changed. Open a pull request into `dev` titled `chore: release 0.2.0`.
+   Set the same version in `src-tauri/Cargo.toml`, then run `cargo update -p sumi --offline` in `src-tauri`. Add a section to `CHANGELOG.md`, written for users, not developers. Then bring everything users read up to date, in English and French:
+
+   - the README: the note on what the current version does, and the roadmap's box for this version;
+   - the site: the roadmap (the line's tag, and its live preview if the feature has one), the home page if it shows the feature, and the feature's page in the docs;
+   - a short GIF of the new feature in `.github/assets/`, recorded from the site's showcase island (`npm run showcase`).
+
+   Open a pull request into `dev` titled `chore: release 0.2.0`.
 
 2. **Ship to `main`.** Open a pull request from `dev` to `main` and merge it with **Create a merge commit**.
 
@@ -20,7 +26,7 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
    git push origin v0.2.0
    ```
 
-4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Install the attached `Sumi-setup.exe`, then click **Publish release**.
+4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Put the GIF at the top of the notes (its `raw.githubusercontent.com` link at the tag) and the [code signing policy](https://rateur.github.io/sumi/docs/code-signing/) link at the bottom. Install the attached `Sumi-setup.exe`, then click **Publish release**, as the latest release. Once `main` has it, the Site workflow puts the site online: check it.
 
    Each installer carries a build attestation. Anyone can check it came from this repository's workflow:
 
