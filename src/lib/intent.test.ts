@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice } from './intent'
+import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice, type Timer } from './intent'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
 // Word and Time Doctor sit one typo from 'world' and 'timer': they must not catch them.
@@ -74,31 +74,6 @@ describe('parseTimer', () => {
     expect(parseTimer(line)).toBeUndefined()
   })
 
-  // Spoken the way people ask for one. The bar leaves them to the timer module: until it lands, they are questions.
-  const s = 1000
-  const min = 60_000
-  const spoken: [string, number][] = [
-    ['met un minuteur de 10s', 10 * s],
-    ['mets un minuteur de 10 min', 10 * min],
-    ['mettre un minuteur de 5 minutes', 5 * min],
-    ['lance un minuteur de 25 min', 25 * min],
-    ['un minuteur de 10 min pour les pates', 10 * min],
-    ['minuteur 10s', 10 * s],
-    ['programme une minuterie de 1h30', 90 * min],
-    ['regle un minuteur de 3 min stp', 3 * min],
-    ['set a timer for 5 minutes', 5 * min],
-    ['start a 5 minute timer', 5 * min],
-    ['timer for 20 minutes', 20 * min],
-    ['10 min timer', 10 * min],
-    ['make a 2 min timer please', 2 * min],
-    ['chrono 30 s', 30 * s],
-    ['25m', 25 * min],
-  ]
-  it.each(spoken)('reads %s', (line, ms) => {
-    expect(parseTimer(line)?.ms).toBe(ms)
-    expect(choices(line, fr)[0]).toMatchObject({ kind: 'ask', label: 'Demander à Claude' })
-  })
-
   it('takes 1 s to 12 h, and a bare number up to 180 min', () => {
     expect(parseTimer('1s')?.ms).toBe(1000)
     expect(parseTimer('12h')?.ms).toBe(12 * 3_600_000)
@@ -125,6 +100,11 @@ describe('formatDuration', () => {
 describe('choices', () => {
   it('does nothing on an empty line', () => {
     expect(choices('  ', fr)).toEqual([])
+  })
+
+  it('starts a timer, in either language', () => {
+    expect(top('25m')).toMatchObject({ kind: 'timer', ms: 25 * 60_000, label: 'Minuteur 25 min' })
+    expect(top('10 min pâtes', en)).toMatchObject({ kind: 'timer', name: 'pâtes', label: 'Timer 10 min · pâtes' })
   })
 
   it('opens an app after a verb, with a fuzzy match', () => {
@@ -194,6 +174,32 @@ describe('choices', () => {
     expect(top('ouvre disc', { ...fr, apps: list })).toMatchObject({ app: { name: 'Discord' } })
     expect(top('ouvre uninst', { ...fr, apps: list })).toMatchObject({ kind: 'ask' })
   })
+
+  describe('with a timer running', () => {
+    const timers: Timer[] = [
+      { id: 'a', endsAt: 20 * 60_000, label: 'pâtes' },
+      { id: 'b', endsAt: 5 * 60_000 },
+    ]
+    const running = { ...fr, timers, now: 0 }
+
+    it('adds time to the one that ends first', () => {
+      expect(top('+5', running)).toMatchObject({ kind: 'add', id: 'b', ms: 5 * 60_000, label: '+5 min' })
+      expect(top('+1 min', running)).toMatchObject({ kind: 'add', ms: 60_000 })
+    })
+
+    it('pauses, resumes and stops, by name too', () => {
+      expect(top('pause', running)).toMatchObject({ kind: 'pause', id: 'b', label: 'Mettre en pause' })
+      expect(top('stop pâtes', running)).toMatchObject({ kind: 'stop', id: 'a', label: 'Arrêter pâtes' })
+      expect(top('annule', running)).toMatchObject({ kind: 'stop', id: 'b' })
+      expect(top('resume', running)).toMatchObject({ kind: 'ask' })
+      const paused = { ...running, timers: [{ ...timers[0], left: 60_000 }] }
+      expect(top('reprendre', paused)).toMatchObject({ kind: 'resume', id: 'a', label: 'Reprendre pâtes' })
+    })
+
+    it('sends a name it does not know to the assistant', () => {
+      expect(top('stop riz', running)).toMatchObject({ kind: 'ask' })
+    })
+  })
 })
 
 describe('normalize', () => {
@@ -216,10 +222,13 @@ describe('normalize', () => {
 describe('natural phrasing', () => {
   const now = new Date(2026, 10, 19, 11, 27).getTime()
   const options = { ...fr, now, locale: 'fr-FR' }
-  const target = (c: Choice) => (c.kind === 'app' ? c.app.name : c.kind === 'ask' ? c.to : c.what)
-  const table: [string, Choice['kind'], string][] = [
-    // The maintainer's four. A timer is a question until the timer module lands.
-    ['met un minuteur de 10s', 'ask', 'claude'],
+  const target = (c: Choice) =>
+    c.kind === 'app' ? c.app.name : c.kind === 'ask' ? c.to : c.kind === 'timer' ? c.ms : c.kind === 'clock' ? c.what : ''
+  const s = 1000
+  const min = 60_000
+  const table: [string, Choice['kind'], string | number][] = [
+    // The maintainer's four.
+    ['met un minuteur de 10s', 'timer', 10 * s],
     ["quelle heure est t'il", 'clock', 'time'],
     ['ouvre discord', 'app', 'Discord'],
     ['ouvre les parametre', 'app', 'Paramètres'],
@@ -262,6 +271,22 @@ describe('natural phrasing', () => {
     ['ouvre prmtr', 'app', 'Paramètres'],
     ['ouvre vsc', 'app', 'Visual Studio Code'],
     ['open time doc', 'app', 'Time Doctor'],
+    // Timers.
+    ['mets un minuteur de 10 min', 'timer', 10 * min],
+    ['mettre un minuteur de 5 minutes', 'timer', 5 * min],
+    ['lance un minuteur de 25 min', 'timer', 25 * min],
+    ['un minuteur de 10 min pour les pates', 'timer', 10 * min],
+    ['un minuteur de 10 min pour les pâtes', 'timer', 10 * min],
+    ['minuteur 10s', 'timer', 10 * s],
+    ['programme une minuterie de 1h30', 'timer', 90 * min],
+    ['regle un minuteur de 3 min stp', 'timer', 3 * min],
+    ['set a timer for 5 minutes', 'timer', 5 * min],
+    ['start a 5 minute timer', 'timer', 5 * min],
+    ['timer for 20 minutes', 'timer', 20 * min],
+    ['10 min timer', 'timer', 10 * min],
+    ['make a 2 min timer please', 'timer', 2 * min],
+    ['chrono 30 s', 'timer', 30 * s],
+    ['25m', 'timer', 25 * min],
     // The time and the date.
     ['quelle heure est-il ?', 'clock', 'time'],
     ['Quelle heure il est', 'clock', 'time'],

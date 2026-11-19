@@ -15,7 +15,7 @@
     search: '#5F6368',
   }
 
-  /** What fills the 16 px icon slot: the app's icon, a monogram, or a clock. */
+  /** What fills the 16 px icon slot: the app's icon, a monogram, a clock, or the timer's amber ring. */
   export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon } {
     if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
@@ -161,8 +161,10 @@
       <canvas use:paintIcon={mark.icon}></canvas>
     {:else if mark.letter}
       {mark.letter}
+    {:else if choice.kind === 'clock'}
+      <svg class="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /><path d="M8 5v3.5l2 1.5" /></svg>
     {:else}
-      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /><path d="M8 5v3.5l2 1.5" /></svg>
+      <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
     {/if}
   </span>
   <span class="label" style:translate="{drawn.slide}px 0">{choice.label}</span>
@@ -173,7 +175,7 @@
   class="field"
   type="text"
   bind:value={line}
-  placeholder={lang === 'fr' ? 'App, heure, question…' : 'App, time, question…'}
+  placeholder={lang === 'fr' ? 'Minuteur, app, question…' : 'Timer, app, question…'}
   aria-label={lang === 'fr' ? 'Barre de commande' : 'Command bar'}
   aria-keyshortcuts={shortcut?.replace('Win', 'Meta')}
   spellcheck="false"
@@ -272,8 +274,12 @@
     width: 14px;
     height: 14px;
     fill: none;
-    stroke: #fff;
+    stroke: #fbbf24;
     stroke-width: 2;
+  }
+
+  .mark svg.clock {
+    stroke: #fff;
     stroke-linecap: round;
   }
 

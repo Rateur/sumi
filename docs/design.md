@@ -69,7 +69,7 @@ Known limits: with touch or a pen, the first tap on the island reaches the app u
 | `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, an app's name opens it, `what time is it` shows the time, and anything else is a question. The line is read without politeness or punctuation, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. The chip says what Enter will do, and Tab turns it to the next target: the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, and anything else is a question. The line is read without politeness or punctuation, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. The chip says what Enter will do, and Tab turns it to the next target: the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
 
 The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
 

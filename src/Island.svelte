@@ -106,6 +106,8 @@
   // Icons asked for, by app id: `null` while Rust reads one, or when an app has none. Not reactive: one arriving
   // must not rerun the effect that asks for them.
   const icons: Record<string, Listed['icon']> = {}
+  // A timer started from the bar swells the island as it lands.
+  let swell = false
 
   // The last arrangement, so equals keep their place. Written from the derived as a plain variable: reading it
   // there doesn't make the derived depend on itself.
@@ -126,7 +128,7 @@
   const beside = $derived(barOpen || launch || telling ? arrangement.island : arrangement.bubble)
   const timers = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a] : [])))
   const options = $derived(
-    barOpen ? choices(line, { apps, lang, claudeApp, now: now.getTime() }) : ([] as Choice<Listed>[]),
+    barOpen ? choices(line, { apps, lang, claudeApp, timers, now: now.getTime() }) : ([] as Choice<Listed>[]),
   )
   const key = $derived('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name)
   const size = $derived(sizeOf(view))
@@ -274,6 +276,8 @@
   function reshape(from: View, to: View) {
     clearTimeout(delayed)
     delayed = undefined
+    const swelled = swell
+    swell = false
     const target = sizeOf(to)
     // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
     // Unlike the drops, it still springs in forced colors: an outline follows it fine.
@@ -288,7 +292,7 @@
       const t = performance.now()
       drive(width, target.width, w, t)
       drive(height, target.height, h, t)
-      if (arrives) pulse(0, 150, t)
+      if (arrives || swelled) pulse(0, 150, t)
       wake()
     }
     if (delay) delayed = setTimeout(go, delay)
@@ -902,13 +906,26 @@
     launchTimer = setTimeout(() => (launch = undefined), ms)
   }
 
-  // Enter: the bar folds into its answer. The time shows in the hover view for 2.5 s; an app or a question shows
-  // what opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
+  // Enter: the bar folds into its answer. A timer becomes the island's timer; the time shows in the hover view for
+  // 2.5 s; an app or a question shows what opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
   // nothing.
   function run(choice: Choice<Listed>) {
     if (!barOpen) return
     closeBar(choice.kind !== 'app' && choice.kind !== 'ask')
-    if (choice.kind === 'clock') {
+    const t = Date.now()
+    const edit = (id: string, change: (timer: Extract<Activity, { kind: 'timer' }>) => Activity | undefined) =>
+      (activities = activities.flatMap((a) => (a.id === id && a.kind === 'timer' ? (change(a) ?? []) : [a])))
+    if (choice.kind === 'timer') {
+      swell = true
+      activities = [...activities, { id: `timer:${t}`, kind: 'timer', endsAt: t + choice.ms, label: choice.name }]
+    } else if (choice.kind === 'add') {
+      edit(choice.id, (a) =>
+        a.left === undefined ? { ...a, endsAt: a.endsAt + choice.ms } : { ...a, left: a.left + choice.ms },
+      )
+    } else if (choice.kind === 'pause') edit(choice.id, (a) => ({ ...a, left: Math.max(0, a.endsAt - t) }))
+    else if (choice.kind === 'resume') edit(choice.id, (a) => ({ ...a, endsAt: t + (a.left ?? 0), left: undefined }))
+    else if (choice.kind === 'stop') edit(choice.id, () => undefined)
+    else if (choice.kind === 'clock') {
       telling = true
       clearTimeout(launchTimer)
       launchTimer = setTimeout(() => (telling = false), 2500)

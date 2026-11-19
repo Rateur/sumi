@@ -1,12 +1,13 @@
 ---
 title: Barre de commande
-description: Une app, l'heure ou une question, depuis un raccourci.
+description: Un minuteur, une app ou une question, depuis un raccourci.
 ---
 
 Appuyez sur `Win+Alt+S` et l'île devient une barre. Tapez, regardez la pastille à droite, puis appuyez sur Entrée. Appuyez à nouveau sur le raccourci ou sur Échap pour la refermer. Si une autre app l'utilise déjà, le raccourci est `Alt+Maj+S`.
 
 ## Que taper
 
+- **Un minuteur** : `25m`, `90s`, `1h30`, `minuteur 10m` ou `mets un minuteur de 10 min`. La barre se replie en minuteur. Ses commandes complètes, un clic pour le mettre en pause ou l'arrêter, arrivent avec le module minuteur dans la même version.
 - **Une app** : son nom tel que le menu Démarrer l'affiche, comme `Discord`, ou un verbe et son nom, comme `ouvre disc`, `lance spotify` ou `ouvre les paramètres`. Une faute de frappe ou un accent oublié ne gênent pas.
 - **L'heure ou la date** : `quelle heure est-il` ou `on est quel jour`. La pastille donne la réponse, et Entrée l'affiche dans l'île avec la date.
 - **Une question** : tout le reste va à Claude. Nommez d'abord un assistant pour en choisir un autre : `demande à chatgpt …`, `gemini …`, `perplexity …`, ou `cherche …` pour le moteur de recherche.
@@ -32,7 +33,6 @@ Sumi n'envoie rien. La liste des apps est lue dans le menu Démarrer et reste en
 
 ## Limites
 
-- Une seule chose par ligne : une app, l'heure ou une question.
-- Les minuteurs arrivent plus tard, avec leurs propres commandes. D'ici là, `25m` est une question.
+- Une seule chose par ligne : un minuteur, une app, l'heure ou une question.
 - Une app installée il y a quelques minutes peut n'apparaître qu'à la prochaine ouverture de la barre.
 - Tant que l'île est masquée en plein écran, le raccourci ne fait rien.
