@@ -130,9 +130,19 @@ export function inkWater(section: HTMLElement, canvas: HTMLCanvasElement, reduce
 		const aspect = canvas.width / canvas.height;
 		return aspect > 1 ? [Math.round(res * aspect), res] : [res, Math.round(res / aspect)];
 	};
+	let grid = '';
+	const free = (t: Target) => {
+		gl.deleteTexture(t.texture);
+		gl.deleteFramebuffer(t.fbo);
+	};
 	const allocate = () => {
 		const [sw, sh] = size(small ? 96 : 128);
 		const [dw, dh] = size(small ? 384 : 768);
+		// Same grids (same aspect ratio): keep the targets, and the ink in them.
+		const next = `${sw}x${sh}/${dw}x${dh}`;
+		if (next === grid) return;
+		grid = next;
+		if (velocity) [velocity.read, velocity.write, pressure.read, pressure.write, divergence, curl, dye.read, dye.write].forEach(free);
 		velocity = double(sw, sh, gl.RG, gl.RG16F);
 		pressure = double(sw, sh, gl.RED, gl.R16F);
 		divergence = target(sw, sh, gl.RED, gl.R16F);

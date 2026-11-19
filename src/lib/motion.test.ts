@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { bezier, motion, squash } from './motion'
+import { CLOSE, OPEN, bezier, motion, squash } from './motion'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
-const timer: Activity = { id: 't', kind: 'timer', endsAt: 0 }
+const timer: Activity = { id: 't', kind: 'timer', endsAt: 0, total: 60_000 }
 
 describe('motion', () => {
   it('opens width first and closes height first', () => {
@@ -24,6 +24,22 @@ describe('motion', () => {
     expect(motion({ name: 'idle' }, { name: 'compact', activity: timer }).pulse).toBe(true)
     expect(motion({ name: 'expanded' }, { name: 'compact', activity: timer }).pulse).toBe(false)
     expect(motion({ name: 'peek', activity: music }, { name: 'compact', activity: music }).pulse).toBe(false)
+    expect(motion({ name: 'bar' }, { name: 'compact', activity: music }).pulse).toBe(false)
+    expect(motion({ name: 'launch' }, { name: 'compact', activity: music }).pulse).toBe(false)
+  })
+
+  it('opens and folds the welcome as the panel, and only widens it in between', () => {
+    const hello = { name: 'welcome', step: 'hello', width: 200 } as const
+    const keys = { name: 'welcome', step: 'keys', width: 324 } as const
+    expect(motion({ name: 'idle' }, hello)).toMatchObject({ width: OPEN.width, height: OPEN.height })
+    expect(motion(hello, keys)).toMatchObject({ delay: 0, width: [0.44, 0.28], height: [0.3, 0] })
+    expect(motion(keys, { name: 'idle' })).toMatchObject({ delay: 60, width: CLOSE.width, height: CLOSE.height })
+    expect(motion(keys, { name: 'compact', activity: music })).toMatchObject({ width: CLOSE.width, pulse: false })
+  })
+
+  it('opens and closes the command bar as the panel', () => {
+    expect(motion({ name: 'idle' }, { name: 'bar' })).toMatchObject({ width: OPEN.width, height: OPEN.height })
+    expect(motion({ name: 'bar' }, { name: 'idle' })).toMatchObject({ width: CLOSE.width, height: CLOSE.height })
   })
 })
 

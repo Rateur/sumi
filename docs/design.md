@@ -9,13 +9,15 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | State | Size | When |
 |---|---|---|
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
-| Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date. |
-| Compact | Call 144, timer 96, music 200 × 34 px* | An activity runs: content on the left and right ends. |
-| Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
-| Expanded | Clock 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
+| Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date, or a timer's name. |
+| Compact | Call 144, timer 112 (128 from an hour), music 200 × 34 px* | An activity runs: content on the left and right ends. |
+| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s | Something just happened: timer ended, charger, low battery. A new song swells instead, see [Music](#music). |
+| Done | Timer 150 × 34 px* at least | A timer ended and waits for OK. |
+| Expanded | Clock and timer 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
+| Welcome | Greeting max(200, text + 80) × 56 px, shortcut row text + 48 × 56 px | Once, at the first launch. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
 
@@ -25,12 +27,16 @@ The island sits 8 px below the top edge, centered on the chosen screen. Sizes ar
 
 When several things happen at once, the highest one takes the island, the next one the bubble, and the rest wait. Between equals, what is already shown keeps its place. A click on the bubble swaps it with the island, except over a call.
 
-The time is last in line: it has the island when nothing runs, and the bubble when one thing does, so it never leaves the screen. Picked from the bubble, it keeps the island until the music ends.
+The time is last in line: it has the island when nothing runs, and the bubble when one thing does. Picked from the bubble, it keeps the island until the music ends. Otherwise it waits while two or more things run, and comes back when only one is left; a call on the island shows the time anyway.
 
 1. Call
-2. Timer
-3. Music
-4. Time or weather
+2. Timer that ended
+3. Timer: the running one that ends first
+4. Music
+5. Other timers, running or paused, soonest end first
+6. Time or weather
+
+What was picked from the bubble comes right after a timer that ended. Timers go by their end rather than by what is shown, so the island always holds the next one to ring.
 
 ## Music
 
@@ -42,6 +48,19 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 - A drag on the bar ends without a seek if the panel closes or another song takes it.
 - A new song swells the island when it is on the island, and the bubble when it is in the bubble.
 - The artwork reaches the island as data, never as a file. Its main color is read from a 16 px copy, and lightened until it shows on black.
+
+## Timers
+
+- Typed in the command bar: `25m`, `1h30`, `10 min pâtes`. Each one counts down to its end on the wall clock, worked out again at each second shown, so sleep or a change of daylight saving time never makes it drift.
+- Compact: a 14 px amber ring empties at the left end, and the digits sit at the right end, m:ss under an hour, h:mm:ss above. No name, unless the cursor rests on it.
+- A click opens the panel: the name, or "Timer", the digits, the end time in the clock's format, and two round buttons, pause or resume and cancel. "+1" beside the name says another timer runs.
+- Paused, the ring and the digits freeze at half strength, without a blink, and the timer waits below the music, so a forgotten pause never takes the island back.
+- Several timers: the island shows the one that ends first, the others wait, still counting. Without a label they are numbered: "Timer 2".
+- At the end, the island swells and peeks for 6 s: the full ring, the name or "Time's up", the time since the end counting up ("+0:12"), a quiet +1 min and a white OK. It then folds into the done pill, ring, name and "+3:10", whose buttons show under the cursor.
+- A click on the done pill, or OK, dismisses it, and so does `stop` in the bar. Esc and a click elsewhere don't: you may not have seen it yet. +1 min starts a minute under the same name. There is no Repeat button.
+- A short, soft chime made by the app every 10 s for a minute, then silence, at Windows' volume. On by default; Settings, in 0.9, will turn it off. The browser demo stays silent.
+- While Windows says you're busy, a finished timer still peeks and rings: it is an alarm you set. In fullscreen only the chime plays; when the fullscreen app ends, the island drops back, swells once and shows the end.
+- Timers live in memory only: quitting Sumi or restarting Windows clears them. Nothing the island shows is written to disk.
 
 ## Microphone and camera
 
@@ -58,18 +77,22 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
 
-Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for. Switching apps closes it too.
+Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for. Switching apps closes it too. A finished timer stays through both.
 
 Known limits: with touch or a pen, the first tap on the island reaches the app underneath and the second one opens it. While an elevated app such as Task Manager has focus, Windows hides Esc and clicks from Sumi, so only switching apps closes the panel.
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+Alt+Space` | Open the command bar |
-| `Enter` | Send to the selected assistant |
-| `Tab` / `Shift+Tab` | Next / previous assistant |
+| `Win+Alt+S` | Open or close the command bar |
+| `Enter` | Run what the chip shows |
+| `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcut can be changed in Settings. `Alt+Space` is left alone: Windows and PowerToys Run use it.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, and anything else is a question. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+
+The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
+
+If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are taken, the bar has no shortcut, and nothing pops up to say so. Settings, in 0.9, will let you change it. `Ctrl+Alt+S` is left alone, since some keyboards type a letter with AltGr+S, and so is `Ctrl+Shift+S`, Save As. So are `Alt+Space` (Windows and PowerToys Run) and `Ctrl+Alt+Space` (Claude's quick entry).
 
 ## Staying out of the way
 
@@ -78,7 +101,7 @@ In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcu
 - It grows only after the cursor rests on it for the Windows hover time, and shrinks 300 ms after the cursor leaves. A click opens it at once.
 - It is put on top once and never pushed back up, so menus, tooltips, Start and Alt+Tab can cover it. Moving it never takes focus.
 - It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
-- While Windows says you're busy, such as a fullscreen app on another screen, news updates in place without a peek. Calls still peek.
+- While Windows says you're busy, such as a fullscreen app on another screen, news changes in place with no peek, and a new song doesn't swell. A call still peeks.
 - It sits under the top of the work area, so a taskbar at the top pushes it down. It checks once a second.
 - A frozen Sumi never leaves a "Not responding" copy at the top of the screen.
 
@@ -89,10 +112,27 @@ In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcu
 - **Press** and the island gives a little; release and it opens with that speed. A new activity, a song change or a finished timer swell it for a moment.
 - **The bubble** splits off like a drop, joined to the island until they part, and merges back the same way.
 - **In fullscreen** the content leaves and the island slides up off the screen. It drops back down when the game or video ends.
+- **Every start** the island drops in from above the screen the same way (from −66 px, a 0.5 s spring with 0.2 bounce), on the first frame after the fonts are ready, and its content comes in 60 % of the way down. It doesn't drop while something is fullscreen: it comes back with the return drop.
 - **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
-- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second, and the equalizer moves only while music plays and the island is visible.
+- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
+
+## Welcome
+
+Once, at the first launch after install or after an upgrade from 0.5, the island says hello and shows the command bar's shortcut. Nothing waits for a click and nothing takes focus. Times are in ms from the start of the drop:
+
+| ms | Beat |
+|---|---|
+| 0 | The empty island drops in. |
+| 140 | An ink bead, the logo's drop, splits off the pill's bottom from inside, as the bubble does (goo σ 7). It hangs with a 15.5 px radius, its centre 21 px under the pill, for about 0.6 s. |
+| 700 | The bead is drawn back up while the island opens, as the panel does, to "Bonjour" or "Hello": Segoe UI Variable Display, 600, 24 px. |
+| 1700 | The island widens to the shortcut: "Barre de commande" or "Command bar" (14 px, 500, 60 % white), then flat keycaps (13 px, 600, 26 px tall, radius 7, 12 % white with a 16 % white line). The keys are the ones Sumi registered; on a French keyboard Shift is "Maj". |
+| 4900 | The island folds, as the panel closes, to the time, or to the music or the timer already there. At rest by about 5.6 s. |
+
+Without a shortcut there is no shortcut beat, and it folds at 2300. It counts as seen once the shortcut has shown for a second, or after a click on the island, which folds at once. It plays only while the island is shown: in fullscreen or while Windows says you're busy, it waits, and it stops and plays again later if that happens midway. A cursor resting on it holds the shortcut until 300 ms after it leaves; the bar's shortcut ends it and opens the bar; a new activity ends it and takes the island, and so does a timer that ends. A screen reader hears it once, with the real shortcut. The shortcut also stays in the tray icon's tooltip.
+
+With reduced motion, the island fades in where it is, already the logo, and each later beat fades the content out in the old shape, changes the shape, and fades the new content in. In a contrast theme there is no bead.
 
 ## Look
 
