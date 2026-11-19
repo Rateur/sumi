@@ -24,6 +24,20 @@ export function dominant(pixels: Uint8ClampedArray): string | undefined {
   return hex(...readable(h, s, l))
 }
 
+/** The artwork's main colour, read from a 16 px copy, once per picture. */
+export async function tint(url: string): Promise<string | undefined> {
+  try {
+    const image = new Image()
+    image.src = url
+    await image.decode()
+    const context = new OffscreenCanvas(16, 16).getContext('2d')
+    context?.drawImage(image, 0, 0, 16, 16)
+    return context ? dominant(context.getImageData(0, 0, 16, 16).data) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 /** Lightens a colour until it shows on black: a relative luminance of 0.2, about 5:1. */
 export function readable(h: number, s: number, l: number): [number, number, number] {
   let rgb = fromHsl(h, s, l)
