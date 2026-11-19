@@ -105,6 +105,13 @@ const fakes: Record<string, () => Activity> = {
   }),
 }
 
+/** What a page that frames the island asks for: an action by name, or `type:<text>`, the bar's whole line. */
+export function message(data: unknown, actions: readonly string[]): { type: string } | { action: string } | undefined {
+  if (typeof data !== 'string') return
+  if (data.startsWith('type:')) return { type: data.slice('type:'.length) }
+  if (actions.includes(data)) return { action: data }
+}
+
 const KEYS: Record<string, string> = {
   c: 'call',
   t: 'timer',
@@ -138,7 +145,8 @@ const KEYS: Record<string, string> = {
  * bubble off, ending it merges it back; a click on the bubble swaps the two), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
  * comma press and period cancel the press (E releases it into the panel). B or Ctrl+Alt+Space opens the command
  * bar ('bar'; the Claude app takes Ctrl+Alt+Space when it runs), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
- * nothing: the island only plays its answer. W plays the first-launch welcome from the drop ('welcome'), with the
+ * nothing: the island only plays its answer. A framing page types in the bar with `type:<text>`, presses Enter with
+ * 'enter' and ends the timers with 'clear'. W plays the first-launch welcome from the drop ('welcome'), with the
  * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none.
  */
 export function demo(island: {
@@ -157,6 +165,7 @@ export function demo(island: {
   apps: Listed[]
   claudeApp: boolean
 }) {
+  const field = () => document.querySelector<HTMLInputElement>('.field')
   const toggle = (fake: Activity) => {
     const others = island.activities.filter((a) => a.id !== fake.id)
     island.activities = others.length < island.activities.length ? others : [...others, fake]
@@ -193,6 +202,9 @@ export function demo(island: {
     alert: island.alert,
     fullscreen: island.fullscreen,
     bar: island.bar,
+    // Through the field itself, so the chip answers and gives under the key as it does for a person.
+    enter: () => field()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    clear: () => (island.activities = island.activities.filter((a) => !isTimer(a))),
     welcome: island.welcome,
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
@@ -217,7 +229,17 @@ export function demo(island: {
   })
   // In dev, `?show=music&show=video` starts in those states. A page that frames the island drives it by name, and
   // hears when it can.
-  const run = (name: unknown) => typeof name === 'string' && Object.hasOwn(actions, name) && actions[name]()
+  const type = (line: string) => {
+    const input = field()
+    if (!input) return
+    input.value = line
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+  const run = (data: unknown) => {
+    const asked = message(data, Object.keys(actions))
+    if (asked && 'type' in asked) type(asked.type)
+    else if (asked) actions[asked.action]()
+  }
   if (import.meta.env.DEV) new URLSearchParams(location.search).getAll('show').forEach(run)
   addEventListener('message', ({ origin, data }) => origin === location.origin && run(data))
   if (parent !== window) parent.postMessage('sumi:ready', location.origin)
