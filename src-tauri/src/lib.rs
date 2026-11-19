@@ -18,6 +18,18 @@ pub fn run() {
     unsafe {
         windows_sys::Win32::UI::WindowsAndMessaging::DisableProcessWindowsGhosting();
     }
+    // When an update closes Sumi (the Store's MSIX update, or the installer), Windows starts it again. Not after a
+    // crash, a hang or a reboot: those would loop, or start a second island next to the one Windows already opens.
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::System::Recovery::{
+            RESTART_NO_CRASH, RESTART_NO_HANG, RESTART_NO_REBOOT, RegisterApplicationRestart,
+        };
+        RegisterApplicationRestart(
+            std::ptr::null(),
+            RESTART_NO_CRASH | RESTART_NO_HANG | RESTART_NO_REBOOT,
+        );
+    }
 
     tauri::Builder::default()
         // media::watch and privacy::watch manage their own state.
