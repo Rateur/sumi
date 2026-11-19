@@ -459,14 +459,16 @@ interface Entry<A> {
   spaced: string[]
   // Plural kept, for typos against the start of a name.
   typo: string[]
-  // The first letter of each word, where a shortening starts.
-  initials: string
 }
 
 interface Index<A> {
   entries: Entry<A>[]
   // Plural kept, each key and each of its words from 5 letters, by length: a typo is at most 2 letters away.
   byLength: Map<number, [Entry<A>, string][]>
+  // By the first letter of each word, where a prefix, a word start or a shortening starts.
+  byInitial: Map<string, Entry<A>[]>
+  // By the first and second letters of each key, plural kept, where a typo of its start keeps one.
+  byStart: Map<string, Entry<A>[]>
   // Exact keys: aliases first, then names, so an alias wins as the research ranks it.
   exact: Map<string, A>
   // The hyphenated words of names, kept whole when the line is read.
@@ -479,7 +481,19 @@ const INDEXES = new WeakMap<readonly App[], Index<App>>()
 function indexOf<A extends App>(apps: readonly A[]): Index<A> {
   const known = INDEXES.get(apps) as Index<A> | undefined
   if (known) return known
-  const index: Index<A> = { entries: [], byLength: new Map(), exact: new Map(), frozen: new Set() }
+  const index: Index<A> = {
+    entries: [],
+    byLength: new Map(),
+    byInitial: new Map(),
+    byStart: new Map(),
+    exact: new Map(),
+    frozen: new Set(),
+  }
+  const add = <K, V>(map: Map<K, V[]>, k: K, v: V) => {
+    const list = map.get(k) ?? []
+    if (list.at(-1) !== v) list.push(v)
+    map.set(k, list)
+  }
   const names = new Map<string, A>()
   for (const app of apps) {
     const folded = fold(app.name)
@@ -491,14 +505,11 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
     const keys = [name, ...group.map((a) => key(a))]
     const typo = [app.name, ...group].map((a) => key(a, true))
     for (const k of keys.slice(1)) if (!index.exact.has(k)) index.exact.set(k, app)
-    const entry = { app, keys, spaced: keys.map((k) => ' ' + k), typo, initials: keys.join(' ').replace(/(\S)\S*/g, '$1') }
+    const entry = { app, keys, spaced: keys.map((k) => ' ' + k), typo }
     index.entries.push(entry)
-    for (const w of new Set(typo.flatMap((k) => [k, ...k.split(' ')]))) {
-      if (!allows(w)) continue
-      const same = index.byLength.get(w.length) ?? []
-      same.push([entry, w])
-      index.byLength.set(w.length, same)
-    }
+    for (const w of new Set(typo.flatMap((k) => [k, ...k.split(' ')]))) if (allows(w)) add(index.byLength, w.length, [entry, w])
+    for (const c of new Set(keys.flatMap((k) => k.split(' ').map((w) => w[0])))) add(index.byInitial, c, entry)
+    for (const c of new Set(typo.flatMap((k) => [k[0], k[1]]))) add(index.byStart, c, entry)
     for (const w of folded.split(/\s+/)) if (w.includes('-')) index.frozen.add(w)
   }
   for (const [name, app] of names) if (!index.exact.has(name)) index.exact.set(name, app)
@@ -514,7 +525,7 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
 export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
   const q = key(query)
   if (!q) return
-  const { entries, byLength, exact } = indexOf(apps)
+  const { byLength, byInitial, byStart, exact } = indexOf(apps)
   const named = exact.get(q)
   if (named) return named
   // No Calculator never opens Calendar.
@@ -525,7 +536,8 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
   // the query carries it: 'ste' is Steam rather than Steam VR, but 'st' is neither Steam nor Microsoft Store, so a
   // half-typed name never opens its neighbor.
   const spaced = ' ' + q
-  const hits = entries.filter((e) => e.spaced.some((w) => w.includes(spaced)))
+  const initial = byInitial.get(q[0]) ?? []
+  const hits = initial.filter((e) => e.spaced.some((w) => w.includes(spaced)))
   if (hits.length) {
     const prefix = hits.filter((e) => e.keys.some((k) => k.startsWith(q)))
     const best = (prefix.length ? prefix : hits).reduce((a, b) => (b.app.name.length < a.app.name.length ? b : a))
@@ -546,7 +558,7 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
   for (let n = typed.length - 2; n <= typed.length + 2; n++) for (const [e, w] of byLength.get(n) ?? []) check(e, w)
   // A name's start, when one of its first two letters is in place: a typo moves at most one.
   const [a, b] = typed
-  for (const e of entries)
+  for (const e of new Set([...(byStart.get(a) ?? []), ...(byStart.get(b) ?? [])]))
     for (const k of e.typo)
       if (k.length > typed.length && (k[0] === a || k[0] === b || k[1] === a || k[1] === b))
         check(e, k.slice(0, typed.length).trim())
@@ -556,7 +568,7 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
     return found.length === 1 ? found[0][0].app : undefined
   }
   if (q.length < 3) return
-  const short = entries.filter((e) => e.initials.includes(q[0]) && e.keys.some((k) => shortens(q, k)))
+  const short = initial.filter((e) => e.keys.some((k) => shortens(q, k)))
   return short.length === 1 ? short[0].app : undefined
 }
 
