@@ -157,10 +157,13 @@ export function parseTimer(line: string): { ms: number; label?: string } | undef
   const before = words(typed.slice(0, m.index).replace(/(^|\s)d['’]$/i, ''))
   const after = words(typed.slice(m.index + m[0].length))
   while (before.length && GLUE.has(fold(before.at(-1)!))) before.pop()
-  if (before.length && KEYWORDS.has(fold(before[0]))) before.shift()
+  const keyword = before.length > 0 && KEYWORDS.has(fold(before[0]))
+  if (keyword) before.shift()
   while (after.length && GLUE.has(fold(after[0]))) after.shift()
   const label = [...before, ...after]
   if (label.length > 3 || label.some((w) => /\d/.test(w) || !/\p{L}/u.test(w) || KEYWORDS.has(fold(w)))) return
+  // A bare number with words is a name ('gpt 4', 'windows 11') unless a keyword says it is a timer.
+  if (bare !== undefined && label.length && !keyword) return
   return { ms: Math.round(total), label: label.join(' ') || undefined }
 }
 

@@ -64,6 +64,9 @@ describe('parseTimer', () => {
     '+5',
     'pause',
     'stop',
+    'gpt 4',
+    'windows 11',
+    'claude 3',
   ]
   it.each(rejected)('leaves %s to the assistant', (line) => {
     expect(parseTimer(line)).toBeUndefined()
