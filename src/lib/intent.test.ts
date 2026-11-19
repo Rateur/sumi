@@ -341,6 +341,12 @@ describe('choices', () => {
       expect(top('reprendre', paused)).toMatchObject({ kind: 'resume', id: 'a', label: 'Reprendre pâtes' })
     })
 
+    it('stops a timer that ended, but never pauses it', () => {
+      const done = { ...running, timers: [{ id: 'd', endsAt: 0, label: 'thé' }], now: 1000 }
+      expect(top('pause', done)).toMatchObject({ kind: 'ask' })
+      expect(top('stop', done)).toMatchObject({ kind: 'stop', id: 'd' })
+    })
+
     it('sends a name it does not know to the assistant', () => {
       expect(top('stop riz', running)).toMatchObject({ kind: 'ask' })
     })

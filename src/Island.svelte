@@ -6,7 +6,7 @@
   import { MediaQuery, SvelteMap } from 'svelte/reactivity'
   import { fade as dissolve } from 'svelte/transition'
   import { innerHeight, innerWidth } from 'svelte/reactivity/window'
-  import { CLOCK, arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
+  import { arrange, peeks, stillPicked, type Activity, type Arrangement, type Presence } from './lib/activities'
   import {
     formatBubbleTime,
     formatCountdown,
@@ -14,10 +14,21 @@
     formatShortDate,
     formatTime,
     msUntilNextMinute,
-    msUntilNextSecond,
   } from './lib/clock'
   import { tint } from './lib/color'
-  import { CLOSE, ENTER, EXIT, FULLSCREEN, OPEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
+  import {
+    CLOSE,
+    END_PEEK,
+    ENTER,
+    EXIT,
+    FULLSCREEN,
+    OPEN,
+    PRESS,
+    bezier,
+    motion,
+    squash,
+    type Axis,
+  } from './lib/motion'
   import { label, light, quiet, tagged, type Privacy } from './lib/privacy'
   import {
     BUBBLE,
@@ -31,6 +42,7 @@
     resolveView,
     sizeOf,
     type Rect,
+    type TimerFit,
     type View,
   } from './lib/shapes'
   import {
@@ -47,6 +59,25 @@
     type Snapshot,
   } from './lib/music'
   import { Spring } from './lib/spring'
+  import {
+    add,
+    chimeSlot,
+    endOf,
+    ended,
+    formatLeft,
+    formatOvertime,
+    fraction,
+    isTimer,
+    long,
+    names,
+    nextTick,
+    overtime,
+    pause,
+    resume,
+    start as startTimer,
+    words,
+    type Timer,
+  } from './lib/timers'
   import { ASSISTANTS, choices, type Choice, type Lang } from './lib/intent'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
@@ -70,7 +101,8 @@
   let clock = $state<HTMLElement>()
   let art = $state<HTMLElement>()
   let eq = $state<HTMLElement>()
-  // Calls and timers. Only the demo sets them for now.
+  let ring = $state<HTMLElement>()
+  // Calls and timers. Timers come from the command bar and from disk; only the demo makes calls for now.
   let activities = $state<Activity[]>([])
   // Music comes from Rust; `prefer` is the activity picked with a click on the bubble.
   let music = $state<Activity[]>([])
@@ -112,7 +144,27 @@
   // The last arrangement, so equals keep their place. Written from the derived as a plain variable: reading it
   // there doesn't make the derived depend on itself.
   let shown: Arrangement | undefined
-  const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
+  // While its panel is open, a timer keeps the island, even paused: the panel stays under the cursor.
+  const arrangement = $derived.by(() => {
+    const pin = expanded && isTimer(shown?.island) ? shown.island.id : undefined
+    return (shown = arrange([...activities, ...music], shown, prefer, now.getTime(), pin))
+  })
+  const timers = $derived(activities.filter(isTimer))
+  // Each timer's name: its label, or "Minuteur 2" among several without one.
+  const named = $derived(names(timers, lang))
+  const said = $derived(words(lang))
+  // The timer on the island, and how it fits. Its name and digits are measured in the hidden copy below.
+  const top = $derived(isTimer(arrangement.island) ? arrangement.island : undefined)
+  let nameWidth = $state(0)
+  let digitsWidth = $state(0)
+  const topName = $derived(top && (named.get(top.id) ?? (ended(top, now.getTime()) ? said.done : undefined)))
+  const topDigits = $derived(top && timerDigits(top))
+  const fit = $derived.by((): TimerFit | undefined => {
+    if (!top) return
+    const t = now.getTime()
+    // clientWidth rounds: a pixel more each keeps the name from an ellipsis over a fraction of a pixel.
+    return { ended: ended(top, t), long: long(top, t), name: topName ? nameWidth + 1 : 0, digits: digitsWidth + 1 }
+  })
   const view = $derived(
     resolveView({
       activity: arrangement.island,
@@ -122,16 +174,29 @@
       bar: barOpen,
       launch: !!launch,
       clock: telling,
+      timer: fit,
     }),
   )
   // While the bar and its answer hold the island, what had it waits in the bubble.
   const beside = $derived(barOpen || launch || telling ? arrangement.island : arrangement.bubble)
-  const timers = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a] : [])))
+  // The bar names timers as the island does, so 'stop minuteur 2' finds the second one.
   const options = $derived(
-    barOpen ? choices(line, { apps, lang, claudeApp, timers, now: now.getTime() }) : ([] as Choice<Listed>[]),
+    barOpen
+      ? choices(line, {
+          apps,
+          lang,
+          claudeApp,
+          timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
+          now: now.getTime(),
+        })
+      : ([] as Choice<Listed>[]),
   )
-  const key = $derived('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name)
   const size = $derived(sizeOf(view))
+  // A timer's shape changes size without changing view, as an hour passes or its name shows.
+  const key = $derived(
+    ('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name) +
+      `:${size.width}x${size.height}`,
+  )
   const reduced = $derived(prefersReducedMotion.current)
 
   // What the island shows, piece by piece. A piece that stays from one view to the next moves instead of fading.
@@ -139,8 +204,8 @@
     const name = revealed ? view.name : undefined
     const activity = name && 'activity' in view ? view.activity : undefined
     return {
-      date: name === 'hover',
-      time: name === 'idle' || name === 'hover' || activity?.kind === 'call',
+      date: name === 'hover' && !activity,
+      time: ((name === 'idle' || name === 'hover') && !activity) || activity?.kind === 'call',
       panel: name === 'expanded' && !activity,
       music: activity?.kind === 'music' ? activity : undefined,
       player: name === 'expanded' && activity?.kind === 'music' ? activity : undefined,
@@ -152,10 +217,19 @@
     }
   })
 
-  // A running timer needs the seconds, in step with its end; the clock alone wakes up once a minute.
-  const ends = $derived(timers.flatMap((a) => (a.left === undefined ? [a.endsAt] : [])))
+  // A timer on screen needs the seconds, in step with its end. Off screen, a timer only wakes the page as it ends and
+  // for each chime; a paused one never does. The clock alone wakes up once a minute.
+  const onScreen = $derived(
+    hidden ? '' : [arrangement.island, arrangement.bubble].flatMap((a) => (isTimer(a) ? [a.id] : [])).join(' '),
+  )
   $effect(() => {
-    const wait = () => (ends.length ? msUntilNextSecond(Math.min(...ends), Date.now()) : msUntilNextMinute(new Date()))
+    void [timers, onScreen]
+    const wait = () =>
+      untrack(() => {
+        const t = Date.now()
+        const shownTimers = timers.filter((a) => onScreen.split(' ').includes(a.id))
+        return Math.min(nextTick(timers, shownTimers, t) ?? Infinity, msUntilNextMinute(new Date(t)))
+      })
     now = new Date()
     let timer = setTimeout(function tick() {
       now = new Date()
@@ -475,7 +549,9 @@
   function flip() {
     if (reduced) return
     // A piece on its way out is inert and has already left the layout.
-    const nodes = [clock, art, eq].filter((node): node is HTMLElement => !!node && !node.inert && before.has(node))
+    const nodes = [clock, art, eq, ring].filter(
+      (node): node is HTMLElement => !!node && !node.inert && before.has(node),
+    )
     for (const node of nodes) node.style.transform = ''
     flips = nodes.map((node) => {
       const [a, b] = [before.get(node)!, node.getBoundingClientRect()]
@@ -596,6 +672,8 @@
   function open() {
     if (hidden) return
     pressed = false
+    // A finished timer never opens: a click on it is its OK.
+    if (top && ended(top, Date.now())) return dismiss(top.id)
     expanded = true
   }
 
@@ -629,17 +707,7 @@
     wake()
   }
 
-  // A timer that runs out, or a new song while the island is compact, swells it for a moment. A new song in the
-  // bubble swells the bubble.
-  const done = $derived(
-    arrangement.island?.kind === 'timer' &&
-      arrangement.island.left === undefined &&
-      now.getTime() >= arrangement.island.endsAt,
-  )
-  $effect(() => {
-    if (done) untrack(alert)
-  })
-
+  // A new song while the island is compact swells it for a moment. A new song in the bubble swells the bubble.
   const newSong = (next?: Activity, prev?: Activity) =>
     next?.kind === 'music' && prev?.kind === 'music' && next.id === prev.id && next.title !== prev.title
   let song: Activity | undefined
@@ -708,12 +776,88 @@
   })
 
   let peekTimer: ReturnType<typeof setTimeout>
-  function peek(id: string) {
+  function peek(id: string, ms = 3000) {
     // The activity has already changed in place: only the peek is skipped.
     if (!peeks(activities.find((a) => a.id === id), presence)) return
     peeking = id
     clearTimeout(peekTimer)
-    peekTimer = setTimeout(() => (peeking = undefined), 3000)
+    peekTimer = setTimeout(() => (peeking = undefined), ms)
+  }
+
+  // --- Timers ---
+
+  // The digits a timer shows: the time left, or since its end.
+  function timerDigits(t: Timer) {
+    const at = now.getTime()
+    return ended(t, at) ? formatOvertime(overtime(t, at)) : formatLeft(t, at)
+  }
+
+  // Timers whose end the island already showed, and the last chime each one rang. Not reactive, as with the icons:
+  // a change must not rerun the effect that makes it.
+  const announced: Record<string, true> = {}
+  const rung: Record<string, number> = {}
+
+  // At its end a timer chimes every 10 s for a minute, even in fullscreen. Then, as soon as the island shows, it
+  // takes the island from all but a call, swells it and peeks for 6 s before it folds into the done pill. Run
+  // before the content is measured, so the shape heads straight for the peek.
+  $effect.pre(() => {
+    const at = now.getTime()
+    const [list, first, second, away] = [timers, arrangement.island, arrangement.bubble, hidden]
+    untrack(() => {
+      // A timer gone without a word from here, such as one the demo took away, leaves nothing behind.
+      for (const id of [...Object.keys(rung), ...Object.keys(announced)]) {
+        if (!list.some((t) => t.id === id)) forget(id)
+      }
+      let chime = false
+      for (const t of list) {
+        const slot = chimeSlot(t, at)
+        if (slot === undefined || rung[t.id] === slot) continue
+        rung[t.id] = slot
+        chime = true
+      }
+      // The browser demo stays silent.
+      if (chime && tauri) invoke('timer_chime').catch(console.error)
+      if (away) return
+      for (const t of list) {
+        if (!ended(t, at) || announced[t.id]) continue
+        announced[t.id] = true
+        if (t.id === first?.id) {
+          expanded = false
+          alert()
+          peek(t.id, END_PEEK)
+        } else if (t.id === second?.id) nudge()
+      }
+    })
+  })
+
+  function forget(id: string) {
+    delete announced[id]
+    delete rung[id]
+    if (peeking === id) peeking = undefined
+  }
+
+  // Changes one timer. One that ended and gets more time starts over under a new id.
+  function edit(id: string, change: (timer: Timer) => Timer | undefined) {
+    activities = activities.flatMap((a) => {
+      if (a.id !== id || !isTimer(a)) return [a]
+      const next = change(a)
+      if (next?.id !== id) forget(id)
+      return next ? [next] : []
+    })
+  }
+
+  // OK, a click on the done pill, × in the panel or 'stop' in the bar.
+  const dismiss = (id: string) => edit(id, () => undefined)
+
+  // +1 min on a finished timer: a new minute under the same name, which lands with a swell.
+  function again(id: string) {
+    swell = true
+    edit(id, (t) => add(t, 60_000, Date.now()))
+  }
+
+  function togglePause(t: Timer) {
+    const at = Date.now()
+    edit(t.id, (a) => (a.left === undefined ? pause(a, at) : resume(a, at)))
   }
 
   // --- Music ---
@@ -729,7 +873,7 @@
     const t = Date.now()
     players = update(players, latest, t)
     music = songs(showing(players, t), artwork)
-    if (prefer && (prefer === CLOCK.id ? !music.length : !music.some((a) => a.id === prefer))) prefer = undefined
+    prefer = stillPicked(prefer, [...activities, ...music])
     // The player's own word after a seek takes over from the place the bar was dropped at.
     const answer = scrub && !scrub.held && latest.find((p) => p.id === scrub!.id)
     if (answer && (answer.positionMs !== scrub!.from.positionMs || answer.updatedMs !== scrub!.from.updatedMs)) {
@@ -913,18 +1057,13 @@
     if (!barOpen) return
     closeBar(choice.kind !== 'app' && choice.kind !== 'ask')
     const t = Date.now()
-    const edit = (id: string, change: (timer: Extract<Activity, { kind: 'timer' }>) => Activity | undefined) =>
-      (activities = activities.flatMap((a) => (a.id === id && a.kind === 'timer' ? (change(a) ?? []) : [a])))
     if (choice.kind === 'timer') {
       swell = true
-      activities = [...activities, { id: `timer:${t}`, kind: 'timer', endsAt: t + choice.ms, label: choice.name }]
-    } else if (choice.kind === 'add') {
-      edit(choice.id, (a) =>
-        a.left === undefined ? { ...a, endsAt: a.endsAt + choice.ms } : { ...a, left: a.left + choice.ms },
-      )
-    } else if (choice.kind === 'pause') edit(choice.id, (a) => ({ ...a, left: Math.max(0, a.endsAt - t) }))
-    else if (choice.kind === 'resume') edit(choice.id, (a) => ({ ...a, endsAt: t + (a.left ?? 0), left: undefined }))
-    else if (choice.kind === 'stop') edit(choice.id, () => undefined)
+      activities = [...activities, startTimer(choice.ms, t, choice.name)]
+    } else if (choice.kind === 'add') edit(choice.id, (a) => add(a, choice.ms, t))
+    else if (choice.kind === 'pause') edit(choice.id, (a) => pause(a, t))
+    else if (choice.kind === 'resume') edit(choice.id, (a) => resume(a, t))
+    else if (choice.kind === 'stop') dismiss(choice.id)
     else if (choice.kind === 'clock') {
       telling = true
       clearTimeout(launchTimer)
@@ -1100,9 +1239,11 @@
   {/each}
 {/snippet}
 
-{#snippet icon(name: 'previous' | 'play' | 'pause' | 'next')}
+{#snippet icon(name: 'previous' | 'play' | 'pause' | 'next' | 'close')}
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    {#if name === 'play'}
+    {#if name === 'close'}
+      <path d="M6.5 6.5l11 11m0-11l-11 11" class="stroke" />
+    {:else if name === 'play'}
       <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" />
     {:else if name === 'pause'}
       <rect x="5.5" y="4" width="4.5" height="16" rx="1.2" /><rect x="14" y="4" width="4.5" height="16" rx="1.2" />
@@ -1130,11 +1271,27 @@
   {#if call.camera}<span class="dot camera"></span>{/if}
 {/snippet}
 
+<!-- The timer's ring, full at the start and empty at the end. -->
+{#snippet dial(full: number, paused = false)}
+  <svg class="dial" class:paused viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="6.5" class="rail" />
+    <circle cx="8" cy="8" r="6.5" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset={1 - full} />
+  </svg>
+{/snippet}
+
+<!-- A finished timer's buttons: a quiet +1 min, and OK. Their text is their name; the timer's is beside them. -->
+{#snippet finish(t: Timer)}
+  <button type="button" class="more" onclick={() => again(t.id)}>{said.more}</button>
+  <button type="button" class="ok" onclick={() => dismiss(t.id)}>OK</button>
+{/snippet}
+
 {#snippet glyph(activity: Activity)}
   {#if activity.kind === 'clock'}
     <time class="countdown hour" datetime={now.toISOString()}>{@render digits(formatBubbleTime(now))}</time>
   {:else if activity.kind === 'call'}
     <span class="dots">{@render dots(activity)}</span>
+  {:else if activity.kind === 'timer' && ended(activity, now.getTime())}
+    <span class="countdown">{@render dial(1)}</span>
   {:else if activity.kind === 'timer'}
     <span class="countdown" class:paused={activity.left !== undefined}>
       {@render digits(formatCountdown(activity.left ?? activity.endsAt - now.getTime(), true))}
@@ -1192,12 +1349,21 @@
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
   {#if !expanded && !barOpen && !launch}
-    <button type="button" class="opener" aria-label="Open" aria-expanded="false" onclick={open}></button>
+    {@const done = fit?.ended && top}
+    <button
+      type="button"
+      class="opener"
+      aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
+      aria-expanded={done ? undefined : 'false'}
+      onclick={open}
+    ></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
   <span
     class="content view {view.name}"
     class:player={!!parts.player}
+    class:timer={!!parts.timer}
+    class:finished={!!parts.timer && fit?.ended}
     bind:this={content}
     style:width="{size.width}px"
     style:height="{size.height}px"
@@ -1292,9 +1458,58 @@
       <span class="dots" in:enter={{ step: 1 }} out:exit>{@render dots(parts.call)}</span>
     {/if}
     {#if parts.timer}
-      <span class="countdown" class:paused={parts.timer.left !== undefined} in:enter out:exit>
-        {@render digits(formatCountdown(parts.timer.left ?? parts.timer.endsAt - now.getTime()))}
-      </span>
+      {@const t = parts.timer}
+      {@const at = now.getTime()}
+      {@const over = ended(t, at)}
+      {@const paused = t.left !== undefined}
+      {@const name = named.get(t.id)}
+      {#if view.name === 'expanded'}
+        <!-- The panel: the name, the digits and the end, then pause or resume, and cancel. -->
+        {@const others = timers.filter((o) => o.id !== t.id && !ended(o, at)).length}
+        <span class="timing" in:enter out:exit>
+          <span class="muted">{name ?? said.timer}{#if others}<span class="others">+{others}</span>{/if}</span>
+          <span class="big countdown" class:paused class:long={long(t, at)}>{@render digits(formatLeft(t, at))}</span>
+          <span class="muted">{paused ? said.paused : said.ends(formatTime(new Date(endOf(t, at))))}</span>
+        </span>
+        <span class="round" in:enter={{ step: 1 }} out:exit>
+          <button
+            type="button"
+            class="main"
+            aria-label={(paused ? said.resume : said.pause)(name ?? said.the)}
+            onclick={() => togglePause(t)}
+          >
+            {@render icon(paused ? 'play' : 'pause')}
+          </button>
+          <button
+            type="button"
+            aria-label={said.cancel(name ?? said.the)}
+            onclick={() => {
+              dismiss(t.id)
+              expanded = false
+            }}
+          >
+            {@render icon('close')}
+          </button>
+        </span>
+      {:else}
+        <span class="ring" bind:this={ring} in:enter out:exit>{@render dial(over ? 1 : fraction(t, at), paused)}</span>
+        {#if view.name === 'peek'}
+          <!-- The end peek: the name or "Time's up", the time since, +1 min and OK. -->
+          <span class="track" out:exit>
+            <span in:enter={{ step: 1 }}>{topName}</span>
+            <span class="countdown" in:enter={{ step: 2 }}>{@render digits(timerDigits(t))}</span>
+          </span>
+          <span class="actions" in:enter={{ step: 3 }} out:exit>{@render finish(t)}</span>
+        {:else}
+          {#if topName && (view.name === 'hover' || over)}
+            <span class="name" in:enter={{ step: 1 }} out:exit>{topName}</span>
+          {/if}
+          <span class="countdown" class:paused in:enter out:exit>{@render digits(timerDigits(t))}</span>
+          {#if over && view.name === 'hover'}
+            <span class="actions" in:enter={{ step: 2 }} out:exit>{@render finish(t)}</span>
+          {/if}
+        {/if}
+      {/if}
     {/if}
     {#if parts.bar}
       <CommandBar
@@ -1341,6 +1556,9 @@
     <span class="muted">{formatLongDate(now)}</span>
   </span>
   <span class="bubble"><span class="countdown">0:00</span></span>
+  <!-- The island's timer, at its natural width, so its shape can fit its name and digits. -->
+  {#if topName}<span class="name measure" bind:clientWidth={nameWidth}>{topName}</span>{/if}
+  {#if topDigits}<span class="countdown measure" bind:clientWidth={digitsWidth}>{topDigits}</span>{/if}
 </span>
 
 {#if geometry.dot}
@@ -1659,6 +1877,219 @@
     font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
     font-size: 44px;
     line-height: 1;
+  }
+
+  /* The timer: its ring at the left end, its name, its digits at the right end, and once it ended, +1 min and OK. */
+  .view.timer {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 14px;
+  }
+
+  .view.timer.peek {
+    gap: 12px;
+    padding: 0 12px 0 16px;
+  }
+
+  /* A finished timer's buttons sit over the opener, whose click is its OK everywhere else. */
+  .view.finished {
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .view.finished button {
+    pointer-events: auto;
+  }
+
+  .ring {
+    display: grid;
+    flex: none;
+    width: 14px;
+    height: 14px;
+  }
+
+  .peek .ring {
+    width: 26px;
+    height: 26px;
+  }
+
+  .dial {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    rotate: -90deg;
+    fill: none;
+    stroke: #fbbf24;
+    stroke-width: 2.2;
+  }
+
+  .dial circle:last-child {
+    transition: stroke-dashoffset 0.3s;
+  }
+
+  .dial .rail {
+    stroke: rgb(251 191 36 / 0.25);
+  }
+
+  /* Paused, the ring freezes at half strength with the digits. */
+  .dial.paused {
+    opacity: 0.5;
+  }
+
+  .bubble .dial {
+    width: 14px;
+    height: 14px;
+  }
+
+  .name {
+    min-width: 0;
+    overflow: hidden;
+    color: rgb(255 255 255 / 0.6);
+    font-size: 13px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+  }
+
+  .timer .name {
+    max-width: 120px;
+  }
+
+  .finished .name,
+  .peek .track > span:first-child {
+    color: #fff;
+  }
+
+  .measure {
+    display: inline-block;
+  }
+
+  .timer .countdown {
+    margin: 0 0 0 auto;
+  }
+
+  .timer .track .countdown,
+  .timing .countdown {
+    margin: 0;
+  }
+
+  .actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .more,
+  .ok {
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 13px;
+    font: inherit;
+    font-size: 13px;
+    cursor: default;
+  }
+
+  .more {
+    width: 52px;
+    background: none;
+    color: rgb(255 255 255 / 0.6);
+  }
+
+  .more:hover {
+    color: #fff;
+  }
+
+  .ok {
+    width: 38px;
+    background: #fff;
+    color: #000;
+  }
+
+  /* The timer's panel: the name, the digits and the end on the left, two round buttons on the right. */
+  .expanded.timer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 20px 0 24px;
+  }
+
+  .timing {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .expanded .timing .muted {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .timing .big {
+    font-size: 40px;
+  }
+
+  /* With hours, h:mm:ss would run under the pause button at 40 px. */
+  .timing .big.long {
+    font-size: 30px;
+  }
+
+  .others {
+    margin-left: 6px;
+  }
+
+  .round {
+    display: flex;
+    flex: none;
+    gap: 10px;
+  }
+
+  .round button {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.14);
+    color: #fff;
+    cursor: default;
+    transition: scale 0.15s;
+  }
+
+  .round button:active {
+    scale: 0.9;
+  }
+
+  .round .main {
+    background: rgb(251 191 36 / 0.2);
+    color: #fbbf24;
+  }
+
+  .round svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
+
+  .round .stroke {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dial circle:last-child,
+    .round button {
+      transition: none;
+    }
   }
 
   /* The old and the new digit share one cell while they roll. */

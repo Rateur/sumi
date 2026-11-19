@@ -2,13 +2,14 @@ import type { Activity } from './activities'
 
 export type View =
   | { name: 'idle' }
-  | { name: 'hover' }
+  // A timer under the cursor shows its name, and a finished one its buttons. `size` is then worked out by timerSize.
+  | { name: 'hover'; activity?: Activity; size?: Size }
   // The command bar, and the peek it folds into after Enter: an app launching or a question handed off.
   | { name: 'bar' }
   | { name: 'launch' }
-  // Music opens into its own panel; anything else opens the clock's.
+  // Music and a running timer open into their own panels; anything else opens the clock's.
   | { name: 'expanded'; activity?: Activity }
-  | { name: 'compact' | 'peek'; activity: Activity }
+  | { name: 'compact' | 'peek'; activity: Activity; size?: Size }
 
 export interface Size {
   width: number
@@ -50,20 +51,63 @@ export const cardSize = (apps: number): Size => ({
 
 const COMPACT: Record<Activity['kind'], Size> = {
   call: { width: 144, height: 34 },
-  timer: { width: 96, height: 34 },
+  timer: { width: 112, height: 34 },
   music: { width: 200, height: 34 },
   // Never used: the time on the island is the idle view.
   clock: SIZES.idle,
 }
 
-// The kinds without a peek of their own stay compact.
+// The kinds without a peek of their own stay compact. A timer peeks only as it ends.
 const PEEK: Partial<Record<Activity['kind'], Size>> = {
   music: { width: 300, height: 56 },
+  timer: { width: 300, height: 56 },
+}
+
+/**
+ * The timer's row: a ring at the left end, its name, its digits at the right end. Running it is 112 px wide, 128 at
+ * an hour or more; finished, it folds into a done pill of 150 px at least, whose OK and +1 min show under the cursor.
+ */
+export const TIMER = {
+  ring: 14,
+  pad: 14,
+  gap: 8,
+  long: 128,
+  done: 150,
+  // Past this many pixels, the name ends in an ellipsis.
+  name: 120,
+  // OK and +1 min, on the done pill's hover.
+  buttons: 98,
+  hover: 36,
+} as const
+
+/** What the island's timer needs for its size: whether it ended, whether an hour is left, and its name's and
+ * digits' widths as laid out (0 without a name). */
+export interface TimerFit {
+  ended: boolean
+  long: boolean
+  name: number
+  digits: number
+}
+
+/** The timer's shape for the island's compact row, under the cursor or not. */
+export function timerSize(fit: TimerFit, hovered: boolean): Size {
+  const { ring, pad, gap } = TIMER
+  const name = Math.min(fit.name, TIMER.name)
+  const row = (least: number) => Math.max(least, Math.ceil(pad * 2 + ring + gap + (name ? name + gap : 0) + fit.digits))
+  // Under the cursor the buttons take the room the pill kept spare, so the time since the end stays by the name.
+  if (fit.ended) {
+    return hovered
+      ? { width: Math.max(TIMER.done, row(0) + gap + TIMER.buttons), height: TIMER.hover }
+      : { width: row(TIMER.done), height: 34 }
+  }
+  const compact = fit.long ? TIMER.long : COMPACT.timer.width
+  return hovered && name ? { width: row(compact), height: TIMER.hover } : { width: compact, height: 34 }
 }
 
 /**
  * What the island shows. The command bar and its answer beat everything, a click beats a peek, a peek beats an
- * activity, an activity beats the clock.
+ * activity, an activity beats the clock. `timer` says how the island's timer fits, when it has one: under the
+ * cursor it shows its name, and once it ended it peeks, then stays as a done pill and never opens.
  */
 export function resolveView(state: {
   activity?: Activity
@@ -74,18 +118,31 @@ export function resolveView(state: {
   launch?: boolean
   /** The bar's answer to 'quelle heure est-il': the hover view, over whatever runs. */
   clock?: boolean
+  timer?: TimerFit
 }): View {
-  const { activity, hovered, expanded, peeking, bar, launch, clock } = state
+  const { activity, hovered, expanded, peeking, bar, launch, clock, timer } = state
   if (bar) return { name: 'bar' }
   if (launch) return { name: 'launch' }
   if (clock) return { name: 'hover' }
-  if (expanded) return activity?.kind === 'music' ? { name: 'expanded', activity } : { name: 'expanded' }
+  const done = activity?.kind === 'timer' && !!timer?.ended
+  if (expanded && !done) {
+    const own = activity?.kind === 'music' || activity?.kind === 'timer'
+    return own ? { name: 'expanded', activity } : { name: 'expanded' }
+  }
+  if (activity?.kind === 'timer' && timer) {
+    if (done && activity.id === peeking) return { name: 'peek', activity }
+    // Without a name, a running timer has nothing to add under the cursor.
+    const more = hovered && (timer.ended || timer.name > 0)
+    return { name: more ? 'hover' : 'compact', activity, size: timerSize(timer, more) }
+  }
   if (activity) return { name: activity.id === peeking ? 'peek' : 'compact', activity }
   return { name: hovered ? 'hover' : 'idle' }
 }
 
 export function sizeOf(view: View): Size {
-  if (view.name === 'expanded' && view.activity) return PLAYER
+  if ('size' in view && view.size) return view.size
+  if (view.name === 'expanded' && view.activity?.kind === 'music') return PLAYER
+  if (view.name === 'expanded') return SIZES.expanded
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]
   return SIZES[view.name]

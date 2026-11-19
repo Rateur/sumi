@@ -2,7 +2,8 @@
 //! island://presence and island://dismiss; `fullscreen` hooks the foreground window on the main thread and only feeds
 //! that poll. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
 //! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads
-//! Start's list once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows.
+//! Start's list once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers`
+//! only answers the page: it plays the timers' chime.
 
 mod apps;
 mod bar;
@@ -10,6 +11,7 @@ mod fullscreen;
 mod island;
 mod media;
 mod privacy;
+mod timers;
 
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
@@ -58,7 +60,8 @@ pub fn run() {
             privacy::privacy_state,
             privacy::privacy_mute,
             privacy::privacy_settings,
-            privacy::privacy_show
+            privacy::privacy_show,
+            timers::timer_chime
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
