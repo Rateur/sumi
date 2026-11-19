@@ -1,3 +1,6 @@
+//! The island's window: kept at the top center of the primary screen, letting clicks through everywhere but the
+//! shapes the page draws, and closing the open panel on Esc, a click elsewhere or a change of app.
+
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;

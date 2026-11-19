@@ -1,3 +1,6 @@
+//! Decides when the island hides: a borderless window over the whole primary screen, exclusive Direct3D or a
+//! presentation. A hook hears each change of app instead of polling; a check once a second still catches F11.
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;

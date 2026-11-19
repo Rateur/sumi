@@ -20,7 +20,7 @@ Merci de votre aide. Sumi n'a qu'un mainteneur, alors voici ce qui est accepté.
 
 `main`, c'est ce que reçoivent les utilisateurs. Elle ne change que lorsque `dev` y est fusionnée pour une nouvelle version.
 
-`dev` reçoit le travail en cours. Ouvrez votre pull request vers `dev`, depuis une branche nommée d'après ce qu'elle fait : `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`.
+`dev` reçoit le travail en cours. Ouvrez votre pull request vers `dev`, depuis une branche nommée d'après ce qu'elle fait : `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`, `refactor/rust-cleanups`, `chore/release-0.5.0`.
 
 Les pull requests vers `dev` sont fusionnées en squash : leur titre devient le message du commit. Écrivez-le en anglais, au format [Conventional Commits](https://www.conventionalcommits.org) : `feat: show album art in the island`, `fix: keep focus on the game when a timer ends`.
 
@@ -45,6 +45,38 @@ npm run tauri dev
 
 L'île apparaît en haut de votre écran principal. Pour la quitter, passez par son icône dans la zone de notification. Les changements dans l'interface s'affichent tout de suite, et ceux dans le code Rust relancent l'app.
 
+## Organisation du code
+
+- `src-tauri/src/lib.rs` démarre l'app : l'icône de la zone de notification, la liste des commandes que la page peut appeler, et la surveillance de chaque module.
+- `src-tauri/src/island.rs` garde la fenêtre en haut de l'écran, laisse passer les clics partout sauf sur l'île, et ferme le panneau.
+- `src-tauri/src/fullscreen.rs` masque l'île quand un jeu, une vidéo ou un diaporama occupe l'écran principal.
+- `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
+- `src-tauri/src/privacy.rs` trouve les apps qui utilisent le micro ou la caméra, et coupe le micro.
+- `src/Island.svelte` dessine l'île, et c'est le seul fichier qui parle à Rust.
+- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité. Chaque fichier a ses tests Vitest à côté (`*.test.ts`).
+- `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
+- `site/` est le site, en Astro et Starlight. Sa page de contribution en anglais importe `.github/CONTRIBUTING.md`, dont cette page est la traduction.
+
+La page appelle Rust avec `invoke()` et écoute ses événements avec `listen()`. Chaque type Rust a son jumeau TypeScript : changez les deux ensemble. Les types TypeScript sans fichier sont écrits directement dans `src/Island.svelte`.
+
+| Nom | Sens | Rust | TypeScript |
+|---|---|---|---|
+| `set_island_rects` | page → Rust | `rects: Vec<Rect>` (`island.rs`) | `{ x, y, width, height, radius }[]` |
+| `set_island_expanded` | page → Rust | `expanded: bool` | `boolean` |
+| `media_control` | page → Rust | `id: String`, `action: Action` (`media.rs`) | `'play'`, `'pause'`, `'next'` ou `'previous'` |
+| `media_seek` | page → Rust | `id: String`, `ms: i64` | `number` |
+| `media_players` | page → Rust | renvoie `Snapshot` (`media.rs`) | `{ players: Player[]; artwork: Record<string, string> }` |
+| `privacy_state` | page → Rust | renvoie `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+| `privacy_mute` | page → Rust | `muted: bool` | `boolean` |
+| `privacy_settings` | page → Rust | `camera: bool` | `boolean` |
+| `privacy_show` | page → Rust | `name: String`, renvoie `bool` | `boolean` |
+| `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
+| `island://pointer` | Rust → page | `Option<u32>` : le délai de survol en ms, `None` quand le curseur sort | `number` ou `null` |
+| `island://dismiss` | Rust → page | rien | rien |
+| `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
+| `media://artwork` | Rust → page | `json!({ id, url })`, avec `url: Option<String>` | `{ id, url }`, avec `url` une URL `data:` ou `null` |
+| `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+
 ## Avant de pousser
 
 Lancez ce que lance la CI :
@@ -54,6 +86,8 @@ npm run lint && npm run check && npm test
 npm run build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
+
+TypeScript et Svelte n'ont pas de formateur : suivez le style du code autour (guillemets simples, pas de points-virgules, 2 espaces) et ne lancez pas Prettier.
 
 Pour essayer votre changement tel que les utilisateurs le recevront, construisez l'installateur avec `npm run tauri build`.
 
