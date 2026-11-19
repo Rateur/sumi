@@ -1,9 +1,13 @@
+//! Decides when the island hides or goes quiet. It hides for a borderless window over the whole primary screen,
+//! exclusive Direct3D or a presentation. A hook hears each change of app instead of polling; a check once a second
+//! still catches F11.
+
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::WebviewWindow;
 
-/// How much of the island shows.
+/// How much of the island shows. Mirrored in `src/lib/activities.ts`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Presence {
@@ -132,9 +136,9 @@ pub fn watch_foreground() {
 #[cfg(not(windows))]
 pub fn watch_foreground() {}
 
-/// Reads the window in front and Windows' notification state, and decides.
+/// Reads the window in front and Windows' notification state, and decides. `own` is the island's window.
 #[cfg(windows)]
-pub fn check(island: &WebviewWindow, current: Option<usize>) -> (Option<usize>, Presence) {
+pub fn check(own: usize, current: Option<usize>) -> (Option<usize>, Presence) {
     use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
     use windows_sys::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
     use windows_sys::Win32::Graphics::Gdi::{
@@ -148,7 +152,6 @@ pub fn check(island: &WebviewWindow, current: Option<usize>) -> (Option<usize>, 
         WindowFromPoint,
     };
 
-    let own = island.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
     unsafe {
         let primary = MonitorFromPoint(POINT { x: 0, y: 0 }, MONITOR_DEFAULTTOPRIMARY);
         let mut info = MONITORINFO {
@@ -218,7 +221,7 @@ pub fn check(island: &WebviewWindow, current: Option<usize>) -> (Option<usize>, 
 }
 
 #[cfg(not(windows))]
-pub fn check(_: &WebviewWindow, _: Option<usize>) -> (Option<usize>, Presence) {
+pub fn check(_: usize, _: Option<usize>) -> (Option<usize>, Presence) {
     (None, Presence::Shown)
 }
 

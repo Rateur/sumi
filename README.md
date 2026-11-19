@@ -11,12 +11,12 @@
   <p><b>English</b> · <a href="README.fr.md">Français</a></p>
 </div>
 
-![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, then the microphone's disc and its card](.github/assets/demo.gif)
+![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, then the command bar starting a timer](.github/assets/demo.gif)
 
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.5.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, and puts a dot beside the island while an app uses your microphone or camera. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.6.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, and opens a command bar for a timer, an app or a question. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
@@ -33,10 +33,10 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] Hides itself while a game or video is fullscreen (0.3.0)
 - [x] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress; the time moves to a bubble beside it (0.4.0)
 - [x] An orange or green dot when an app uses your microphone or camera, with the app and a mute under the cursor (0.5.0)
-- [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine, and timers: type `25m`
+- [x] A command bar (`Win+Alt+S`): a timer, an app, a question for Claude, ChatGPT, Gemini, Perplexity or a search engine; timers on the island, from `25m` (0.6.0)
 - [ ] Tuck the island into a thin line at the top with a scroll up, and a live taskbar icon that tucks it or brings it back
 - [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
-- [ ] Settings (position at the top or beside the taskbar, screen, theme, language, shortcuts), automatic updates and a signed installer
+- [ ] Settings (screen, theme, language, shortcuts), automatic updates and a signed installer
 
 ## How it's built
 
@@ -48,7 +48,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
   <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white">
 </p>
 
-Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, and will read media, microphone and battery state. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
+Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, reads media and microphone/camera state, and will read the battery. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
 
 ## Privacy
 
@@ -56,7 +56,7 @@ Sumi collects nothing. Features that need the network will stay off until you tu
 
 ## Contributing
 
-Code lands on the `dev` branch first. Read [the contributing guide](.github/CONTRIBUTING.md) before opening a pull request, and [docs/design.md](docs/design.md) for how the island behaves. Questions and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
+Code lands on the `dev` branch first. Read [the contributing guide](.github/CONTRIBUTING.md) before opening a pull request: it lists what a review checks, from naming to the docs in both languages. [docs/design.md](docs/design.md) covers how the island behaves, and coding agents start with [AGENTS.md](AGENTS.md). Questions and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## License
 

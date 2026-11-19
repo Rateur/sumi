@@ -12,7 +12,7 @@ Merci de votre aide. Sumi n'a qu'un mainteneur, alors voici ce qui est accepté.
 - Les fautes de frappe, les liens cassés et les petites corrections de bugs peuvent partir directement en pull request.
 - Pour tout le reste, ouvrez d'abord une issue et attendez mon accord. Une issue ouverte aux pull requests porte le label `help wanted`. Une grosse pull request sans accord préalable sera fermée.
 - Jusqu'à la 1.0, Sumi suit la [feuille de route](https://github.com/Rateur/sumi/blob/dev/README.fr.md#feuille-de-route). Les idées en dehors sont les bienvenues dans une issue et se décident au cas par cas.
-- L'apparence et les mouvements de l'île sont fixés dans la [page de design](https://github.com/Rateur/sumi/blob/dev/docs/design.md), en anglais. Changer une taille, une couleur, un ressort ou une durée demande mon accord dans une issue.
+- L'apparence et les mouvements de l'île sont fixés dans la page [Fonctionnement de l'île](../design/). Changer une taille, une couleur, un ressort ou une durée demande mon accord dans une issue.
 - Pour prendre une issue, dites-le en commentaire et je vous l'assigne. Une personne par issue.
 - Un seul changement par pull request, sans reformatage ni renommage au passage.
 
@@ -20,7 +20,7 @@ Merci de votre aide. Sumi n'a qu'un mainteneur, alors voici ce qui est accepté.
 
 `main`, c'est ce que reçoivent les utilisateurs. Elle ne change que lorsque `dev` y est fusionnée pour une nouvelle version.
 
-`dev` reçoit le travail en cours. Ouvrez votre pull request vers `dev`, depuis une branche nommée d'après ce qu'elle fait : `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`.
+`dev` reçoit le travail en cours. Ouvrez votre pull request vers `dev`, depuis une branche nommée d'après ce qu'elle fait : `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`, `refactor/rust-cleanups`, `chore/release-0.5.0`.
 
 Les pull requests vers `dev` sont fusionnées en squash : leur titre devient le message du commit. Écrivez-le en anglais, au format [Conventional Commits](https://www.conventionalcommits.org) : `feat: show album art in the island`, `fix: keep focus on the game when a timer ends`.
 
@@ -45,6 +45,54 @@ npm run tauri dev
 
 L'île apparaît en haut de votre écran principal. Pour la quitter, passez par son icône dans la zone de notification. Les changements dans l'interface s'affichent tout de suite, et ceux dans le code Rust relancent l'app.
 
+## Organisation du code
+
+- `src-tauri/src/lib.rs` démarre l'app, un seul exemplaire à la fois : l'icône de la zone de notification, la liste des commandes que la page peut appeler, et la surveillance de chaque module.
+- `src-tauri/src/island.rs` garde la fenêtre en haut de l'écran, laisse passer les clics partout sauf sur l'île, et ferme le panneau.
+- `src-tauri/src/fullscreen.rs` masque l'île quand un jeu, une vidéo ou un diaporama occupe l'écran principal.
+- `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
+- `src-tauri/src/privacy.rs` trouve les apps qui utilisent le micro ou la caméra, et coupe le micro.
+- `src-tauri/src/apps.rs` lit les apps du menu Démarrer, ouvre celle choisie dans la barre de commande, et ouvre une question dans un assistant ou le moteur de recherche.
+- `src-tauri/src/bar.rs` enregistre le raccourci de la barre de commande, et donne le focus à la barre puis le rend.
+- `src-tauri/src/timers.rs` joue le carillon des minuteurs. Les minuteurs eux-mêmes ne vivent que dans la mémoire de la page.
+- `src-tauri/src/welcome.rs` garde le repère de l'accueil du premier lancement, un fichier qui contient la version qui a dit bonjour.
+- `src/Island.svelte` dessine l'île. `src/PrivacyCard.svelte` dessine la carte du micro et de la caméra, et appelle les commandes `privacy_mute`, `privacy_settings` et `privacy_show`. Seuls ces deux fichiers parlent à Rust ; `src/main.ts` et `src/App.svelte` ne font que monter l'île.
+- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité, les minuteurs (`timers.ts`), l'accueil du premier lancement (`welcome.ts`), et ce que veut dire la ligne de la barre de commande (`intent.ts`). Chaque fichier a ses tests Vitest à côté (`*.test.ts`).
+- `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
+- `site/` est le site, en Astro et Starlight. Sa page de contribution en anglais importe `.github/CONTRIBUTING.md`, dont cette page est la traduction.
+
+La page appelle Rust avec `invoke()` et écoute ses événements avec `listen()`. Chaque type Rust a son jumeau TypeScript : changez les deux ensemble. Les types TypeScript sans fichier sont écrits directement dans `src/Island.svelte`.
+
+| Nom | Sens | Rust | TypeScript |
+|---|---|---|---|
+| `set_island_rects` | page → Rust | `rects: Vec<Rect>` (`island.rs`) | `{ x, y, width, height, radius }[]` |
+| `set_island_expanded` | page → Rust | `expanded: bool` | `boolean` |
+| `island_presence` | page → Rust | renvoie `Presence` (`fullscreen.rs`), telle que décidée en dernier | `Presence` (`src/lib/activities.ts`) |
+| `media_control` | page → Rust | `id: String`, `action: Action` (`media.rs`) | `'play'`, `'pause'`, `'next'` ou `'previous'` |
+| `media_seek` | page → Rust | `id: String`, `ms: i64` | `number` |
+| `media_players` | page → Rust | renvoie `Snapshot` (`media.rs`) | `{ players: Player[]; artwork: Record<string, string> }` |
+| `privacy_state` | page → Rust | renvoie `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+| `privacy_mute` | page → Rust | `muted: bool` | `boolean` |
+| `privacy_settings` | page → Rust | `camera: bool` | `boolean` |
+| `privacy_show` | page → Rust | `name: String`, renvoie `bool` | `boolean` |
+| `apps_list` | page → Rust | renvoie `Vec<App>` (`apps.rs`) | `{ name: string; id: string }[]` |
+| `has_claude` | page → Rust | renvoie `bool` | `boolean` |
+| `app_icon` | page → Rust | `id: String`, renvoie `Option<Icon>` (`privacy.rs`) | `{ side, rgba }` ou `null` |
+| `app_launch` | page → Rust | `id: String`, renvoie `bool` | `boolean` |
+| `assistant_open` | page → Rust | `target: Target` (`apps.rs`), `query: String`, renvoie `bool` | `Target` (`src/lib/intent.ts`), `string` |
+| `bar_shortcut` | page → Rust | renvoie `Option<&str>` (`bar.rs`) | `string` ou `null` |
+| `bar_focus` | page → Rust | `open: bool` | `boolean` |
+| `timer_chime` | page → Rust | rien | rien |
+| `welcome_pending` | page → Rust | renvoie `bool` (`welcome.rs`) | `boolean` |
+| `welcome_done` | page → Rust | renvoie `Result<(), String>` | rien, ou une erreur |
+| `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
+| `island://pointer` | Rust → page | `Option<u32>` : le délai de survol en ms, `None` quand le curseur sort | `number` ou `null` |
+| `island://dismiss` | Rust → page | rien | rien |
+| `bar://toggle` | Rust → page | rien | rien |
+| `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
+| `media://artwork` | Rust → page | `json!({ id, url })`, avec `url: Option<String>` | `{ id, url }`, avec `url` une URL `data:` ou `null` |
+| `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+
 ## Avant de pousser
 
 Lancez ce que lance la CI :
@@ -54,6 +102,8 @@ npm run lint && npm run check && npm test
 npm run build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
+
+TypeScript et Svelte n'ont pas de formateur : suivez le style du code autour (guillemets simples, pas de points-virgules, 2 espaces) et ne lancez pas Prettier.
 
 Pour essayer votre changement tel que les utilisateurs le recevront, construisez l'installateur avec `npm run tauri build`.
 
@@ -67,10 +117,16 @@ Sur votre première pull request, la CI démarre une fois que je l'ai approuvée
 - Elle protège votre vie privée. Rien de ce qu'affiche l'île n'est écrit dans un journal ou un fichier, et rien ne quitte le PC sans que l'utilisateur ait activé la fonction. Pas de télémétrie, de statistiques ni de rapports de plantage.
 - Elle n'ajoute ni dépendance, ni requête réseau, ni permission Tauri (`src-tauri/capabilities/`) sans accord dans l'issue. Chaque paquet, c'est du code que chaque utilisateur fait tourner.
 - L'interface fonctionne avec les animations réduites et garde un contraste AA.
+- Elle se lit comme le code autour, pour que la personne suivante, ou une IA, puisse la reprendre. Rust : `snake_case` pour les fonctions et les modules, `CamelCase` pour les types, `UPPER_CASE` pour les constantes. TypeScript : `camelCase`, `PascalCase` pour les types, `UPPER_CASE` pour les constantes partagées. Composants Svelte : `PascalCase.svelte`. Les commentaires sont courts et disent pourquoi, pas quoi.
+- Elle ne laisse pas de dette : ni code mort ni `TODO`. Une limite connue a son commentaire `// shortcut: <la limite>, <quand la lever>`.
+- Un nouveau fichier, une nouvelle commande ou un nouvel événement a sa ligne dans [Organisation du code](#organisation-du-code), et un nouveau fichier Rust commence par un commentaire `//!` qui dit ce qu'il fait.
+- Rust : `unsafe` reste petit. Un bloc qui repose sur ce que le compilateur ne peut pas vérifier (un pointeur brut qu'il lit, `from_raw`, un transmute, le `lparam` d'un callback) dit pourquoi il est sûr dans un commentaire `// SAFETY:`. Un simple appel à Windows n'en a pas besoin. `windows` sert à COM, à WinRT et à un appel Win32 qui prend ou renvoie un type de `windows` dans ce code (`HANDLE`, `PCWSTR`, `PWSTR`) ; `windows-sys` à tous les autres appels Win32, même dans le même fichier.
+- Une modification visible met à jour sa page dans la doc du site, et le README quand ce que l'on peut faire change, en anglais et en français. Si vous n'écrivez pas le français, dites-le et je l'ajoute.
+- Ses mots sont simples et courts : commentaires, messages de commit, description de la PR, doc et README dans les deux langues.
 
 ## Outils d'IA
 
-Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture.
+Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture. Les agents de code trouvent leurs règles dans [AGENTS.md](https://github.com/Rateur/sumi/blob/dev/AGENTS.md) (en anglais).
 
 ## Traductions
 

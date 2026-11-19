@@ -15,7 +15,7 @@ GitHub Pages, un service de GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Fran
 
 ## Données personnelles
 
-Ce site ne dépose aucun cookie et ne mesure pas l'audience. Il retient seulement, dans votre navigateur, la langue que vous choisissez (`sumi-lang`), sans l'envoyer nulle part.
+Ce site ne dépose aucun cookie et ne mesure pas l'audience. Il retient, dans votre navigateur, la langue que vous choisissez (`sumi-lang`) et, pour l'onglet en cours seulement, l'état du menu de la documentation (`sl-sidebar-state`), sans les envoyer nulle part.
 
 Comme tout hébergeur, GitHub enregistre l'adresse IP des visiteurs pour la sécurité du service : voir la [déclaration de confidentialité de GitHub](https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement).
 

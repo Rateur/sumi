@@ -5,12 +5,14 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 /// One player as the page draws it. Times are in milliseconds, and `updated_ms` is Unix time, like a timer's end:
 /// the page moves the progress bar on its own from there, so no message is sent while a song plays.
+/// Mirrored in src/lib/music.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Player {
@@ -54,24 +56,20 @@ enum Msg {
 
 /// The thread's mailbox and its last snapshot.
 pub struct Media {
-    tx: Mutex<Sender<Msg>>,
+    tx: Sender<Msg>,
     snapshot: Mutex<Snapshot>,
 }
 
 /// Plays, pauses or skips on one player. The answer isn't awaited: the player's own events tell the page.
 #[tauri::command]
 pub fn media_control(media: tauri::State<'_, Media>, id: String, action: Action) {
-    if let Ok(tx) = media.tx.lock() {
-        let _ = tx.send(Msg::Control(id, action));
-    }
+    let _ = media.tx.send(Msg::Control(id, action));
 }
 
 /// Moves one player to `ms` from the start of its song, for a drag on the progress bar.
 #[tauri::command]
 pub fn media_seek(media: tauri::State<'_, Media>, id: String, ms: i64) {
-    if let Ok(tx) = media.tx.lock() {
-        let _ = tx.send(Msg::Seek(id, ms));
-    }
+    let _ = media.tx.send(Msg::Seek(id, ms));
 }
 
 #[tauri::command]
@@ -85,7 +83,7 @@ pub fn media_players(media: tauri::State<'_, Media>) -> Snapshot {
 pub fn watch(app: &AppHandle) {
     let (tx, rx) = channel();
     app.manage(Media {
-        tx: Mutex::new(tx.clone()),
+        tx: tx.clone(),
         snapshot: Mutex::default(),
     });
     let app = app.clone();
@@ -113,8 +111,10 @@ fn same_player(old: &Player, new: &Player) -> bool {
 }
 
 /// The id for a new session of `app`: the app's own, or the first free numbered one when it already has a
-/// session. Ids already given never change, so a page never sees one player's id move to another.
+/// session. Ids already given never change, so a page never sees one player's id move to another. An app
+/// that gives no id of its own is "media": the page takes an empty id for no player.
 fn free_id<'a>(app: &str, taken: impl Iterator<Item = &'a str> + Clone) -> String {
+    let app = if app.is_empty() { "media" } else { app };
     let free = |id: &str| !taken.clone().any(|t| t == id);
     if free(app) {
         return app.to_string();
@@ -123,6 +123,27 @@ fn free_id<'a>(app: &str, taken: impl Iterator<Item = &'a str> + Clone) -> Strin
         .map(|n| format!("{app}#{n}"))
         .find(|id| free(id))
         .unwrap_or_default()
+}
+
+/// Some players hand over a new song's picture late: it is read again after these delays.
+const LATE_ART: [Duration; 2] = [Duration::from_millis(600), Duration::from_millis(900)];
+
+/// What one artwork read does: whether the page hears of it, and whether it is read again. `differs` is whether
+/// the picture read is not the one stored, `has_art` whether there is one, `new_song` whether the title or artist
+/// changed, `left` how many late reads may still follow this one, and `waiting` whether one is already set.
+fn art_step(
+    differs: bool,
+    has_art: bool,
+    new_song: bool,
+    left: usize,
+    waiting: bool,
+) -> (bool, bool) {
+    // An empty read may only mean the picture isn't ready yet: the old one stays while a read is still to come.
+    let send = differs && (has_art || (left == 0 && !waiting));
+    // A new song is always read again, as its first picture may still be the last song's. After that, a
+    // picture that changed is the right one.
+    let again = left > 0 && (new_song || !(differs && has_art));
+    (send, again)
 }
 
 #[cfg(not(windows))]
@@ -152,12 +173,10 @@ mod win {
     use windows::Storage::Streams::DataReader;
     use windows::core::{HSTRING, IUnknown, Interface, RuntimeType};
 
-    use super::{Action, Media, Msg, Player, free_id, same};
+    use super::{Action, LATE_ART, Media, Msg, Player, art_step, free_id, same};
 
     /// A song change fires the title, then the artwork, then the timeline: one wait gathers them into one message.
     const BURST: Duration = Duration::from_millis(150);
-    /// Some players hand over the old artwork, or none, with a new title: it is read again after these delays.
-    const LATE_ART: [Duration; 2] = [Duration::from_millis(600), Duration::from_millis(900)];
     const MAX_ART: u32 = 4 << 20;
     /// 1601 to 1970, in the 100 ns ticks of Windows' clock.
     const UNIX_EPOCH: i64 = 116_444_736_000_000_000;
@@ -224,14 +243,15 @@ mod win {
     // shortcut: a player that hangs inside one of Windows' calls holds this thread until it answers, and music
     // updates wait with it; the rest of Sumi doesn't. Add timeouts if a player is ever seen doing it.
     pub(super) fn run(app: &AppHandle, tx: &Sender<Msg>, rx: &Receiver<Msg>) {
-        let Ok(manager) = SessionManager::RequestAsync().and_then(|op| op.join()) else {
+        let Ok(manager) = SessionManager::RequestAsync()
+            .and_then(|op| op.join())
+            .inspect_err(|e| log::warn!("media: no session manager: {e}"))
+        else {
             return;
         };
         // The manager lives as long as the loop, and with it the handler.
-        if manager
-            .SessionsChanged(&ping(tx, || Msg::Sessions))
-            .is_err()
-        {
+        if let Err(e) = manager.SessionsChanged(&ping(tx, || Msg::Sessions)) {
+            log::warn!("media: session changes can't be heard: {e}");
             return;
         }
         let mut watched: Vec<Watched> = Vec::new();
@@ -243,6 +263,8 @@ mod win {
         loop {
             let mut sessions = false;
             let mut changed: HashSet<String> = HashSet::new();
+            // A fixed end: a player that pings faster than BURST can't hold every update back.
+            let until = Instant::now() + BURST;
             while let Some(msg) = next.take() {
                 match msg {
                     Msg::Sessions => sessions = true,
@@ -261,7 +283,9 @@ mod win {
                         }
                     }
                 }
-                next = rx.recv_timeout(BURST).ok();
+                next = until
+                    .checked_duration_since(Instant::now())
+                    .and_then(|wait| rx.recv_timeout(wait).ok());
             }
             let now = Instant::now();
             let mut due: HashMap<String, usize> = HashMap::new();
@@ -311,55 +335,67 @@ mod win {
             }
 
             for w in watched.iter_mut().filter(|w| changed.contains(&w.id)) {
-                let props = w
+                // A failed read isn't an empty song: the last title, artist and artwork stay.
+                let Ok(props) = w
                     .session
                     .TryGetMediaPropertiesAsync()
                     .and_then(|op| op.join())
-                    .ok();
-                let text = |h: Option<windows::core::Result<HSTRING>>| {
-                    h.and_then(Result::ok)
-                        .map(|h| h.to_string())
-                        .unwrap_or_default()
-                };
-                let title = text(props.as_ref().map(Properties::Title));
-                let new_song = title != w.title;
-                w.artist = text(props.as_ref().map(Properties::Artist));
-                w.title = title;
-                let fresh = props.as_ref().and_then(read_artwork);
-                if fresh.as_ref() != artwork.get(&w.id) {
-                    match &fresh {
-                        Some(url) => artwork.insert(w.id.clone(), url.clone()),
-                        None => artwork.remove(&w.id),
-                    };
-                    let _ = app.emit("media://artwork", json!({ "id": w.id, "url": fresh }));
-                    // An empty read may only mean the picture isn't ready yet: it is read again below.
-                    if fresh.is_some() {
-                        continue;
+                else {
+                    // A held picture is only settled by a late read: one that fails passes the turn to the next.
+                    if let Some(&left) = due.get(&w.id) {
+                        read_later(&mut late, now, &w.id, left);
                     }
-                }
-                // Same artwork as the last song: read again a little later, twice at most.
+                    continue;
+                };
+                let text = |h: windows::core::Result<HSTRING>| {
+                    h.map(|h| h.to_string()).unwrap_or_default()
+                };
+                let title = text(props.Title());
+                let artist = text(props.Artist());
+                // Two songs can share a title, like "Intro" on two albums.
+                let new_song = title != w.title || artist != w.artist;
+                w.title = title;
+                w.artist = artist;
+                let fresh = read_artwork(&props);
+                // A new song is read again a little later, twice at most: some players hand over its picture late.
                 let left = if new_song {
                     LATE_ART.len()
                 } else {
                     due.get(&w.id).copied().unwrap_or(0)
                 };
-                if let Some(delay) = LATE_ART
-                    .len()
-                    .checked_sub(left)
-                    .and_then(|i| LATE_ART.get(i))
-                {
-                    late.push((now + *delay, w.id.clone(), left - 1));
+                let waiting = late.iter().any(|(_, id, _)| id == &w.id);
+                let (send, again) = art_step(
+                    fresh.as_ref() != artwork.get(&w.id),
+                    fresh.is_some(),
+                    new_song,
+                    left,
+                    waiting,
+                );
+                if send {
+                    let put = |map: &mut HashMap<String, String>| match &fresh {
+                        Some(url) => map.insert(w.id.clone(), url.clone()),
+                        None => map.remove(&w.id),
+                    };
+                    put(&mut artwork);
+                    // The snapshot first: a page that starts listening after this event still gets it.
+                    if let Ok(mut snapshot) = app.state::<Media>().snapshot.lock() {
+                        put(&mut snapshot.artwork);
+                    }
+                    let _ = app.emit("media://artwork", json!({ "id": w.id, "url": fresh }));
+                }
+                if again {
+                    read_later(&mut late, now, &w.id, left);
                 }
             }
 
             let fresh: Vec<Player> = watched.iter().filter_map(state).collect();
             if !same(&players, &fresh) {
-                let _ = app.emit("media://players", &fresh);
                 players = fresh;
-            }
-            if let Ok(mut snapshot) = app.state::<Media>().snapshot.lock() {
-                snapshot.players.clone_from(&players);
-                snapshot.artwork.clone_from(&artwork);
+                // The snapshot first, for the same reason.
+                if let Ok(mut snapshot) = app.state::<Media>().snapshot.lock() {
+                    snapshot.players.clone_from(&players);
+                }
+                let _ = app.emit("media://players", &players);
             }
 
             let wait = late.iter().map(|(at, _, _)| *at).min();
@@ -375,6 +411,19 @@ mod win {
                 },
             };
         }
+    }
+
+    /// Sets the next late read of `id` when one may still follow.
+    fn read_later(late: &mut Vec<(Instant, String, usize)>, now: Instant, id: &str, left: usize) {
+        // Nothing to set when `left` is 0 or out of range.
+        let i = LATE_ART.len().checked_sub(left);
+        let (Some(delay), Some(left)) = (i.and_then(|i| LATE_ART.get(i)), left.checked_sub(1))
+        else {
+            return;
+        };
+        // One set of late reads per player: a new song's reads replace the last song's.
+        late.retain(|(_, other, _)| other != id);
+        late.push((now + *delay, id.to_string(), left));
     }
 
     fn state(w: &Watched) -> Option<Player> {
@@ -451,7 +500,21 @@ mod win {
 
     #[cfg(test)]
     mod tests {
-        use super::kind;
+        use std::time::Instant;
+
+        use super::{LATE_ART, kind, read_later};
+
+        #[test]
+        fn late_reads_come_in_order_then_stop() {
+            let now = Instant::now();
+            let mut late = Vec::new();
+            read_later(&mut late, now, "a", LATE_ART.len());
+            assert_eq!(late, [(now + LATE_ART[0], "a".to_string(), 1)]);
+            read_later(&mut late, now, "a", 1);
+            assert_eq!(late, [(now + LATE_ART[1], "a".to_string(), 0)]);
+            read_later(&mut late, now, "a", 0);
+            assert_eq!(late.len(), 1);
+        }
 
         #[test]
         fn the_image_type_comes_from_the_bytes() {
@@ -527,5 +590,66 @@ mod tests {
         // The first session ended: its id is free again, and the second keeps `a#2`.
         assert_eq!(free_id("a", ["a#2"].into_iter()), "a");
         assert_eq!(free_id("a", ["a", "a#2"].into_iter()), "a#3");
+    }
+
+    #[test]
+    fn an_app_with_no_id_still_gets_one() {
+        assert_eq!(free_id("", [].into_iter()), "media");
+        assert_eq!(free_id("", ["media"].into_iter()), "media#2");
+    }
+
+    /// One song change on a player that hands over the picture late, as the loop in `win::run` reads it.
+    /// Returns what the page saw after each read: one entry per read that ran.
+    fn reads(stored: Option<&str>, seen: &[Option<&str>]) -> Vec<Option<String>> {
+        let mut stored = stored.map(String::from);
+        let mut left = LATE_ART.len();
+        let mut out = Vec::new();
+        for (i, fresh) in seen.iter().enumerate() {
+            let new_song = i == 0;
+            let fresh = fresh.map(String::from);
+            let (send, again) = art_step(fresh != stored, fresh.is_some(), new_song, left, false);
+            if send {
+                stored.clone_from(&fresh);
+            }
+            out.push(stored.clone());
+            if !again {
+                break;
+            }
+            left -= 1;
+        }
+        out
+    }
+
+    #[test]
+    fn a_stale_picture_that_differs_is_still_read_again() {
+        // The last song's picture was missed: the new song first comes with it, then with its own. Once the
+        // picture changed, no third read runs.
+        assert_eq!(
+            reads(Some("a"), &[Some("b"), Some("c"), Some("d")]),
+            [Some("b".into()), Some("c".into())]
+        );
+    }
+
+    #[test]
+    fn the_old_picture_stays_while_the_new_one_loads() {
+        assert_eq!(
+            reads(Some("a"), &[None, Some("b"), Some("c")]),
+            [Some("a".into()), Some("b".into())]
+        );
+        // A song with no picture loses the old one at the last read.
+        assert_eq!(
+            reads(Some("a"), &[None, None, None]),
+            [Some("a".into()), Some("a".into()), None]
+        );
+    }
+
+    #[test]
+    fn an_empty_read_waits_for_a_read_already_set() {
+        // A plain event while a late read is set: the late read decides.
+        assert_eq!(art_step(true, false, false, 0, true), (false, false));
+        // Nothing left to come: no picture is news.
+        assert_eq!(art_step(true, false, false, 0, false), (true, false));
+        // A new song that shows the very picture stored is still read again.
+        assert_eq!(art_step(false, true, true, 2, false), (false, true));
     }
 }

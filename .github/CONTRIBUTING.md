@@ -17,7 +17,7 @@ Thanks for helping. Sumi has one maintainer, so here is what gets merged.
 
 `main` is what users get. It only changes when `dev` is merged for a release.
 
-`dev` is where work lands. Open your pull request against `dev`, from a branch named after what it does: `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`.
+`dev` is where work lands. Open your pull request against `dev`, from a branch named after what it does: `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`, `refactor/rust-cleanups`, `chore/release-0.5.0`.
 
 Pull requests into `dev` are squash-merged, so the PR title becomes the commit message. Write it as a [Conventional Commit](https://www.conventionalcommits.org): `feat: show album art in the island`, `fix: keep focus on the game when a timer ends`.
 
@@ -42,6 +42,54 @@ npm run tauri dev
 
 The island appears at the top of your primary screen. Quit it from the tray icon. Changes to the frontend reload instantly; changes to Rust restart the app.
 
+## How the code is laid out
+
+- `src-tauri/src/lib.rs` starts the app, one copy at a time: the tray icon, the list of commands the page can call, and each module's watcher.
+- `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, and closes the panel.
+- `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen.
+- `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
+- `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
+- `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
+- `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
+- `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
+- `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
+- `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
+- `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
+
+The page calls Rust with `invoke()` and listens to its events with `listen()`. Each Rust type has a TypeScript twin: change both together. TypeScript types without a file are written inline in `src/Island.svelte`.
+
+| Name | Direction | Rust | TypeScript |
+|---|---|---|---|
+| `set_island_rects` | page → Rust | `rects: Vec<Rect>` (`island.rs`) | `{ x, y, width, height, radius }[]` |
+| `set_island_expanded` | page → Rust | `expanded: bool` | `boolean` |
+| `island_presence` | page → Rust | returns `Presence` (`fullscreen.rs`), as last decided | `Presence` (`src/lib/activities.ts`) |
+| `media_control` | page → Rust | `id: String`, `action: Action` (`media.rs`) | `'play'`, `'pause'`, `'next'` or `'previous'` |
+| `media_seek` | page → Rust | `id: String`, `ms: i64` | `number` |
+| `media_players` | page → Rust | returns `Snapshot` (`media.rs`) | `{ players: Player[]; artwork: Record<string, string> }` |
+| `privacy_state` | page → Rust | returns `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+| `privacy_mute` | page → Rust | `muted: bool` | `boolean` |
+| `privacy_settings` | page → Rust | `camera: bool` | `boolean` |
+| `privacy_show` | page → Rust | `name: String`, returns `bool` | `boolean` |
+| `apps_list` | page → Rust | returns `Vec<App>` (`apps.rs`) | `{ name: string; id: string }[]` |
+| `has_claude` | page → Rust | returns `bool` | `boolean` |
+| `app_icon` | page → Rust | `id: String`, returns `Option<Icon>` (`privacy.rs`) | `{ side, rgba }` or `null` |
+| `app_launch` | page → Rust | `id: String`, returns `bool` | `boolean` |
+| `assistant_open` | page → Rust | `target: Target` (`apps.rs`), `query: String`, returns `bool` | `Target` (`src/lib/intent.ts`), `string` |
+| `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
+| `bar_focus` | page → Rust | `open: bool` | `boolean` |
+| `timer_chime` | page → Rust | nothing | nothing |
+| `welcome_pending` | page → Rust | returns `bool` (`welcome.rs`) | `boolean` |
+| `welcome_done` | page → Rust | returns `Result<(), String>` | nothing, or an error |
+| `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
+| `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
+| `island://dismiss` | Rust → page | nothing | nothing |
+| `bar://toggle` | Rust → page | nothing | nothing |
+| `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
+| `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
+| `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+
 ## Before you push
 
 Run what CI runs:
@@ -51,6 +99,8 @@ npm run lint && npm run check && npm test
 npm run build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
+
+TypeScript and Svelte have no formatter: match the surrounding style (single quotes, no semicolons, 2 spaces) and don't run Prettier.
 
 To try your change as users will get it, build the installer with `npm run tauri build`.
 
@@ -64,10 +114,16 @@ On your first pull request, CI starts once I approve it. Leave **Allow edits by 
 - It keeps your PC private. Nothing the island shows is written to a log or a file, and nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
 - It adds no dependency, network request or Tauri permission (`src-tauri/capabilities/`) unless the issue agreed on it. Every package is code that each user runs.
 - The UI works with reduced motion and keeps AA contrast.
+- It reads like the code around it, so the next person, or an AI, can pick it up. Rust: `snake_case` for functions and modules, `CamelCase` for types, `UPPER_CASE` for constants. TypeScript: `camelCase`, `PascalCase` for types, `UPPER_CASE` for shared constants. Svelte components: `PascalCase.svelte`. Comments are short and say why, not what.
+- It leaves no debt behind: no dead code and no `TODO`. A known limit gets a `// shortcut: <the limit>, <when to upgrade>` comment.
+- A new file, command or event gets its line in [How the code is laid out](#how-the-code-is-laid-out), and a new Rust file opens with a `//!` comment that says what it does.
+- Rust: `unsafe` stays small. A block that relies on something the compiler can't check (a raw pointer it reads, `from_raw`, a transmute, a callback's `lparam`) says why it's sound in a `// SAFETY:` comment. A plain Windows call needs none. `windows` is for COM, WinRT and a Win32 call that takes or returns a `windows` type in that code (`HANDLE`, `PCWSTR`, `PWSTR`); `windows-sys` for every other Win32 call, even in the same file.
+- A change users can see updates its page in the site's docs, and the README when what users can do changes, in English and French. If you don't write French, say so and I'll add it.
+- Its words are plain and short: code comments, commit messages, the PR description, and the docs and README in both languages.
 
 ## AI tools
 
-Use them if they help. You answer for every line: you ran it on Windows, you understand it and you can explain it in review. Pull requests and issues that look generated and untested are closed without review.
+Use them if they help. You answer for every line: you ran it on Windows, you understand it and you can explain it in review. Pull requests and issues that look generated and untested are closed without review. Coding agents get their rules from [AGENTS.md](https://github.com/Rateur/sumi/blob/dev/AGENTS.md).
 
 ## Translations
 

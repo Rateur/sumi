@@ -6,7 +6,7 @@
   import { MediaQuery, SvelteMap } from 'svelte/reactivity'
   import { fade as dissolve } from 'svelte/transition'
   import { innerHeight, innerWidth } from 'svelte/reactivity/window'
-  import { CLOCK, arrange, peeks, type Activity, type Arrangement, type Presence } from './lib/activities'
+  import { arrange, peeks, stillPicked, type Activity, type Arrangement, type Presence } from './lib/activities'
   import {
     formatBubbleTime,
     formatCountdown,
@@ -14,14 +14,26 @@
     formatShortDate,
     formatTime,
     msUntilNextMinute,
-    msUntilNextSecond,
   } from './lib/clock'
-  import { dominant } from './lib/color'
-  import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
-  import { label, lasted, light, quiet, tagged, type Privacy } from './lib/privacy'
+  import { tint } from './lib/color'
+  import {
+    CLOSE,
+    END_PEEK,
+    ENTER,
+    EXIT,
+    FULLSCREEN,
+    INK,
+    OPEN,
+    PRESS,
+    WELCOME,
+    bezier,
+    motion,
+    squash,
+    type Axis,
+  } from './lib/motion'
+  import { label, light, quiet, tagged, type Privacy } from './lib/privacy'
   import {
     BUBBLE,
-    CARD,
     GAP,
     TAG,
     TAG_GAP,
@@ -31,8 +43,11 @@
     radius,
     resolveView,
     sizeOf,
+    welcomeWidth,
     type Rect,
+    type TimerFit,
     type View,
+    type Welcome,
   } from './lib/shapes'
   import {
     clockTime,
@@ -42,10 +57,35 @@
     shown as showing,
     songs,
     update,
+    type Artwork,
     type Player,
     type Players,
+    type Snapshot,
   } from './lib/music'
   import { Spring } from './lib/spring'
+  import {
+    add,
+    chimeSlot,
+    endOf,
+    ended,
+    formatLeft,
+    formatOvertime,
+    fraction,
+    isTimer,
+    long,
+    names,
+    nextTick,
+    overtime,
+    pause,
+    resume,
+    start as startTimer,
+    words,
+    type Timer,
+  } from './lib/timers'
+  import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
+  import { WORDS, announce, keysOf } from './lib/welcome'
+  import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
+  import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
 
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
   const LEAVE = 300
@@ -66,6 +106,8 @@
   let clock = $state<HTMLElement>()
   let art = $state<HTMLElement>()
   let eq = $state<HTMLElement>()
+  let ring = $state<HTMLElement>()
+  // Calls and timers. Timers come from the command bar and from disk; only the demo makes calls for now.
   let activities = $state<Activity[]>([])
   // Music comes from Rust; `prefer` is the activity picked with a click on the bubble.
   let music = $state<Activity[]>([])
@@ -74,8 +116,9 @@
   let expanded = $state(false)
   let peeking = $state<string>()
   let hidden = $state(false)
-  let presence: Presence = 'shown'
-  let revealed = $state(true)
+  let presence = $state<Presence>('shown')
+  // Off the screen until the startup drop brings the island in.
+  let revealed = $state(false)
   let now = $state(new Date())
   // Windows' default. Rust sends the user's own each time the cursor arrives.
   let hoverTime = 400
@@ -86,34 +129,137 @@
   let onTag = false
   let card = $state(false)
   let tagTimer: ReturnType<typeof setTimeout> | undefined
+  // The command bar: its line, and the peek it folds into after Enter. Its shortcut, Start's apps and whether Claude's
+  // app is installed come from Rust; the demo brings stand-ins.
+  const lang: Lang = langOf(location.search, navigator.language)
+  let barOpen = $state(false)
+  let line = $state('')
+  let launch = $state<ReturnType<typeof markOf> & { text: string }>()
+  let launchTimer: ReturnType<typeof setTimeout> | undefined
+  // The time asked in the bar: the hover view shows it with the date, then the previous view comes back.
+  let telling = $state(false)
+  let apps = $state<Listed[]>([])
+  let claudeApp = $state(false)
+  let shortcut = $state<string>()
+  // The first-launch welcome: due ('waiting'), on the island, or over for this session. `welcome` is its view once
+  // it greets, `blank` keeps the time out of the island it drops in, and `mark` is the logo that stands in for the
+  // bead with reduced motion. `spoken` is what a screen reader hears.
+  let launched = $state(false)
+  let greeting = $state<'waiting' | 'playing' | 'over'>('over')
+  let welcome = $state<Welcome>()
+  let blank = $state(false)
+  let mark = $state(false)
+  let spoken = $state('')
+  const keys = $derived(keysOf(shortcut, lang))
+  // Icons asked for, by app id: `null` while Rust reads one, or when an app has none. Not reactive: one arriving
+  // must not rerun the effect that asks for them.
+  const icons: Record<string, Listed['icon']> = {}
+  // A timer started from the bar swells the island as it lands.
+  let swell = false
 
+  // The last arrangement, so equals keep their place. Written from the derived as a plain variable: reading it
+  // there doesn't make the derived depend on itself.
   let shown: Arrangement | undefined
-  const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
-  const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
-  const key = $derived('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name)
+  // While its panel is open, a timer keeps the island, even paused: the panel stays under the cursor.
+  const arrangement = $derived.by(() => {
+    const pin = expanded && isTimer(shown?.island) ? shown.island.id : undefined
+    return (shown = arrange([...activities, ...music], shown, prefer, now.getTime(), pin))
+  })
+  const timers = $derived(activities.filter(isTimer))
+  // Each timer's name: its label, or "Minuteur 2" among several without one.
+  const named = $derived(names(timers, lang))
+  const said = $derived(words(lang))
+  // The timer on the island, and how it fits. Its name and digits are measured in the hidden copy below.
+  const top = $derived(isTimer(arrangement.island) ? arrangement.island : undefined)
+  let nameWidth = $state(0)
+  let digitsWidth = $state(0)
+  const topName = $derived(top && (named.get(top.id) ?? (ended(top, now.getTime()) ? said.done : undefined)))
+  const topDigits = $derived(top && timerDigits(top))
+  const fit = $derived.by((): TimerFit | undefined => {
+    if (!top) return
+    const t = now.getTime()
+    // clientWidth rounds: a pixel more each keeps the name from an ellipsis over a fraction of a pixel.
+    return { ended: ended(top, t), long: long(top, t), name: topName ? nameWidth + 1 : 0, digits: digitsWidth + 1 }
+  })
+  const view = $derived(
+    resolveView({
+      activity: arrangement.island,
+      // No hover view while the welcome plays: a cursor on it holds the shortcut instead.
+      hovered: hovered && greeting !== 'playing',
+      expanded,
+      peeking,
+      bar: barOpen,
+      launch: !!launch,
+      clock: telling,
+      timer: fit,
+      welcome,
+      blank,
+    }),
+  )
+  // While the bar and its answer hold the island, what had it waits in the bubble. The welcome keeps the island
+  // the only black mass.
+  const beside = $derived(
+    barOpen || launch || telling
+      ? arrangement.island
+      : launched && greeting !== 'playing'
+        ? arrangement.bubble
+        : undefined,
+  )
+  // The bar names timers as the island does, so 'stop minuteur 2' finds the second one.
+  const options = $derived(
+    barOpen
+      ? choices(line, {
+          apps,
+          lang,
+          claudeApp,
+          timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
+          now: now.getTime(),
+        })
+      : ([] as Choice<Listed>[]),
+  )
   const size = $derived(sizeOf(view))
+  // A timer's shape changes size without changing view, as an hour passes or its name shows.
+  const key = $derived(
+    ('activity' in view && view.activity
+      ? `${view.name}:${view.activity.id}`
+      : view.name === 'welcome'
+        ? `welcome:${view.step}`
+        : view.name) + `:${size.width}x${size.height}`,
+  )
   const reduced = $derived(prefersReducedMotion.current)
 
   // What the island shows, piece by piece. A piece that stays from one view to the next moves instead of fading.
   const parts = $derived.by(() => {
-    const name = revealed ? view.name : undefined
+    const name = revealed && !blank ? view.name : undefined
     const activity = name && 'activity' in view ? view.activity : undefined
     return {
-      date: name === 'hover',
-      time: name === 'idle' || name === 'hover' || activity?.kind === 'call',
+      date: name === 'hover' && !activity,
+      time: ((name === 'idle' || name === 'hover') && !activity) || activity?.kind === 'call',
       panel: name === 'expanded' && !activity,
       music: activity?.kind === 'music' ? activity : undefined,
       player: name === 'expanded' && activity?.kind === 'music' ? activity : undefined,
       track: name === 'peek' && activity?.kind === 'music' ? activity : undefined,
       call: activity?.kind === 'call' ? activity : undefined,
       timer: activity?.kind === 'timer' ? activity : undefined,
+      bar: name === 'bar',
+      launch: name === 'launch' ? launch : undefined,
+      welcome: name && view.name === 'welcome' ? view.step : undefined,
     }
   })
 
-  // A running timer needs the seconds, in step with its end; the clock alone wakes up once a minute.
-  const ends = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a.endsAt] : [])))
+  // A timer on screen needs the seconds, in step with its end. Off screen, a timer only wakes the page as it ends and
+  // for each chime; a paused one never does. The clock alone wakes up once a minute.
+  const onScreen = $derived(
+    hidden ? '' : [arrangement.island, arrangement.bubble].flatMap((a) => (isTimer(a) ? [a.id] : [])).join(' '),
+  )
   $effect(() => {
-    const wait = () => (ends.length ? msUntilNextSecond(Math.min(...ends), Date.now()) : msUntilNextMinute(new Date()))
+    void [timers, onScreen]
+    const wait = () =>
+      untrack(() => {
+        const t = Date.now()
+        const shownTimers = timers.filter((a) => onScreen.split(' ').includes(a.id))
+        return Math.min(nextTick(timers, shownTimers, t) ?? Infinity, msUntilNextMinute(new Date(t)))
+      })
     now = new Date()
     let timer = setTimeout(function tick() {
       now = new Date()
@@ -122,24 +268,30 @@
     return () => clearTimeout(timer)
   })
 
+  // --- Shape springs ---
+
   // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
   // of the island and `bubble` is its size; `tagShift`, `tagW` and `tagH` do the same for the privacy tag, which
-  // also opens into a card; `drop` lifts everything off the screen in fullscreen.
+  // also opens into a card; `drop` lifts everything off the screen in fullscreen, and at startup until the first
+  // drop. `inkD` and `inkR` are the welcome's bead: its centre's distance under the pill, and its radius.
   const start = untrack(() => size)
   const width = new Spring(start.width)
   const height = new Spring(start.height)
-  const drop = new Spring(0)
+  const drop = new Spring(-(TOP + start.height + 24))
   const travel = new Spring(0)
   const bubble = new Spring(0)
   const tagShift = new Spring(0)
   const tagW = new Spring(0)
   const tagH = new Spring(0)
-  const springs = [width, height, drop, travel, bubble, tagShift, tagW, tagH]
+  const inkD = new Spring(0)
+  const inkR = new Spring(0)
+  const springs = [width, height, drop, travel, bubble, tagShift, tagW, tagH, inkD, inkR]
 
   let goo = $state(false)
   let sigma = $state(0)
   let ramp: { from: number; to: number; start: number; end: number } | undefined
   let phase: 'none' | 'split' | 'shown' | 'merge' = 'none'
+  let inkPhase: 'none' | 'split' | 'merge' = 'none'
   let delayed: ReturnType<typeof setTimeout> | undefined
   let reveal = 0
   // Where the open card's left edge stays while it is open.
@@ -163,6 +315,7 @@
     const [tw, th] = [tagW.value, tagH.value]
     const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
     const beside = right.x + right.width + TAG_GAP
+    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize.
     anchor = card ? (anchor ?? beside) : undefined
     const flag =
       tw > 0.5
@@ -173,7 +326,11 @@
             height: th,
           }
         : undefined
-    return { fill, dot, tag: flag, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
+    // The bead hangs from the middle of the pill's bottom edge, as the logo's drop does.
+    const r = inkR.value
+    const ink =
+      r > 0.5 ? { x: viewport / 2 - r, y: fill.y + h + inkD.value - r, width: 2 * r, height: 2 * r } : undefined
+    return { fill, dot, tag: flag, ink, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
   }
 
   // Frames run only while something moves: at rest there is no loop, no IPC and no filter.
@@ -203,6 +360,12 @@
       pulse(120, 0, t)
       fade(0, 120, t)
     }
+    if (inkPhase === 'merge' && inkD.value < -8) {
+      inkPhase = 'none'
+      inkD.jump(0)
+      inkR.jump(0)
+      fade(0, 120, t)
+    }
     if (tagPhase === 'split' && near(tagShift) && near(tagW)) {
       tagPhase = 'shown'
       fade(0, 120, t)
@@ -215,6 +378,8 @@
     if (!hidden && !revealed && drop.value >= reveal) revealed = true
     geometry = shape()
     const moving = springs.some((s) => !s.resting) || !!ramp || !!delayed
+    if (folding && !moving) folding = false
+    ride()
     follow(moving)
     report(moving)
     if (moving) raf = requestAnimationFrame(frame)
@@ -231,12 +396,22 @@
   function reshape(from: View, to: View) {
     clearTimeout(delayed)
     delayed = undefined
+    const swelled = swell
+    swell = false
     const target = sizeOf(to)
     // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
+    // Unlike the drops, it still springs in forced colors: an outline follows it fine.
     if (reduced || (hidden && drop.resting)) {
-      width.jump(target.width)
-      height.jump(target.height)
-      return wake()
+      const jump = () => {
+        delayed = undefined
+        width.jump(target.width)
+        height.jump(target.height)
+        wake()
+      }
+      // Reduced motion: the welcome's content fades out in the old shape before the shape changes.
+      if (reduced && (from.name === 'welcome' || to.name === 'welcome')) delayed = setTimeout(jump, gap)
+      else jump()
+      return
     }
     const { width: w, height: h, delay, pulse: arrives } = motion(from, to)
     const go = () => {
@@ -244,7 +419,7 @@
       const t = performance.now()
       drive(width, target.width, w, t)
       drive(height, target.height, h, t)
-      if (arrives) pulse(0, 150, t)
+      if (arrives || swelled) pulse(0, 150, t)
       wake()
     }
     if (delay) delayed = setTimeout(go, delay)
@@ -284,15 +459,21 @@
     wake()
   }
 
+  // --- Bubble ---
+
+  // A drop lands at once without motion, in forced colors, where the goo can't show, and off the screen.
+  const instant = () => reduced || forced.current || (hidden && drop.resting)
+
   // The bubble splits off like a drop, joined to the island by a neck until they part.
+  // split and merge mirror emerge and retract below: change them together.
   $effect(() => {
-    const has = !!arrangement.bubble
+    const has = !!beside
     untrack(() => (has ? split() : merge()))
   })
 
   function split() {
     if (phase === 'split' || phase === 'shown') return
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -314,7 +495,7 @@
 
   function merge() {
     if (phase === 'none' || phase === 'merge') return
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -326,7 +507,10 @@
     drive(bubble, 20, [0.36, 0], t)
   }
 
+  // --- Privacy tag ---
+
   // The privacy tag splits off whatever is rightmost like a drop, as the bubble does, and sinks back into it.
+  // emerge and retract mirror split and merge above: change them together.
   let tagPhase: 'none' | 'split' | 'shown' | 'merge' = 'none'
   $effect(() => {
     const has = tagged(privacy)
@@ -336,7 +520,7 @@
   function emerge() {
     if (tagPhase === 'split' || tagPhase === 'shown') return
     const w = Math.max(TAG, tagContent)
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       tagShift.jump(0)
       tagW.jump(w)
       tagH.jump(TAG)
@@ -368,7 +552,7 @@
       retracting = setTimeout(() => tagged(privacy) || retract(), 320)
       return
     }
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       tagW.jump(0)
       tagH.jump(0)
       tagPhase = 'none'
@@ -382,11 +566,18 @@
     drive(tagH, 12, [0.36, 0], t)
   }
 
+  // --- Content transitions ---
+
   // Pieces that stay from one view to the next move from their old box to their new one, in step
   // with the shape, so a change of mind halfway costs nothing.
   let before = new Map<Element, DOMRect>()
   let box: DOMRect | undefined
   let grows = true
+  // Reduced motion: how long new content waits for the old one to fade out, during the welcome.
+  let gap = 0
+  // Out of the welcome, the new content waits for the shape as it starts to close, and keeps to its middle.
+  let folding = false
+  let lag = 0
   let last = untrack(() => view)
   let flips: { node: HTMLElement; dx: number; dy: number; scale: number }[] = []
   let basis = { w0: 0, w1: 0, h0: 0, h1: 0 }
@@ -397,6 +588,9 @@
       if (!content) return
       const [a, b] = [sizeOf(last), size]
       grows = revealed && b.width * b.height >= a.width * a.height
+      gap = reduced && (last.name === 'welcome' || view.name === 'welcome') ? 120 : 0
+      folding = !reduced && last.name === 'welcome' && view.name !== 'welcome'
+      lag = folding ? motion(last, view).delay : 0
       box = content.getBoundingClientRect()
       before = new Map([...content.children].map((node) => [node, node.getBoundingClientRect()]))
     })
@@ -410,13 +604,21 @@
       if (from === view) return
       flip()
       reshape(from, view)
+      ride()
     })
   })
+
+  // The content box is laid out at its final height from the top: folding, it rides the shape's middle.
+  function ride() {
+    if (content) content.style.translate = folding ? `-50% ${(height.value - size.height) / 2}px` : ''
+  }
 
   function flip() {
     if (reduced) return
     // A piece on its way out is inert and has already left the layout.
-    const nodes = [clock, art, eq].filter((node): node is HTMLElement => !!node && !node.inert && before.has(node))
+    const nodes = [clock, art, eq, ring].filter(
+      (node): node is HTMLElement => !!node && !node.inert && before.has(node),
+    )
     for (const node of nodes) node.style.transform = ''
     flips = nodes.map((node) => {
       const [a, b] = [before.get(node)!, node.getBoundingClientRect()]
@@ -445,7 +647,7 @@
 
   // Content comes in from a blur a beat after the shape starts, and leaves faster than it came.
   function enter(node: HTMLElement, { step = 0 } = {}) {
-    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    if (reduced) return { delay: gap, duration: 120, css: (t: number) => `opacity:${t}` }
     if (content?.contains(node)) {
       // Scaled from the island's center, or from its top for the panel and the peek.
       const [r, c] = [node.getBoundingClientRect(), content.getBoundingClientRect()]
@@ -453,7 +655,7 @@
       node.style.transformOrigin = `${c.left + c.width / 2 - r.left}px ${top - r.top}px`
     }
     return {
-      delay: ENTER.delay + ENTER.stagger * step,
+      delay: ENTER.delay + ENTER.stagger * step + lag,
       duration: ENTER.duration,
       easing: entering,
       css: (t: number, u: number) =>
@@ -470,7 +672,8 @@
       Object.assign(node.style, {
         position: 'absolute',
         left: `calc(50% + ${r.left - c.left - c.width / 2}px)`,
-        top: `${r.top - c.top}px`,
+        // Folding, the box rides the shape's middle: the old row starts where it was drawn.
+        top: `${r.top - c.top - (folding ? (c.height - size.height) / 2 : 0)}px`,
         width: `${node.offsetWidth}px`,
         margin: '0',
         transform: '',
@@ -498,6 +701,8 @@
     }
   }
 
+  // --- Clicks, cursor, fullscreen and peeks ---
+
   // The Rust side lets clicks through everywhere except over these rounded rectangles, padded by a pixel.
   let sent: (Rect & { radius: number })[] = []
   function report(moving: boolean) {
@@ -523,7 +728,7 @@
   // Gives under the finger at once. The panel opens on release and carries the press's speed.
   let pressed = false
   function press(down: boolean) {
-    if (reduced || expanded || pressed === down) return
+    if (reduced || expanded || barOpen || greeting === 'playing' || pressed === down) return
     pressed = down
     const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
@@ -535,6 +740,8 @@
   function open() {
     if (hidden) return
     pressed = false
+    // A finished timer never opens: a click on it is its OK.
+    if (top && ended(top, Date.now())) return dismiss(top.id)
     expanded = true
   }
 
@@ -555,6 +762,7 @@
       expanded = false
       hovered = false
       peeking = undefined
+      closeBar()
     }
     const t = performance.now()
     const off = -(TOP + height.target + 24)
@@ -567,15 +775,9 @@
     wake()
   }
 
-  // A timer that runs out, or a new song while the island is compact, swells it for a moment. A new song in the
-  // bubble swells the bubble.
-  const done = $derived(arrangement.island?.kind === 'timer' && now.getTime() >= arrangement.island.endsAt)
-  $effect(() => {
-    if (done) untrack(alert)
-  })
-
-  const newSong = (now?: Activity, was?: Activity) =>
-    now?.kind === 'music' && was?.kind === 'music' && now.id === was.id && now.title !== was.title
+  // A new song while the island is compact swells it for a moment. A new song in the bubble swells the bubble.
+  const newSong = (next?: Activity, prev?: Activity) =>
+    next?.kind === 'music' && prev?.kind === 'music' && next.id === prev.id && next.title !== prev.title
   let song: Activity | undefined
   let aside: Activity | undefined
   $effect(() => {
@@ -589,6 +791,7 @@
   })
 
   // The cursor crosses the island on its way to tabs: it grows only once the cursor rests on it.
+  // point and move share their rest logic with pointTag and moveTag below: change them together.
   let hoverTimer: ReturnType<typeof setTimeout>
   let pointer = false
   let rest: { x: number; y: number } | undefined
@@ -598,6 +801,10 @@
     clearTimeout(hoverTimer)
     if (!inside) press(false)
     if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
+    if (!inside && held) {
+      held = false
+      beats.push(setTimeout(fold, LEAVE))
+    }
   }
 
   // A cursor still moving on the island starts the wait over from where it is.
@@ -621,28 +828,282 @@
       listen('island://dismiss', () => {
         expanded = false
         closeCard()
+        closeBar()
       }),
       listen<Presence>('island://presence', ({ payload }) => {
+        presenceHeard = true
         presence = payload
         fullscreen(payload === 'hidden')
+        // The welcome stops while you're busy or in fullscreen, and plays again once the island is back.
+        if (payload !== 'shown' && greeting === 'playing') end(true)
       }),
+      listen('bar://toggle', () => toggleBar()),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
 
   $effect(() => {
     // Esc and a click elsewhere close the tag's card too.
-    if (tauri) invoke('set_island_expanded', { expanded: expanded || card })
+    if (tauri) invoke('set_island_expanded', { expanded: expanded || card || barOpen })
   })
 
   let peekTimer: ReturnType<typeof setTimeout>
-  function peek(id: string) {
+  function peek(id: string, ms = 3000) {
     // The activity has already changed in place: only the peek is skipped.
     if (!peeks(activities.find((a) => a.id === id), presence)) return
     peeking = id
     clearTimeout(peekTimer)
-    peekTimer = setTimeout(() => (peeking = undefined), 3000)
+    peekTimer = setTimeout(() => (peeking = undefined), ms)
   }
+
+  // --- Timers ---
+
+  // The digits a timer shows: the time left, or since its end.
+  function timerDigits(t: Timer) {
+    const at = now.getTime()
+    return ended(t, at) ? formatOvertime(overtime(t, at)) : formatLeft(t, at)
+  }
+
+  // Timers whose end the island already showed, and the last chime each one rang. Not reactive, as with the icons:
+  // a change must not rerun the effect that makes it.
+  const announced: Record<string, true> = {}
+  const rung: Record<string, number> = {}
+
+  // At its end a timer chimes every 10 s for a minute, even in fullscreen. Then, as soon as the island shows, it
+  // takes the island from all but a call, swells it and peeks for 6 s before it folds into the done pill. Run
+  // before the content is measured, so the shape heads straight for the peek.
+  $effect.pre(() => {
+    const at = now.getTime()
+    const [list, first, second, away] = [timers, arrangement.island, arrangement.bubble, hidden]
+    untrack(() => {
+      // A timer gone without a word from here, such as one the demo took away, leaves nothing behind.
+      for (const id of [...Object.keys(rung), ...Object.keys(announced)]) {
+        if (!list.some((t) => t.id === id)) forget(id)
+      }
+      let chime = false
+      for (const t of list) {
+        const slot = chimeSlot(t, at)
+        if (slot === undefined || rung[t.id] === slot) continue
+        rung[t.id] = slot
+        chime = true
+      }
+      // The browser demo stays silent.
+      if (chime && tauri) invoke('timer_chime').catch(console.error)
+      if (away) return
+      for (const t of list) {
+        if (!ended(t, at) || announced[t.id]) continue
+        announced[t.id] = true
+        // A timer that ends folds the welcome to it, even one already on the island as it began.
+        if (greeting === 'playing') end()
+        if (t.id === first?.id) {
+          expanded = false
+          alert()
+          peek(t.id, END_PEEK)
+        } else if (t.id === second?.id) nudge()
+      }
+    })
+  })
+
+  function forget(id: string) {
+    delete announced[id]
+    delete rung[id]
+    if (peeking === id) peeking = undefined
+  }
+
+  // Changes one timer. One that ended and gets more time starts over under a new id.
+  function edit(id: string, change: (timer: Timer) => Timer | undefined) {
+    activities = activities.flatMap((a) => {
+      if (a.id !== id || !isTimer(a)) return [a]
+      const next = change(a)
+      if (next?.id !== id) forget(id)
+      return next ? [next] : []
+    })
+  }
+
+  // OK, a click on the done pill, × in the panel or 'stop' in the bar.
+  const dismiss = (id: string) => edit(id, () => undefined)
+
+  // +1 min on a finished timer: a new minute under the same name, which lands with a swell.
+  function again(id: string) {
+    swell = true
+    edit(id, (t) => add(t, 60_000, Date.now()))
+  }
+
+  function togglePause(t: Timer) {
+    const at = Date.now()
+    edit(t.id, (a) => (a.left === undefined ? pause(a, at) : resume(a, at)))
+  }
+
+  // --- Startup and first-launch welcome ---
+
+  // Every start drops the island in from above the screen, as it comes back after fullscreen, on the first frame
+  // after the fonts are ready. The first start after install also says hello, once (welcome_pending).
+  let presenceHeard = false
+  let saved = false
+  let held = false
+  let first: string | undefined
+  let beats: ReturnType<typeof setTimeout>[] = []
+  let greet: HTMLElement | undefined
+  let row = $state<HTMLElement>()
+
+  const ask = <T>(command: string, fallback: T) =>
+    tauri ? invoke<T>(command).catch(() => fallback) : Promise.resolve(fallback)
+  Promise.all([
+    ask<Presence>('island_presence', 'shown'),
+    ask('welcome_pending', false),
+    ask<string | null>('bar_shortcut', null),
+    document.fonts.ready,
+  ]).then(([state, pending, registered]) => {
+    // Set a frame ahead, so the hidden shortcut row is in the page when play() measures it. The demo brings its own.
+    if (tauri) shortcut = registered ?? undefined
+    requestAnimationFrame(() => {
+      // An event that came in the meantime is newer.
+      if (!presenceHeard) presence = state
+      greeting = pending ? 'waiting' : 'over'
+      launched = true
+      // Hidden at launch, the island comes in with the return drop once the fullscreen app ends.
+      if (presence === 'hidden') hidden = true
+      if (hidden) return
+      if (pending && presence === 'shown') play(true)
+      else arrive()
+    })
+  })
+
+  function arrive() {
+    if (reduced) {
+      // Nothing travels: the island fades in where it is.
+      drop.jump(0)
+      revealed = true
+      document.body.animate({ opacity: [0, 1] }, 200)
+    } else {
+      reveal = drop.value * 0.4
+      drop.to(0, ...FULLSCREEN.show, performance.now())
+    }
+    wake()
+  }
+
+  // The welcome plays only while the island is shown and nothing else holds it, and waits until then.
+  $effect(() => {
+    if (!launched || greeting !== 'waiting' || presence !== 'shown' || hidden || barOpen || expanded || card) return
+    // Coming back from fullscreen, the return drop is its drop.
+    untrack(() => play(!drop.resting))
+  })
+
+  // Drop, bead, greeting, shortcut, then the fold to whatever the island would show (WELCOME). Played later than
+  // the start, the island is already in place: it starts at the bead.
+  function play(dropping: boolean) {
+    // Measured on the hidden copies before anything moves: a layout mid-animation drops frames.
+    const wide = (node?: HTMLElement) => Math.ceil(node?.getBoundingClientRect().width ?? 0)
+    const [hello, shown] = [welcomeWidth('hello', wide(greet)), keys && welcomeWidth('keys', wide(row))]
+    greeting = 'playing'
+    first = arrangement.island?.id
+    const t0 = performance.now() - (dropping ? 0 : WELCOME.ink)
+    const at = (ms: number, then: () => void) => beats.push(setTimeout(then, t0 + ms - performance.now()))
+    if (dropping) {
+      blank = true
+      // Still above the screen: a song heard before now must not swing the empty island it drops as.
+      const idle = sizeOf({ name: 'idle' })
+      width.jump(idle.width)
+      height.jump(idle.height)
+      mark = reduced
+      arrive()
+    }
+    if (!instant()) at(WELCOME.ink, ink)
+    at(WELCOME.hello, () => {
+      absorb()
+      blank = mark = false
+      welcome = { name: 'welcome', step: 'hello', width: hello }
+      spoken = announce(shortcut, lang)
+    })
+    if (shown) {
+      at(WELCOME.keys, () => (welcome = { name: 'welcome', step: 'keys', width: shown }))
+      // Seen once the shortcut has shown for a second.
+      at(WELCOME.keys + 1000, save)
+      at(WELCOME.fold, fold)
+    } else
+      at(WELCOME.bare, () => {
+        save()
+        fold()
+      })
+  }
+
+  // A cursor resting on the island holds the shortcut: the fold waits until 300 ms after it leaves (point).
+  function fold() {
+    if (pointer) held = true
+    else end()
+  }
+
+  // A click on the island folds at once, from wherever the shape is, and counts as seen.
+  function skip() {
+    save()
+    end()
+  }
+
+  /** Folds to whatever the island would show. `again`: it plays again once the island is shown, unless seen. */
+  function end(again = false) {
+    beats.forEach(clearTimeout)
+    beats = []
+    held = false
+    absorb()
+    blank = mark = false
+    welcome = undefined
+    greeting = again && !saved ? 'waiting' : 'over'
+    if (spoken) setTimeout(() => (spoken = ''), 1500)
+  }
+
+  function save() {
+    if (saved) return
+    saved = true
+    if (tauri) invoke('welcome_done').catch(console.error)
+  }
+
+  // A call, a timer or a song that starts ends the welcome and takes the island. A song already playing may reach
+  // the page while the island drops in: that one is what the welcome folds to.
+  $effect(() => {
+    const next = arrangement.island
+    untrack(() => {
+      if (greeting !== 'playing' || next?.id === first) return
+      if (!welcome && next?.kind === 'music') first = next.id
+      else end()
+    })
+  })
+
+  // The bead splits off the pill's bottom from inside, as the bubble splits off its end, with the same springs and
+  // a wider goo, since its gap is wider. ink and absorb mirror split and merge above: change them together.
+  function ink() {
+    const t = performance.now()
+    inkPhase = 'split'
+    ramp = undefined
+    goo = true
+    sigma = INK.goo
+    inkD.jump(-8)
+    inkR.jump(8)
+    inkD.to(INK.d, 0.5, 0.3, t)
+    inkR.to(INK.r, 0.4, 0.25, t)
+    wake()
+  }
+
+  // Drawn back up into the pill, which lets it go once its centre is 8 px inside (frame).
+  function absorb() {
+    if (inkPhase !== 'split') return
+    const t = performance.now()
+    inkPhase = 'merge'
+    drive(inkD, -14, [0.36, 0], t)
+    drive(inkR, 6, [0.36, 0], t)
+    wake()
+  }
+
+  // The demo plays it again, from the drop.
+  function replay() {
+    if (hidden) return
+    end()
+    saved = false
+    drop.jump(-(TOP + height.target + 24))
+    revealed = false
+    play(true)
+  }
+
+  // --- Music ---
 
   // Every player Windows can see. A paused one stays a minute, and one that vanishes for a moment is held.
   let players: Players = nobody()
@@ -655,7 +1116,7 @@
     const t = Date.now()
     players = update(players, latest, t)
     music = songs(showing(players, t), artwork)
-    if (prefer && (prefer === CLOCK.id ? !music.length : !music.some((a) => a.id === prefer))) prefer = undefined
+    prefer = stillPicked(prefer, [...activities, ...music])
     // The player's own word after a seek takes over from the place the bar was dropped at.
     const answer = scrub && !scrub.held && latest.find((p) => p.id === scrub!.id)
     if (answer && (answer.positionMs !== scrub!.from.positionMs || answer.updatedMs !== scrub!.from.updatedMs)) {
@@ -680,20 +1141,6 @@
     refresh()
   }
 
-  /** The artwork's main colour, read from a 16 px copy, once per picture. */
-  async function tint(url: string): Promise<string | undefined> {
-    try {
-      const image = new Image()
-      image.src = url
-      await image.decode()
-      const context = new OffscreenCanvas(16, 16).getContext('2d')
-      context?.drawImage(image, 0, 0, 16, 16)
-      return context ? dominant(context.getImageData(0, 0, 16, 16).data) : undefined
-    } catch {
-      return undefined
-    }
-  }
-
   $effect(() => {
     if (!tauri) return
     const stops = [
@@ -702,14 +1149,16 @@
         latest = payload
         refresh()
       }),
-      listen<{ id: string; url: string | null }>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
+      listen<Artwork>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
     ]
     // What Rust sent before these listeners existed.
-    invoke<{ players: Player[]; artwork: Record<string, string> }>('media_players').then((snapshot) => {
-      if (!heard) latest = snapshot.players
-      Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
-      refresh()
-    })
+    invoke<Snapshot>('media_players')
+      .then((snapshot) => {
+        if (!heard) latest = snapshot.players
+        Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
+        refresh()
+      })
+      .catch(console.error)
     return () => {
       stops.forEach((stop) => stop.then((unlisten) => unlisten()))
       clearTimeout(change)
@@ -721,15 +1170,19 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
+  // --- Privacy state, tag size and card ---
+
   $effect(() => {
     if (!tauri) return
-    let heard = false
+    let privacyHeard = false
     const stop = listen<Privacy>('privacy://state', ({ payload }) => {
-      heard = true
+      privacyHeard = true
       privacy = payload
     })
     // What Rust found before this listener existed.
-    invoke<Privacy>('privacy_state').then((state) => heard || (privacy = state))
+    invoke<Privacy>('privacy_state')
+      .then((state) => privacyHeard || (privacy = state))
+      .catch(console.error)
     return () => {
       stop.then((unlisten) => unlisten())
     }
@@ -744,24 +1197,25 @@
     untrack(() => {
       if (tagPhase !== 'split' && tagPhase !== 'shown') return
       if (w === tagW.target && h === tagH.target) return
-      if (reduced || forced.current || (hidden && drop.resting)) {
+      if (instant()) {
         tagW.jump(w)
         tagH.jump(h)
         return wake()
       }
       const t = performance.now()
       if (h > tagH.target) {
-        drive(tagW, w, [0.46, 0.26], t)
-        drive(tagH, h, [0.52, 0.18], t)
+        drive(tagW, w, OPEN.width, t)
+        drive(tagH, h, OPEN.height, t)
       } else if (h < tagH.target) {
-        drive(tagW, w, [0.4, 0], t)
-        drive(tagH, h, [0.34, 0], t)
+        drive(tagW, w, CLOSE.width, t)
+        drive(tagH, h, CLOSE.height, t)
       } else drive(tagW, w, w > tagW.value ? [0.4, 0.3] : [0.3, 0], t)
       wake()
     })
   })
 
   // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
+  // pointTag and moveTag share their rest logic with point and move above: change them together.
   let tagRest: { x: number; y: number } | undefined
   function pointTag(inside: boolean) {
     onTag = inside
@@ -783,41 +1237,111 @@
     card = false
   }
 
-  // The app's own icon, painted from the pixels Rust read.
-  function paintIcon(canvas: HTMLCanvasElement, icon: { side: number; rgba: string }) {
-    const draw = ({ side, rgba }: typeof icon) => {
-      const bytes = Uint8ClampedArray.from(atob(rgba), (c) => c.charCodeAt(0))
-      canvas.width = canvas.height = side
-      canvas.getContext('2d')?.putImageData(new ImageData(bytes, side, side), 0, 0)
+  // --- Command bar ---
+
+  // It opens from whatever the island shows, and gives that view back on Esc or when its answer is done.
+  function toggleBar() {
+    if (barOpen) return closeBar()
+    if (hidden) return
+    if (greeting === 'playing') end()
+    expanded = false
+    hovered = false
+    closeCard()
+    clearTimeout(launchTimer)
+    launch = undefined
+    telling = false
+    barOpen = true
+    if (!tauri) return
+    // The list is read at startup, so this only copies it; Rust reads it again in the background when it's old.
+    invoke('bar_focus', { open: true })
+    invoke<{ name: string; id: string }[]>('apps_list')
+      .then((list) => (apps = list.map((app) => ({ ...app, color: MONOGRAM, icon: icons[app.id] }))))
+      .catch(console.error)
+    invoke<boolean>('has_claude')
+      .then((known) => (claudeApp = known))
+      .catch(console.error)
+  }
+
+  // Nothing typed outlives the bar. Focus goes back to the window it came from, except when an app or a site is
+  // opening: that one takes it.
+  function closeBar(giveBack = true) {
+    if (barOpen && tauri && giveBack) invoke('bar_focus', { open: false })
+    barOpen = false
+    line = ''
+  }
+
+  // The monogram of an app whose icon hasn't come yet, as in the privacy card.
+  const MONOGRAM = 'rgb(255 255 255 / 0.16)'
+
+  // The app on the chip gets its icon from Rust, once. The monogram keeps its place until it arrives.
+  $effect(() => {
+    const top = options[0]
+    const id = top?.kind === 'app' ? top.app.id : undefined
+    if (!tauri || !id || id in icons) return
+    icons[id] = null
+    invoke<Listed['icon']>('app_icon', { id })
+      .then((icon) => {
+        icons[id] = icon
+        if (icon) apps = apps.map((app) => (app.id === id ? { ...app, icon } : app))
+      })
+      .catch(console.error)
+  })
+
+  // The peek after Enter: what opens, or that it couldn't.
+  function show(next: typeof launch, ms: number) {
+    launch = next
+    clearTimeout(launchTimer)
+    launchTimer = setTimeout(() => (launch = undefined), ms)
+  }
+
+  // Enter: the bar folds into its answer. A timer becomes the island's timer; the time shows in the hover view for
+  // 2.5 s; an app or a question shows what opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
+  // nothing.
+  function run(choice: Choice<Listed>) {
+    if (!barOpen) return
+    closeBar(choice.kind !== 'app' && choice.kind !== 'ask')
+    const t = Date.now()
+    if (choice.kind === 'timer') {
+      swell = true
+      activities = [...activities, startTimer(choice.ms, t, choice.name)]
+    } else if (choice.kind === 'add') edit(choice.id, (a) => add(a, choice.ms, t))
+    else if (choice.kind === 'pause') edit(choice.id, (a) => pause(a, t))
+    else if (choice.kind === 'resume') edit(choice.id, (a) => resume(a, t))
+    else if (choice.kind === 'stop') dismiss(choice.id)
+    else if (choice.kind === 'clock') {
+      telling = true
+      clearTimeout(launchTimer)
+      launchTimer = setTimeout(() => (telling = false), 2500)
+    } else if (choice.kind === 'app' || choice.kind === 'ask') {
+      const mark = markOf(choice)
+      show({ text: choice.kind === 'app' ? choice.app.name : choice.peek, ...mark }, 1200)
+      if (!tauri) return
+      const name = choice.kind === 'app' ? choice.app.name : ASSISTANTS[choice.to].name
+      const opened =
+        choice.kind === 'app'
+          ? invoke<boolean>('app_launch', { id: choice.app.id })
+          : invoke<boolean>('assistant_open', { target: choice.to, query: choice.question })
+      opened
+        .catch(() => false)
+        .then((ok) => {
+          if (ok || barOpen) return
+          // Rust gives focus back too, but not if the call itself failed.
+          invoke('bar_focus', { open: false }).catch(console.error)
+          show({ text: lang === 'fr' ? `Impossible d'ouvrir ${name}` : `Couldn't open ${name}`, ...mark }, 2000)
+        })
     }
-    draw(icon)
-    return { update: draw }
   }
 
-  function mute() {
-    if (tauri) invoke('privacy_mute', { muted: !privacy.muted })
-    else privacy = { ...privacy, muted: !privacy.muted }
-  }
-
-  function settings() {
-    if (tauri) invoke('privacy_settings', { camera: light(privacy) === 'camera' })
-    closeCard()
-  }
-
-  // Windows can't turn the camera off for every app the way it mutes the microphone: the app's own window can.
-  async function show(name: string) {
-    closeCard()
-    if (tauri && !(await invoke<boolean>('privacy_show', { name }))) settings()
-  }
+  // --- Bubble swap and seek ---
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
-    const picked = arrangement.bubble
-    if (picked && arrangement.island?.kind !== 'call') prefer = picked.id
+    const picked = beside
+    if (picked && arrangement.island?.kind !== 'call' && !barOpen && !launch && !telling) prefer = picked.id
   }
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
-  let track = $state<HTMLElement>()
+  let bar = $state<HTMLElement>()
   let scrub = $state<{ id: string; ms: number; held: boolean; at: number; from: Player }>()
   const playback = $derived.by(() => {
     const p = parts.player?.player
@@ -849,19 +1373,19 @@
   // Where the cursor is on the bar, in ms of the song shown.
   const under = ({ clientX }: PointerEvent) => {
     const end = parts.player?.player?.endMs
-    if (!track || !end) return 0
-    const { left, width } = track.getBoundingClientRect()
+    if (!bar || !end) return 0
+    const { left, width } = bar.getBoundingClientRect()
     return ((clientX - left) / width) * end
   }
 
   // In the panel the browser moves the progress bar on its own, and the times tick once a second while it plays.
-  let bar = $state<HTMLElement>()
+  let played = $state<HTMLElement>()
   let tick = $state(Date.now())
   $effect(() => {
     const p = playback
-    if (!bar || !p || p.endMs <= 0) return
+    if (!played || !p || p.endMs <= 0) return
     const at = position(p, Date.now())
-    const animation = bar.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
+    const animation = played.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
       duration: Math.max(1, (p.endMs - at) / (p.rate > 0 ? p.rate : 1)),
       fill: 'forwards',
     })
@@ -907,6 +1431,23 @@
         press,
         alert,
         fullscreen: () => fullscreen(!hidden),
+        bar: toggleBar,
+        welcome: replay,
+        set shortcut(next: string | undefined) {
+          shortcut = next
+        },
+        get apps() {
+          return apps
+        },
+        set apps(next) {
+          apps = next
+        },
+        get claudeApp() {
+          return claudeApp
+        },
+        set claudeApp(next) {
+          claudeApp = next
+        },
       }),
     )
   }
@@ -919,8 +1460,21 @@
   oncontextmenu={(event) => event.preventDefault()}
   onpointermove={move}
   onresize={wake}
-  onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
-  onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
+  onkeydown={(event) => {
+    if (tauri || event.key !== 'Escape') return
+    expanded = false
+    closeBar()
+  }}
+  onpointerdown={(event) => {
+    if (tauri || island.contains(event.target as Node)) return
+    expanded = false
+    closeBar()
+  }}
+  onmousedown={(event) => {
+    // A click on the chip or around the field must not take the typing away from it.
+    const target = event.target as Node
+    if (barOpen && island.contains(target) && !(target instanceof HTMLInputElement)) event.preventDefault()
+  }}
 />
 
 {#snippet digits(text: string)}
@@ -933,9 +1487,11 @@
   {/each}
 {/snippet}
 
-{#snippet icon(name: 'previous' | 'play' | 'pause' | 'next')}
+{#snippet icon(name: 'previous' | 'play' | 'pause' | 'next' | 'close')}
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    {#if name === 'play'}
+    {#if name === 'close'}
+      <path d="M6.5 6.5l11 11m0-11l-11 11" class="stroke" />
+    {:else if name === 'play'}
       <path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z" />
     {:else if name === 'pause'}
       <rect x="5.5" y="4" width="4.5" height="16" rx="1.2" /><rect x="14" y="4" width="4.5" height="16" rx="1.2" />
@@ -958,15 +1514,23 @@
   </svg>
 {/snippet}
 
-{#snippet camera()}
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <rect x="3" y="6.5" width="13" height="11" rx="2.5" /><path d="M16 10.5l5-3v9l-5-3" />
-  </svg>
-{/snippet}
-
 {#snippet dots(call: Extract<Activity, { kind: 'call' }>)}
   {#if call.mic}<span class="dot mic"></span>{/if}
   {#if call.camera}<span class="dot camera"></span>{/if}
+{/snippet}
+
+<!-- The timer's ring, full at the start and empty at the end. -->
+{#snippet dial(full: number, paused = false)}
+  <svg class="dial" class:paused viewBox="0 0 16 16" aria-hidden="true">
+    <circle cx="8" cy="8" r="6.5" class="rail" />
+    <circle cx="8" cy="8" r="6.5" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset={1 - full} />
+  </svg>
+{/snippet}
+
+<!-- A finished timer's buttons: a quiet +1 min, and OK. Their text is their name; the timer's is beside them. -->
+{#snippet finish(t: Timer)}
+  <button type="button" class="more" onclick={() => again(t.id)}>{said.more}</button>
+  <button type="button" class="ok" onclick={() => dismiss(t.id)}>OK</button>
 {/snippet}
 
 {#snippet glyph(activity: Activity)}
@@ -974,8 +1538,12 @@
     <time class="countdown hour" datetime={now.toISOString()}>{@render digits(formatBubbleTime(now))}</time>
   {:else if activity.kind === 'call'}
     <span class="dots">{@render dots(activity)}</span>
+  {:else if activity.kind === 'timer' && ended(activity, now.getTime())}
+    <span class="countdown">{@render dial(1)}</span>
   {:else if activity.kind === 'timer'}
-    <span class="countdown">{@render digits(formatCountdown(activity.endsAt - now.getTime(), true))}</span>
+    <span class="countdown" class:paused={activity.left !== undefined}>
+      {@render digits(formatCountdown(activity.left ?? activity.endsAt - now.getTime(), true))}
+    </span>
   {:else if activity.art}
     <span class="art" style:background={activity.color}><img src={activity.art} alt="" /></span>
   {:else}
@@ -1015,6 +1583,23 @@
   {#if geometry.tag}
     <div class="fill" style={place(geometry.tag)}></div>
   {/if}
+  {#if geometry.ink}
+    <div class="fill" style={place(geometry.ink)}></div>
+  {/if}
+  {#if mark}
+    <!-- Reduced motion: logo.svg standing still under the island, scaled so its pill is the island's 34 px. -->
+    <svg
+      class="logo"
+      viewBox="212 330 600 340"
+      style:left="{geometry.fill.x + geometry.fill.width / 2 - 63.75}px"
+      style:top="{geometry.fill.y}px"
+      out:dissolve={{ duration: 120 }}
+    >
+      <path
+        d="M292 330H732A80 80 0 0 1 732 490H566C540 490 522.5 525.3 553.1 551A64 64 0 1 1 470.9 551C501.5 525.3 484 490 458 490H292A80 80 0 0 1 292 330Z"
+      />
+    </svg>
+  {/if}
 </div>
 
 <div
@@ -1028,13 +1613,22 @@
   onpointerleave={() => (tauri ? press(false) : point(false))}
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
-  {#if !expanded}
-    <button type="button" class="opener" aria-label="Open" aria-expanded="false" onclick={open}></button>
+  {#if !expanded && !barOpen && !launch}
+    {@const done = fit?.ended && top}
+    <button
+      type="button"
+      class="opener"
+      aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
+      aria-expanded={done ? undefined : 'false'}
+      onclick={greeting === 'playing' ? skip : open}
+    ></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
   <span
     class="content view {view.name}"
     class:player={!!parts.player}
+    class:timer={!!parts.timer}
+    class:finished={!!parts.timer && fit?.ended}
     bind:this={content}
     style:width="{size.width}px"
     style:height="{size.height}px"
@@ -1083,8 +1677,8 @@
                 if (step && playback.canSeek) hold(position(playback, Date.now()) + step, false)
               }}
             >
-              <span class="bar" bind:this={track}>
-                <span bind:this={bar} style:background={parts.player.color}></span>
+              <span class="rail" bind:this={bar}>
+                <span bind:this={played} style:background={parts.player.color}></span>
               </span>
             </span>
             <span>-{clockTime(playback.endMs - at)}</span>
@@ -1129,9 +1723,89 @@
       <span class="dots" in:enter={{ step: 1 }} out:exit>{@render dots(parts.call)}</span>
     {/if}
     {#if parts.timer}
-      <span class="countdown" in:enter out:exit>
-        {@render digits(formatCountdown(parts.timer.endsAt - now.getTime()))}
+      {@const t = parts.timer}
+      {@const at = now.getTime()}
+      {@const over = ended(t, at)}
+      {@const paused = t.left !== undefined}
+      {@const name = named.get(t.id)}
+      {#if view.name === 'expanded'}
+        <!-- The panel: the name, the digits and the end, then pause or resume, and cancel. -->
+        {@const others = timers.filter((o) => o.id !== t.id && !ended(o, at)).length}
+        <span class="timing" in:enter out:exit>
+          <span class="muted">{name ?? said.timer}{#if others}<span class="others">+{others}</span>{/if}</span>
+          <span class="big countdown" class:paused class:long={long(t, at)}>{@render digits(formatLeft(t, at))}</span>
+          <span class="muted">{paused ? said.paused : said.ends(formatTime(new Date(endOf(t, at))))}</span>
+        </span>
+        <span class="round" in:enter={{ step: 1 }} out:exit>
+          <button
+            type="button"
+            class="main"
+            aria-label={(paused ? said.resume : said.pause)(name ?? said.the)}
+            onclick={() => togglePause(t)}
+          >
+            {@render icon(paused ? 'play' : 'pause')}
+          </button>
+          <button
+            type="button"
+            aria-label={said.cancel(name ?? said.the)}
+            onclick={() => {
+              dismiss(t.id)
+              expanded = false
+            }}
+          >
+            {@render icon('close')}
+          </button>
+        </span>
+      {:else}
+        <span class="ring" bind:this={ring} in:enter out:exit>{@render dial(over ? 1 : fraction(t, at), paused)}</span>
+        {#if view.name === 'peek'}
+          <!-- The end peek: the name or "Time's up", the time since, +1 min and OK. -->
+          <span class="track" out:exit>
+            <span in:enter={{ step: 1 }}>{topName}</span>
+            <span class="countdown" in:enter={{ step: 2 }}>{@render digits(timerDigits(t))}</span>
+          </span>
+          <span class="actions" in:enter={{ step: 3 }} out:exit>{@render finish(t)}</span>
+        {:else}
+          {#if topName && (view.name === 'hover' || over)}
+            <span class="name" in:enter={{ step: 1 }} out:exit>{topName}</span>
+          {/if}
+          <span class="countdown" class:paused in:enter out:exit>{@render digits(timerDigits(t))}</span>
+          {#if over && view.name === 'hover'}
+            <span class="actions" in:enter={{ step: 2 }} out:exit>{@render finish(t)}</span>
+          {/if}
+        {/if}
+      {/if}
+    {/if}
+    {#if parts.bar}
+      <CommandBar
+        bind:line
+        choices={options}
+        {lang}
+        {reduced}
+        {shortcut}
+        {enter}
+        {exit}
+        onrun={run}
+        onclose={() => closeBar()}
+      />
+    {/if}
+    {#if parts.launch}
+      <span class="mark" style:background={parts.launch.color} in:enter out:exit>
+        {#if parts.launch.icon}
+          <canvas use:paintIcon={parts.launch.icon}></canvas>
+        {:else if parts.launch.letter}{parts.launch.letter}{/if}
       </span>
+      <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
+    {/if}
+    {#if parts.welcome === 'hello'}
+      <span class="greet" in:enter out:exit>{WORDS[lang].hello}</span>
+    {:else if parts.welcome === 'keys' && keys}
+      <span class="caption" in:enter out:exit>{WORDS[lang].bar}</span>
+      <!-- A "+" arrives with the key after it. Global: they come and go with the row around them. -->
+      {#each keys as cap, i (i)}
+        {#if i}<span class="plus" in:enter|global={{ step: i + 1 }} out:exit|global>+</span>{/if}
+        <span class="keycap" in:enter|global={{ step: i + 1 }} out:exit|global>{cap}</span>
+      {/each}
     {/if}
     {#if parts.music}
       <span
@@ -1157,14 +1831,31 @@
     <span class="muted">{formatLongDate(now)}</span>
   </span>
   <span class="bubble"><span class="countdown">0:00</span></span>
+  <!-- The island's timer, at its natural width, so its shape can fit its name and digits. -->
+  {#if topName}<span class="name measure" bind:clientWidth={nameWidth}>{topName}</span>{/if}
+  {#if topDigits}<span class="countdown measure" bind:clientWidth={digitsWidth}>{topDigits}</span>{/if}
+  <!-- The welcome's widths are read here. -->
+  <span class="greet" bind:this={greet}>{WORDS[lang].hello}</span>
+  {#if keys}
+    <span class="row" bind:this={row}>
+      <span class="caption">{WORDS[lang].bar}</span>
+      {#each keys as cap, i (i)}
+        {#if i}<span class="plus">+</span>{/if}
+        <span class="keycap">{cap}</span>
+      {/each}
+    </span>
+  {/if}
 </span>
+
+<!-- The welcome, read once to a screen reader with the real shortcut, then cleared. -->
+<span class="spoken" role="status">{spoken}</span>
 
 {#if geometry.dot}
   <button type="button" class="island bubble" aria-label="Show in the island" style={place(geometry.dot)} onclick={swap}>
-    {#if arrangement.bubble && revealed}
-      {#key arrangement.bubble.id}
+    {#if beside && revealed}
+      {#key beside.id}
         <span class="content" in:enter|global out:exit|global={{ shrinks: true }}>
-          {@render glyph(arrangement.bubble)}
+          {@render glyph(beside)}
         </span>
       {/key}
     {/if}
@@ -1173,8 +1864,6 @@
 
 {#if geometry.tag}
   {@const uses = light(privacy)}
-  {@const many = privacy.apps.length > CARD.rows}
-  {@const rows = privacy.apps.slice(0, many ? CARD.rows - 1 : CARD.rows)}
   <div
     class="island tag"
     role="group"
@@ -1207,62 +1896,7 @@
         {#if uses}<span class="dot" class:mic={uses === 'mic'} class:camera={uses === 'camera'}></span>{/if}
       </span>
     {:else if revealed}
-      {@const size = cardSize(privacy.apps.length)}
-      <span class="card" style:width="{size.width}px" style:height="{size.height}px">
-        {#each rows as app, i (app.name)}
-          <button
-            type="button"
-            class="app"
-            aria-label="Show {app.name}: {[app.mic && 'microphone', app.camera && 'camera']
-              .filter(Boolean)
-              .join(', ')}{lasted(app.sinceMs, now.getTime()) && `, ${lasted(app.sinceMs, now.getTime())}`}"
-            onclick={() => show(app.name)}
-            in:enter|global={{ step: i }}
-            out:exit|global={{ shrinks: true }}
-          >
-            {#if app.icon}
-              <canvas class="icon" use:paintIcon={app.icon} aria-hidden="true"></canvas>
-            {:else}
-              <span class="icon letter" aria-hidden="true">{app.name.slice(0, 1)}</span>
-            {/if}
-            <span class="name">{app.name}</span>
-            <span class="uses">
-              {#if app.mic}<span data-device="mic">{@render microphone(false)}</span>{/if}
-              {#if app.camera}<span data-device="camera">{@render camera()}</span>{/if}
-              <span class="hidden">{[app.mic && 'microphone', app.camera && 'camera'].filter(Boolean).join(', ')}</span>
-            </span>
-            <span class="muted since">{lasted(app.sinceMs, now.getTime())}</span>
-          </button>
-        {/each}
-        {#if many}
-          <span class="app muted more" in:enter|global={{ step: rows.length }} out:exit|global={{ shrinks: true }}>
-            +{privacy.apps.length - rows.length}
-          </span>
-        {/if}
-        <span class="actions" in:enter|global={{ step: rows.length + 1 }} out:exit|global={{ shrinks: true }}>
-          {#if privacy.canMute && (privacy.muted || privacy.apps.some((a) => a.mic))}
-            <button
-              type="button"
-              class:on={privacy.muted}
-              aria-label="Mute the microphone"
-              aria-pressed={privacy.muted}
-              onclick={mute}
-            >
-              {@render microphone(privacy.muted)}
-            </button>
-          {/if}
-          {#each privacy.apps.filter((a) => a.camera).slice(0, 1) as filming (filming.name)}
-            <button type="button" class="filming" aria-label="Show {filming.name}" onclick={() => show(filming.name)}>
-              {@render camera()}
-            </button>
-          {/each}
-          <button type="button" class="settings" aria-label="Privacy settings" onclick={settings}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
-            </svg>
-          </button>
-        </span>
-      </span>
+      <PrivacyCard bind:privacy {now} {enter} {exit} onclose={closeCard} />
     {/if}
   </div>
 {/if}
@@ -1316,6 +1950,60 @@
     visibility: hidden;
   }
 
+  .spoken {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .logo {
+    position: absolute;
+    width: 127.5px;
+    height: 72.25px;
+  }
+
+  /* The welcome: the greeting, then the command bar's shortcut as flat keycaps. */
+  .greet {
+    font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+
+  .row {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .caption {
+    margin-right: 12px;
+    color: rgb(255 255 255 / 0.6);
+    font-weight: 500;
+  }
+
+  .keycap {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 7px;
+    background: rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+    font-size: 13px;
+  }
+
+  .plus {
+    margin: 0 5px;
+    color: rgb(255 255 255 / 0.6);
+    font-size: 12px;
+    font-weight: 500;
+  }
+
   /* High contrast drops the black fill and the shadow: an outline keeps the shape. */
   /* It would also blank every fill, so the indicators keep their own colors. */
   @media (forced-colors: active) {
@@ -1358,6 +2046,42 @@
   .peek {
     gap: 10px;
     padding: 0 18px 0 10px;
+  }
+
+  /* The command bar: the field from the left, the chip 8 px from the right end. */
+  .view.bar {
+    justify-content: space-between;
+    padding: 0 8px 0 18px;
+  }
+
+  /* An app launching or a question handed off: its icon, and what opens. */
+  .launch {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 16px 0 8px;
+  }
+
+  .launch .mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .launch .mark canvas {
+    width: 100%;
+    height: 100%;
+  }
+
+  .launched {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
   }
 
   .expanded {
@@ -1431,7 +2155,7 @@
     outline: none;
   }
 
-  .bar {
+  .rail {
     height: 4px;
     border-radius: 4px;
     overflow: hidden;
@@ -1439,13 +2163,13 @@
     transition: height 0.15s;
   }
 
-  .scrub[aria-disabled='false']:hover .bar,
-  .scrub.held .bar,
-  .scrub:focus-visible .bar {
+  .scrub[aria-disabled='false']:hover .rail,
+  .scrub.held .rail,
+  .scrub:focus-visible .rail {
     height: 7px;
   }
 
-  .bar > span {
+  .rail > span {
     display: block;
     height: 100%;
     transform: scaleX(0);
@@ -1496,6 +2220,219 @@
     font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
     font-size: 44px;
     line-height: 1;
+  }
+
+  /* The timer: its ring at the left end, its name, its digits at the right end, and once it ended, +1 min and OK. */
+  .view.timer {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 14px;
+  }
+
+  .view.timer.peek {
+    gap: 12px;
+    padding: 0 12px 0 16px;
+  }
+
+  /* A finished timer's buttons sit over the opener, whose click is its OK everywhere else. */
+  .view.finished {
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .view.finished button {
+    pointer-events: auto;
+  }
+
+  .ring {
+    display: grid;
+    flex: none;
+    width: 14px;
+    height: 14px;
+  }
+
+  .peek .ring {
+    width: 26px;
+    height: 26px;
+  }
+
+  .dial {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    rotate: -90deg;
+    fill: none;
+    stroke: #fbbf24;
+    stroke-width: 2.2;
+  }
+
+  .dial circle:last-child {
+    transition: stroke-dashoffset 0.3s;
+  }
+
+  .dial .rail {
+    stroke: rgb(251 191 36 / 0.25);
+  }
+
+  /* Paused, the ring freezes at half strength with the digits. */
+  .dial.paused {
+    opacity: 0.5;
+  }
+
+  .bubble .dial {
+    width: 14px;
+    height: 14px;
+  }
+
+  .name {
+    min-width: 0;
+    overflow: hidden;
+    color: rgb(255 255 255 / 0.6);
+    font-size: 13px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+  }
+
+  .timer .name {
+    max-width: 120px;
+  }
+
+  .finished .name,
+  .peek .track > span:first-child {
+    color: #fff;
+  }
+
+  .measure {
+    display: inline-block;
+  }
+
+  .timer .countdown {
+    margin: 0 0 0 auto;
+  }
+
+  .timer .track .countdown,
+  .timing .countdown {
+    margin: 0;
+  }
+
+  .actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .more,
+  .ok {
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 13px;
+    font: inherit;
+    font-size: 13px;
+    cursor: default;
+  }
+
+  .more {
+    width: 52px;
+    background: none;
+    color: rgb(255 255 255 / 0.6);
+  }
+
+  .more:hover {
+    color: #fff;
+  }
+
+  .ok {
+    width: 38px;
+    background: #fff;
+    color: #000;
+  }
+
+  /* The timer's panel: the name, the digits and the end on the left, two round buttons on the right. */
+  .expanded.timer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 20px 0 24px;
+  }
+
+  .timing {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .expanded .timing .muted {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
+  .timing .big {
+    font-size: 40px;
+  }
+
+  /* With hours, h:mm:ss would run under the pause button at 40 px. */
+  .timing .big.long {
+    font-size: 30px;
+  }
+
+  .others {
+    margin-left: 6px;
+  }
+
+  .round {
+    display: flex;
+    flex: none;
+    gap: 10px;
+  }
+
+  .round button {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.14);
+    color: #fff;
+    cursor: default;
+    transition: scale 0.15s;
+  }
+
+  .round button:active {
+    scale: 0.9;
+  }
+
+  .round .main {
+    background: rgb(251 191 36 / 0.2);
+    color: #fbbf24;
+  }
+
+  .round svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+  }
+
+  .round .stroke {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
+    stroke-linecap: round;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dial circle:last-child,
+    .round button {
+      transition: none;
+    }
   }
 
   /* The old and the new digit share one cell while they roll. */
@@ -1561,8 +2498,7 @@
     border-radius: 50%;
   }
 
-  /* The privacy tag. As a disc, what it holds sits in a row from its left end; as a card, it is laid out at the
-     card's size from the top-left corner, and the shape reveals it as it opens. */
+  /* The privacy tag. As a disc, what it holds sits in a row from its left end. Its card is PrivacyCard.svelte. */
   .tag .disc {
     position: absolute;
     top: 0;
@@ -1584,151 +2520,6 @@
     display: block;
     width: 12px;
     height: 12px;
-  }
-
-  .card {
-    position: absolute;
-    top: 0;
-    left: 0;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    padding: 10px 12px;
-  }
-
-  .app {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 10px;
-    height: 38px;
-    margin: 0 -6px;
-    padding: 0 6px;
-    border: 0;
-    border-radius: 10px;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-size: 13px;
-    cursor: default;
-    transition:
-      background-color 0.2s,
-      scale 0.15s;
-  }
-
-  button.app:hover {
-    background: rgb(255 255 255 / 0.08);
-  }
-
-  button.app:active {
-    scale: 0.97;
-  }
-
-  .icon {
-    flex: none;
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-  }
-
-  .letter {
-    display: grid;
-    place-items: center;
-    background: rgb(255 255 255 / 0.16);
-    font-size: 12px;
-  }
-
-  .app .name {
-    flex: 1;
-    overflow: hidden;
-    text-align: left;
-    text-overflow: ellipsis;
-  }
-
-  .uses {
-    display: flex;
-    gap: 4px;
-  }
-
-  .uses svg {
-    display: block;
-    width: 15px;
-    height: 15px;
-  }
-
-  .uses [data-device='mic'] {
-    color: #fb923c;
-  }
-
-  .uses [data-device='camera'] {
-    color: #4ade80;
-  }
-
-  .hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .since {
-    min-width: 36px;
-    text-align: right;
-  }
-
-  .more {
-    padding-left: 34px;
-  }
-
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 44px;
-    margin-top: auto;
-  }
-
-  .actions button {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: rgb(255 255 255 / 0.14);
-    color: #fff;
-    cursor: default;
-    transition:
-      scale 0.15s,
-      background-color 0.25s,
-      color 0.25s;
-  }
-
-  .actions button:active {
-    scale: 0.88;
-  }
-
-  /* On, a button turns white, as Control Center's do. */
-  .actions .on {
-    background: #fff;
-    color: #000;
-  }
-
-  /* The camera can't be cut from here: its button opens the app filming, in its color. */
-  .actions .filming {
-    color: #4ade80;
-  }
-
-  .actions .settings {
-    margin-left: auto;
-  }
-
-  .actions svg {
-    width: 17px;
-    height: 17px;
   }
 
   .tag svg {
@@ -1762,8 +2553,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .slash,
-    .tag .dot,
-    .actions button {
+    .tag .dot {
       transition: none;
     }
 
@@ -1775,6 +2565,11 @@
   .countdown {
     margin: auto;
     color: #fbbf24;
+  }
+
+  /* Paused, the digits freeze at half strength, without a blink. */
+  .countdown.paused {
+    opacity: 0.5;
   }
 
   .bubble .countdown {
