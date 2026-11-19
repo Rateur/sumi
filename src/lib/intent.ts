@@ -219,14 +219,14 @@ export function formatDuration(ms: number): string {
 
 // --- Apps ---
 
-/** How names compare: folded, without apostrophes or hyphens, each word without a plural s or x. */
-export function key(name: string): string {
+/** How names compare: folded, without apostrophes or hyphens, each word without a plural s or x unless kept. */
+export function key(name: string, plural = false): string {
   return fold(name)
     .replace(/['’]/g, '')
     .replace(/-/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
-    .map((w) => (w.length > 3 ? w.replace(/[sx]$/, '') : w))
+    .map((w) => (w.length > 3 && !plural ? w.replace(/[sx]$/, '') : w))
     .join(' ')
 }
 
@@ -236,7 +236,7 @@ const ALIASES = [
   ['explorateur de fichiers', 'file explorer', 'explorateur', 'explorer', 'fichiers', 'mes fichiers', 'files'],
   ['calculatrice', 'calculator', 'calc'],
   ['visual studio code', 'code', 'vscode'],
-].map((group) => group.map(key))
+]
 
 // Optimal string alignment: a wrong, missing or extra letter, or two swapped neighbors, is one typo.
 function typos(a: string, b: string): number {
@@ -251,32 +251,50 @@ function typos(a: string, b: string): number {
   return d[a.length][b.length]
 }
 
-// Exact, then prefix, then the start of a word, then the letters in order, then a typo or two. 0 is no match.
-function score(query: string, name: string): number {
+// Exact, then prefix, then the start of a word, then the letters in order. 0 is no match.
+function rank(query: string, name: string): number {
   if (name === query) return 4
   if (name.startsWith(query)) return 3
   if ((' ' + name).includes(' ' + query)) return 2
-  if (query.length < 2) return 0
-  let i = 0
-  for (const c of name) if (c === query[i]) i++
-  if (i === query.length) return 1
-  // Only on a name long enough to tell: one typo from 5 letters, two from 9. Against the name, its start, or a word.
-  const allowed = query.length >= 9 ? 2 : query.length >= 5 ? 1 : 0
-  const near = [name, name.slice(0, query.length), ...name.split(' ')].some((w) => typos(query, w) <= allowed)
-  return allowed && near ? 0.5 : 0
+  return query.length > 1 && shortens(query, name) ? 1 : 0
 }
 
-const keys = (app: App) => {
-  const name = key(app.name)
-  return [name, ...(ALIASES.find((group) => group.includes(name))?.filter((k) => k !== name) ?? [])]
+// Letters in order, the way people shorten a name: from the start of a word, then dropping only vowels ('ntpd')
+// or jumping to the next word ('vsc'). So 'porte' never finds 'exPlORaTEur', nor 'timer' 'TIME doctoR'.
+function shortens(query: string, name: string): boolean {
+  let i = 0
+  let skipped = 'x' // the first letter starts a word
+  for (const [j, c] of [...name].entries()) {
+    if (c === query[i] && (j === 0 || name[j - 1] === ' ' || !/[^aeiouy ]/.test(skipped))) {
+      if (++i === query.length) return true
+      skipped = ''
+    } else skipped += c
+  }
+  return false
+}
+
+// A typo or two, ranked last. Each word allows as many as its own length does, plural kept: one from 5 letters,
+// two from 9, so 'timer' never finds 'Time' and 'teans' finds 'Teams'. Against the name, its start, or a word.
+function near(query: string, name: string): boolean {
+  return [name, name.slice(0, query.length).trim(), ...name.split(' ')].some(
+    (w) => w.length >= 5 && typos(query, w) <= (w.length >= 9 ? 2 : 1),
+  )
+}
+
+const keys = (app: App, plural = false) => {
+  const group = ALIASES.find((g) => g.some((a) => key(a) === key(app.name)))
+  return [app.name, ...(group?.filter((a) => key(a) !== key(app.name)) ?? [])].map((k) => key(k, plural))
 }
 
 /** The best app for a query, by a fixed ranking: on a tie the shorter name wins. Usage never reorders it. */
 export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
   const q = key(query)
   if (!q) return
+  const typed = key(query, true)
+  const score = (app: A) =>
+    Math.max(...keys(app).map((k) => rank(q, k))) || (keys(app, true).some((k) => near(typed, k)) ? 0.5 : 0)
   return apps
-    .map((app) => ({ app, score: Math.max(...keys(app).map((k) => score(q, k))) }))
+    .map((app) => ({ app, score: score(app) }))
     .filter((a) => a.score > 0)
     .toSorted((a, b) => b.score - a.score || a.app.name.length - b.app.name.length)[0]?.app
 }

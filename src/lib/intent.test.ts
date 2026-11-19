@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice } from './intent'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
-const apps: App[] = [...names, 'Calculatrice', 'Microsoft Teams', 'Claude', 'Notes', 'Mail'].map((name) => ({ name }))
+// Word and Time Doctor sit one typo from 'world' and 'timer': they must not catch them.
+const others = ['Calculatrice', 'Microsoft Teams', 'Claude', 'Notes', 'Mail', 'Word', 'Time Doctor']
+const apps: App[] = [...names, ...others].map((name) => ({ name }))
 const fr = { apps, lang: 'fr', claudeApp: true } as const
 const en = { ...fr, lang: 'en', claudeApp: false } as const
 const top = (line: string, options: Parameters<typeof choices>[1] = fr) => choices(line, options)[0]
@@ -254,6 +256,12 @@ describe('natural phrasing', () => {
     ['affiche les notes', 'app', 'Notes'],
     ['show mail', 'app', 'Mail'],
     ['run spotify', 'app', 'Spotify'],
+    ['ouvre teans', 'app', 'Microsoft Teams'],
+    ['ouvre word', 'app', 'Word'],
+    ['ouvre parametr', 'app', 'Paramètres'],
+    ['ouvre prmtr', 'app', 'Paramètres'],
+    ['ouvre vsc', 'app', 'Visual Studio Code'],
+    ['open time doc', 'app', 'Time Doctor'],
     // The time and the date.
     ['quelle heure est-il ?', 'clock', 'time'],
     ['Quelle heure il est', 'clock', 'time'],
@@ -296,6 +304,13 @@ describe('natural phrasing', () => {
     ['merci', 'ask', 'claude'],
     ['1:30', 'ask', 'claude'],
     ['à 18h30', 'ask', 'claude'],
+    // One typo from a short word of a name, or its letters scattered inside a long one.
+    ['start a timer', 'ask', 'claude'],
+    ['ouvre world', 'ask', 'claude'],
+    ['ouvre la porte', 'ask', 'claude'],
+    ['ouvre la fenetre', 'ask', 'claude'],
+    ['ouvre la ame', 'ask', 'claude'],
+    ['open the door', 'ask', 'claude'],
   ]
   it.each(table)('%s → %s %s', (line, kind, to) => {
     const c = choices(line, options)[0]
