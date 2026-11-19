@@ -13,6 +13,20 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 
 pub fn run() {
+    // One Sumi at a time: a second copy would draw a second island and a second tray icon. A dev build uses its
+    // own name, so it still starts while the installed Sumi runs.
+    #[cfg(windows)]
+    {
+        let name = if cfg!(debug_assertions) {
+            r"Local\io.github.rateur.sumi.dev"
+        } else {
+            r"Local\io.github.rateur.sumi"
+        };
+        if already_running(name) {
+            return;
+        }
+    }
+
     // A hang must not draw a frozen "Not responding" copy over the top of the screen.
     #[cfg(windows)]
     unsafe {
@@ -73,4 +87,34 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running Sumi");
+}
+
+/// Takes the named mutex `name` for the rest of the process, and says whether another process already holds it.
+#[cfg(windows)]
+fn already_running(name: &str) -> bool {
+    use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_ALREADY_EXISTS, GetLastError};
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+
+    let name: Vec<u16> = name.encode_utf16().chain([0]).collect();
+    // SAFETY: `name` is NUL-terminated and outlives the call; null attributes are allowed. The handle is never
+    // closed on purpose: Windows frees the mutex when the process ends, and that is what keeps the guard up.
+    // GetLastError is read right after, with no Win32 call in between.
+    let error = unsafe {
+        CreateMutexW(std::ptr::null(), 0, name.as_ptr());
+        GetLastError()
+    };
+    // Access denied means the mutex exists but another copy (say, run as admin) made it.
+    error == ERROR_ALREADY_EXISTS || error == ERROR_ACCESS_DENIED
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::already_running;
+
+    #[test]
+    fn a_second_copy_sees_the_first() {
+        let name = format!(r"Local\io.github.rateur.sumi.test.{}", std::process::id());
+        assert!(!already_running(&name));
+        assert!(already_running(&name));
+    }
 }
