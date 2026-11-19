@@ -19,6 +19,11 @@ use crate::privacy::Icon;
 const STALE: Duration = Duration::from_secs(10 * 60);
 /// Claude's own limit for a prefilled question.
 const LONGEST: usize = 14_000;
+/// The longest link handed over. Windows passes it on a command line of at most 32,767 characters, and encoding
+/// makes an accent 6 characters and an emoji 12.
+const LONGEST_LINK: usize = 30_000;
+/// How long what opens has to come to the front before the island gives focus back.
+const SETTLE: Duration = Duration::from_millis(1_500);
 
 /// An entry of Start's list: the name Start shows, and the id Windows opens it by. Mirrored in src/Island.svelte.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -69,8 +74,17 @@ pub fn link(target: Target, query: &str, claude_app: bool) -> String {
         Target::Perplexity => "https://www.perplexity.ai/search?q=",
         Target::Search => "https://www.google.com/search?q=",
     };
-    let query: String = query.chars().take(LONGEST).collect();
-    base.to_owned() + &encode(&query)
+    let mut out = base.to_owned();
+    let mut buf = [0; 4];
+    // Cut between characters, never inside one.
+    for c in query.chars().take(LONGEST) {
+        let piece = encode(c.encode_utf8(&mut buf));
+        if out.len() + piece.len() > LONGEST_LINK {
+            break;
+        }
+        out.push_str(&piece);
+    }
+    out
 }
 
 /// Percent-encodes every byte but the unreserved ones, as `encodeURIComponent` does, so a question can neither add
@@ -180,7 +194,9 @@ pub async fn app_icon(app: AppHandle, id: String) -> Option<Icon> {
 /// Opens an app from Start's list, and only one from it.
 #[tauri::command]
 pub async fn app_launch(window: WebviewWindow, id: String) -> bool {
+    // The list may have been read again since the bar showed it.
     if !window.state::<Apps>().knows(&id) {
+        bar::give_back(&window);
         return false;
     }
     hand_off(&window, format!("shell:AppsFolder\\{id}")).await
@@ -194,13 +210,23 @@ pub async fn assistant_open(window: WebviewWindow, target: Target, query: String
 }
 
 /// Lets what opens come to the front, opens it off the main thread since an app can take seconds to start, and
-/// gives focus back to where it was if nothing opened.
+/// gives focus back to where it was if nothing opened, or if what opened never came to the front, as an app already
+/// running in the tray may not.
 async fn hand_off(window: &WebviewWindow, target: String) -> bool {
     bar::let_go(window);
     let opened = tauri::async_runtime::spawn_blocking(move || os::open(&target))
         .await
         .unwrap_or(false);
-    if !opened {
+    if opened {
+        let window = window.clone();
+        // On a thread of its own, so the peek plays meanwhile. give_back only acts while the island is still in front.
+        std::thread::spawn(move || {
+            std::thread::sleep(SETTLE);
+            if !bar::is_open(&window) {
+                bar::give_back(&window);
+            }
+        });
+    } else {
         bar::give_back(window);
     }
     opened
@@ -469,10 +495,18 @@ mod tests {
     fn a_long_question_is_cut_at_14000_characters() {
         let url = link(Target::Claude, &"a".repeat(20_000), true);
         assert_eq!(url.len(), "claude://claude.ai/new?q=".len() + 14_000);
-        // Characters, not bytes: an accent is never cut in half.
-        let url = link(Target::Search, &"é".repeat(14_001), false);
-        assert!(url.ends_with("%C3%A9"));
-        assert_eq!(url.matches("%C3%A9").count(), 14_000);
+    }
+
+    #[test]
+    fn a_long_link_fits_a_command_line_and_keeps_whole_characters() {
+        let base = "https://www.google.com/search?q=";
+        for (one, encoded) in [("é", "%C3%A9"), ("😀", "%F0%9F%98%80")] {
+            let url = link(Target::Search, &one.repeat(14_001), false);
+            assert!(url.len() <= 32_000);
+            assert!(url.len() > 29_000);
+            assert!(url.ends_with(encoded));
+            assert_eq!((url.len() - base.len()) % encoded.len(), 0);
+        }
     }
 
     #[test]

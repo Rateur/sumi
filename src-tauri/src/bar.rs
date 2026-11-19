@@ -114,6 +114,11 @@ pub fn give_back(window: &WebviewWindow) {
     }
 }
 
+/// Whether the bar holds focus, which it does only while open.
+pub fn is_open(window: &WebviewWindow) -> bool {
+    window.state::<Bar>().focusable.load(Ordering::Relaxed)
+}
+
 fn own(window: &WebviewWindow) -> Option<usize> {
     window.hwnd().ok().map(|hwnd| hwnd.0 as usize)
 }

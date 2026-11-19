@@ -927,6 +927,8 @@
         .catch(() => false)
         .then((ok) => {
           if (ok || barOpen) return
+          // Rust gives focus back too, but not if the call itself failed.
+          invoke('bar_focus', { open: false }).catch(console.error)
           show({ text: lang === 'fr' ? `Impossible d'ouvrir ${name}` : `Couldn't open ${name}`, ...mark }, 2000)
         })
     }
