@@ -55,7 +55,17 @@ jobs:
           cp src-tauri/target/release/bundle/nsis/*-setup.exe Sumi-setup.exe
           gh release upload "$GITHUB_REF_NAME" Sumi-setup.exe
 
-      # Proves the installer was built here, from this commit. Both installer files share this digest.
+      # The Microsoft Store package, from the same build. It's unsigned: the Store signs it once it's certified.
+      - name: Attach the Store package
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$env:GITHUB_REF_NAME" (src-tauri/store/pack.ps1)
+
+      # Proves the installer and the Store package were built here, from this commit. Both installer files
+      # share one digest.
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: Sumi-setup.exe
+          subject-path: |
+            Sumi-setup.exe
+            src-tauri/target/store/*.msix

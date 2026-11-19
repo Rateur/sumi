@@ -79,6 +79,9 @@ jobs:
           key: release
           save-if: ${{ github.event_name == 'push' }}
       - run: npm run tauri build
+      # Packing checks the Microsoft Store manifest on every change.
+      - run: src-tauri/store/pack.ps1
+        shell: pwsh
       # An installer built from a fork's code is never offered for download from this repository.
       - if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
