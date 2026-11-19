@@ -101,6 +101,10 @@ Sur votre première pull request, la CI démarre une fois que je l'ai approuvée
 - Elle protège votre vie privée. Rien de ce qu'affiche l'île n'est écrit dans un journal ou un fichier, et rien ne quitte le PC sans que l'utilisateur ait activé la fonction. Pas de télémétrie, de statistiques ni de rapports de plantage.
 - Elle n'ajoute ni dépendance, ni requête réseau, ni permission Tauri (`src-tauri/capabilities/`) sans accord dans l'issue. Chaque paquet, c'est du code que chaque utilisateur fait tourner.
 - L'interface fonctionne avec les animations réduites et garde un contraste AA.
+- Elle se lit comme le code autour, pour que la personne suivante, ou une IA, puisse la reprendre. Rust : `snake_case` pour les fonctions et les modules, `CamelCase` pour les types. TypeScript : `camelCase`. Composants Svelte : `PascalCase.svelte`. Les commentaires sont courts et disent pourquoi, pas quoi.
+- Elle ne laisse pas de dette : ni code mort ni `TODO`. Une limite connue a son commentaire `// shortcut: <la limite>, <quand la lever>`.
+- Le Rust `unsafe` reste petit, et chaque bloc dit pourquoi il est sûr dans un commentaire `// SAFETY:`.
+- Ses mots sont simples et courts, en anglais comme en français : commentaires, docs, README, messages de commit et description de la PR.
 
 ## Outils d'IA
 

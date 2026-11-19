@@ -98,6 +98,10 @@ On your first pull request, CI starts once I approve it. Leave **Allow edits by 
 - It keeps your PC private. Nothing the island shows is written to a log or a file, and nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
 - It adds no dependency, network request or Tauri permission (`src-tauri/capabilities/`) unless the issue agreed on it. Every package is code that each user runs.
 - The UI works with reduced motion and keeps AA contrast.
+- It reads like the code around it, so the next person, or an AI, can pick it up. Rust: `snake_case` for functions and modules, `CamelCase` for types. TypeScript: `camelCase`. Svelte components: `PascalCase.svelte`. Comments are short and say why, not what.
+- It leaves no debt behind: no dead code and no `TODO`. A known limit gets a `// shortcut: <the limit>, <when to upgrade>` comment.
+- `unsafe` Rust stays small, and each block says why it's sound in a `// SAFETY:` comment.
+- Its words are plain and short, in English and in French: code comments, docs, the README, commit messages and the PR description.
 
 ## AI tools
 
