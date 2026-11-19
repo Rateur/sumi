@@ -6,6 +6,8 @@ export default defineConfig({
 	site: 'https://rateur.github.io',
 	base: '/sumi',
 	trailingSlash: 'always',
+	// Starlight 0.43 stopped forcing this: keeping it leaves every page's styles as they were built.
+	scopedStyleStrategy: 'where',
 	// The home page reads the app version from the repository's package.json.
 	vite: { server: { fs: { allow: ['..'] } } },
 	// The docs have no index of their own; trimming a docs URL lands on the first page.
