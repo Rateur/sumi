@@ -9,10 +9,11 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | State | Size | When |
 |---|---|---|
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
-| Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date. |
-| Compact | Call 144, timer 96, music 200 × 34 px* | An activity runs: content on the left and right ends. |
-| Peek | Music 300 × 56 px*, up to 3 s | Something just happened: charger, low battery. A new song swells instead, see [Music](#music). |
-| Expanded | Clock 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
+| Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date, or a timer's name. |
+| Compact | Call 144, timer 112 (128 from an hour), music 200 × 34 px* | An activity runs: content on the left and right ends. |
+| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s | Something just happened: timer ended, charger, low battery. A new song swells instead, see [Music](#music). |
+| Done | Timer 150 × 34 px* at least | A timer ended and waits for OK. |
+| Expanded | Clock and timer 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
@@ -28,9 +29,13 @@ When several things happen at once, the highest one takes the island, the next o
 The time is last in line: it has the island when nothing runs, and the bubble when one thing does. Picked from the bubble, it keeps the island until the music ends. Otherwise it waits while two or more things run, and comes back when only one is left; a call on the island shows the time anyway.
 
 1. Call
-2. Timer
-3. Music
-4. Time or weather
+2. Timer that ended
+3. Timer: the running one that ends first
+4. Music
+5. Other timers, running or paused, soonest end first
+6. Time or weather
+
+What was picked from the bubble comes right after a timer that ended. Timers go by their end rather than by what is shown, so the island always holds the next one to ring.
 
 ## Music
 
@@ -42,6 +47,19 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 - A drag on the bar ends without a seek if the panel closes or another song takes it.
 - A new song swells the island when it is on the island, and the bubble when it is in the bubble.
 - The artwork reaches the island as data, never as a file. Its main color is read from a 16 px copy, and lightened until it shows on black.
+
+## Timers
+
+- Typed in the command bar: `25m`, `1h30`, `10 min pâtes`. Each one counts down to its end on the wall clock, worked out again at each second shown, so sleep or a change of daylight saving time never makes it drift.
+- Compact: a 14 px amber ring empties at the left end, and the digits sit at the right end, m:ss under an hour, h:mm:ss above. No name, unless the cursor rests on it.
+- A click opens the panel: the name, or "Timer", the digits, the end time in the clock's format, and two round buttons, pause or resume and cancel. "+1" beside the name says another timer runs.
+- Paused, the ring and the digits freeze at half strength, without a blink, and the timer waits below the music, so a forgotten pause never takes the island back.
+- Several timers: the island shows the one that ends first, the others wait, still counting. Without a label they are numbered: "Timer 2".
+- At the end, the island swells and peeks for 6 s: the full ring, the name or "Time's up", the time since the end counting up ("+0:12"), a quiet +1 min and a white OK. It then folds into the done pill, ring, name and "+3:10", whose buttons show under the cursor.
+- A click on the done pill, or OK, dismisses it, and so does `stop` in the bar. Esc and a click elsewhere don't: you may not have seen it yet. +1 min starts a minute under the same name. There is no Repeat button.
+- A short, soft chime made by the app every 10 s for a minute, then silence, at Windows' volume. On by default; Settings, in 0.9, will turn it off. The browser demo stays silent.
+- While Windows says you're busy, a finished timer still peeks and rings: it is an alarm you set. In fullscreen only the chime plays; when the fullscreen app ends, the island drops back, swells once and shows the end.
+- Timers live in memory only: quitting Sumi or restarting Windows clears them. Nothing the island shows is written to disk.
 
 ## Microphone and camera
 
@@ -58,7 +76,7 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
 
-Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for. Switching apps closes it too.
+Without focus, the island never receives Esc or a click elsewhere. While it is expanded, it watches for them instead and closes, and they still reach the app they were meant for. Switching apps closes it too. A finished timer stays through both.
 
 Known limits: with touch or a pen, the first tap on the island reaches the app underneath and the second one opens it. While an elevated app such as Task Manager has focus, Windows hides Esc and clicks from Sumi, so only switching apps closes the panel.
 
@@ -94,7 +112,7 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - **The bubble** splits off like a drop, joined to the island until they part, and merges back the same way.
 - **In fullscreen** the content leaves and the island slides up off the screen. It drops back down when the game or video ends.
 - **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
-- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second, and the equalizer moves only while music plays and the island is visible.
+- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
 

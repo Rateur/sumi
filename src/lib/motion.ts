@@ -64,6 +64,12 @@ export const PRESS: { scale: number; down: Axis; up: Axis } = { scale: 0.96, dow
 /** In fullscreen the island slides up off the screen a beat after its content leaves, and drops back with a bounce. */
 export const FULLSCREEN: { delay: number; hide: Axis; show: Axis } = { delay: 100, hide: [0.3, 0], show: [0.5, 0.2] }
 
+/** A finished timer peeks this long, in ms, then folds into the done pill. */
+export const END_PEEK = 6000
+
+/** A finished timer chimes every `every` ms, `times` times, then stays silent. */
+export const CHIME = { every: 10_000, times: 6 } as const
+
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
   const at = (p1: number, p2: number, t: number) => 3 * p1 * t * (1 - t) ** 2 + 3 * p2 * (1 - t) * t * t + t ** 3

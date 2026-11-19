@@ -3,7 +3,7 @@ import type { Activity } from './activities'
 import { CLOSE, OPEN, bezier, motion, squash } from './motion'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
-const timer: Activity = { id: 't', kind: 'timer', endsAt: 0 }
+const timer: Activity = { id: 't', kind: 'timer', endsAt: 0, total: 60_000 }
 
 describe('motion', () => {
   it('opens width first and closes height first', () => {

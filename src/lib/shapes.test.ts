@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { cardSize, layout, radius, resolveView, sizeOf } from './shapes'
+import { TIMER, cardSize, layout, radius, resolveView, sizeOf, timerSize, type TimerFit } from './shapes'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
-const timer: Activity = { id: 't', kind: 'timer', endsAt: 0 }
+const timer: Activity = { id: 't', kind: 'timer', endsAt: 0, total: 60_000 }
+const call: Activity = { id: 'c', kind: 'call', mic: true, camera: false }
+const running: TimerFit = { ended: false, long: false, name: 0, digits: 36 }
 
 describe('resolveView', () => {
   const rest = { hovered: false, expanded: false }
@@ -14,7 +16,33 @@ describe('resolveView', () => {
   })
 
   it('opens the panel on click, over everything else', () => {
-    expect(resolveView({ activity: timer, hovered: true, expanded: true, peeking: 't' })).toEqual({ name: 'expanded' })
+    expect(resolveView({ activity: call, hovered: true, expanded: true, peeking: 'c' })).toEqual({ name: 'expanded' })
+  })
+
+  it('opens a running timer into its own panel, of the clock panel size', () => {
+    const view = resolveView({ ...rest, activity: timer, expanded: true, timer: running })
+    expect(view).toEqual({ name: 'expanded', activity: timer })
+    expect(sizeOf(view)).toEqual(sizeOf({ name: 'expanded' }))
+  })
+
+  it('never opens a finished timer: it peeks, then stays a done pill', () => {
+    const done = { ...running, ended: true }
+    expect(resolveView({ ...rest, activity: timer, expanded: true, peeking: 't', timer: done })).toEqual({
+      name: 'peek',
+      activity: timer,
+    })
+    expect(resolveView({ ...rest, activity: timer, timer: done })).toMatchObject({ name: 'compact', size: { height: 34 } })
+  })
+
+  it('shows the name of a timer under the cursor, and nothing more without one', () => {
+    expect(resolveView({ ...rest, hovered: true, activity: timer, timer: running })).toMatchObject({ name: 'compact' })
+    const named = { ...running, name: 40 }
+    expect(resolveView({ ...rest, hovered: true, activity: timer, timer: named })).toMatchObject({ name: 'hover' })
+    expect(resolveView({ ...rest, activity: timer, timer: named })).toMatchObject({ name: 'compact' })
+  })
+
+  it('never peeks a running timer, even when asked', () => {
+    expect(resolveView({ ...rest, activity: timer, peeking: 't', timer: running })).toMatchObject({ name: 'compact' })
   })
 
   it('opens music into its own, larger panel', () => {
@@ -55,7 +83,30 @@ describe('sizeOf', () => {
   })
 
   it('stays compact for a peek the activity has no shape for', () => {
-    expect(sizeOf({ name: 'peek', activity: timer })).toEqual(sizeOf({ name: 'compact', activity: timer }))
+    expect(sizeOf({ name: 'peek', activity: call })).toEqual(sizeOf({ name: 'compact', activity: call }))
+  })
+})
+
+describe('timerSize', () => {
+  it('matches the design', () => {
+    expect(timerSize(running, false)).toEqual({ width: 112, height: 34 })
+    expect(timerSize({ ...running, long: true }, false)).toEqual({ width: 128, height: 34 })
+    expect(sizeOf({ name: 'compact', activity: timer })).toEqual({ width: 112, height: 34 })
+    expect(sizeOf({ name: 'peek', activity: timer })).toEqual({ width: 300, height: 56 })
+  })
+
+  it('makes room for the name under the cursor, up to its cap', () => {
+    const named = { ...running, name: 40 }
+    expect(timerSize(named, true)).toEqual({ width: 14 + 14 + 8 + 40 + 8 + 36 + 14, height: 36 })
+    expect(timerSize({ ...named, name: 500 }, true).width).toBe(timerSize({ ...named, name: TIMER.name }, true).width)
+  })
+
+  it('keeps the done pill 150 px wide at least, and adds its buttons under the cursor', () => {
+    const done = { ...running, ended: true, name: 26 }
+    expect(timerSize(done, false)).toEqual({ width: 150, height: 34 })
+    expect(timerSize(done, true)).toEqual({ width: 14 + 14 + 8 + 26 + 8 + 36 + 14 + 8 + TIMER.buttons, height: 36 })
+    const wide = { ...done, name: 100, digits: 60 }
+    expect(timerSize(wide, false).width).toBe(14 + 14 + 8 + 100 + 8 + 60 + 14)
   })
 })
 

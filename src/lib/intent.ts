@@ -498,7 +498,9 @@ function timerAction<A extends App>(line: string, timers: readonly Timer[], now:
   if (!verb) return
   const kind = verb[1] === 'pause' ? 'pause' : verb[1] === 'reprendre' || verb[1] === 'resume' ? 'resume' : 'stop'
   const name = verb[2] && line.slice(line.length - verb[2].length)
-  const pool = timers.filter((t) => (kind === 'pause' ? t.left === undefined : kind === 'resume' ? t.left !== undefined : true))
+  // A timer that ended can be stopped, not paused.
+  const running = (t: Timer) => t.left === undefined && t.endsAt > now
+  const pool = timers.filter((t) => (kind === 'pause' ? running(t) : kind === 'resume' ? t.left !== undefined : true))
   const timer = soonest(pool, name)
   if (!timer) return
   const [verbWord, alone] = words[kind]

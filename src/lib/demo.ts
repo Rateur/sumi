@@ -3,6 +3,7 @@ import type { Listed } from '../CommandBar.svelte'
 import type { Activity } from './activities'
 import type { Player } from './music'
 import type { Privacy, PrivacyApp } from './privacy'
+import { ended, isTimer, order, pause, resume } from './timers'
 
 const SONGS = [
   { title: 'Midnight City', artist: 'M83', color: '#A78BFA' },
@@ -83,8 +84,16 @@ const APPS: Listed[] = [
 
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
-  timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000 }),
-  done: () => ({ id: 'done', kind: 'timer', endsAt: Date.now() + 3000 }),
+  timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000, total: 25 * 60_000 }),
+  done: () => ({ id: 'done', kind: 'timer', endsAt: Date.now() + 3000, total: 3000 }),
+  pasta: () => ({
+    id: 'pasta',
+    kind: 'timer',
+    endsAt: Date.now() + 10 * 60_000,
+    total: 10 * 60_000,
+    label: fr ? 'pâtes' : 'pasta',
+  }),
+  long: () => ({ id: 'long', kind: 'timer', endsAt: Date.now() + 90 * 60_000, total: 90 * 60_000 }),
   music: () => ({ id: 'music', kind: 'music', ...song, player: playing('music', song.title, song.artist) }),
   video: () => ({
     id: 'video',
@@ -116,11 +125,15 @@ const KEYS: Record<string, string> = {
   '.': 'cancel',
   i: 'claude',
   b: 'bar',
+  l: 'pasta',
+  g: 'long',
+  z: 'pause',
 }
 
 /**
  * Dev only, in the browser. Each transition has a key and a name for `window.__sumiDemo.trigger(name)`:
- * C call, T timer, D a timer that ends in 3 s, M music, V a second player (a second activity splits the
+ * C call, T timer, D a timer that ends in 3 s, L a timer with a name, G one over an hour, Z pause or resume the
+ * timer that ends first, M music, V a second player (a second activity splits the
  * bubble off, ending it merges it back; a click on the bubble swaps the two), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
  * comma press and period cancel the press (E releases it into the panel). B or Ctrl+Alt+Space opens the command
  * bar ('bar'; the Claude app takes Ctrl+Alt+Space when it runs), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
@@ -158,6 +171,14 @@ export function demo(island: {
     track: () => {
       island.activities = island.activities.map((a) =>
         a.kind === 'music' ? { ...a, ...SONGS[a.title === SONGS[0].title ? 1 : 0] } : a,
+      )
+    },
+    pause: () => {
+      const t = Date.now()
+      const first = order(island.activities.filter(isTimer).filter((a) => !ended(a, t)), t)[0]
+      if (!first) return
+      island.activities = island.activities.map((a) =>
+        a.id !== first.id || !isTimer(a) ? a : a.left === undefined ? pause(a, t) : resume(a, t),
       )
     },
     hover: island.hover,
