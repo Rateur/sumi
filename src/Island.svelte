@@ -47,6 +47,8 @@
     type Snapshot,
   } from './lib/music'
   import { Spring } from './lib/spring'
+  import { choices, type Choice, type Lang } from './lib/intent'
+  import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard from './PrivacyCard.svelte'
 
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
@@ -89,12 +91,30 @@
   let onTag = false
   let card = $state(false)
   let tagTimer: ReturnType<typeof setTimeout> | undefined
+  // The command bar: its line, and the peek it folds into after Enter. Only the demo opens it and lists apps for now.
+  const lang: Lang = navigator.language.toLowerCase().startsWith('fr') ? 'fr' : 'en'
+  let barOpen = $state(false)
+  let line = $state('')
+  let launch = $state<{ text: string; letter?: string; color?: string }>()
+  let launchTimer: ReturnType<typeof setTimeout> | undefined
+  let apps = $state<Listed[]>([])
+  let claudeApp = $state(false)
+  // A timer started from the bar swells the island as it lands.
+  let swell = false
 
   // The last arrangement, so equals keep their place. Written from the derived as a plain variable: reading it
   // there doesn't make the derived depend on itself.
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
-  const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
+  const view = $derived(
+    resolveView({ activity: arrangement.island, hovered, expanded, peeking, bar: barOpen, launch: !!launch }),
+  )
+  // While the bar and its answer hold the island, what had it waits in the bubble.
+  const beside = $derived(barOpen || launch ? arrangement.island : arrangement.bubble)
+  const timers = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a] : [])))
+  const options = $derived(
+    barOpen ? choices(line, { apps, lang, claudeApp, timers, now: now.getTime() }) : ([] as Choice<Listed>[]),
+  )
   const key = $derived('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name)
   const size = $derived(sizeOf(view))
   const reduced = $derived(prefersReducedMotion.current)
@@ -112,11 +132,13 @@
       track: name === 'peek' && activity?.kind === 'music' ? activity : undefined,
       call: activity?.kind === 'call' ? activity : undefined,
       timer: activity?.kind === 'timer' ? activity : undefined,
+      bar: name === 'bar',
+      launch: name === 'launch' ? launch : undefined,
     }
   })
 
   // A running timer needs the seconds, in step with its end; the clock alone wakes up once a minute.
-  const ends = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a.endsAt] : [])))
+  const ends = $derived(timers.flatMap((a) => (a.left === undefined ? [a.endsAt] : [])))
   $effect(() => {
     const wait = () => (ends.length ? msUntilNextSecond(Math.min(...ends), Date.now()) : msUntilNextMinute(new Date()))
     now = new Date()
@@ -239,6 +261,8 @@
   function reshape(from: View, to: View) {
     clearTimeout(delayed)
     delayed = undefined
+    const swelled = swell
+    swell = false
     const target = sizeOf(to)
     // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
     // Unlike the drops, it still springs in forced colors: an outline follows it fine.
@@ -253,7 +277,7 @@
       const t = performance.now()
       drive(width, target.width, w, t)
       drive(height, target.height, h, t)
-      if (arrives) pulse(0, 150, t)
+      if (arrives || swelled) pulse(0, 150, t)
       wake()
     }
     if (delay) delayed = setTimeout(go, delay)
@@ -301,7 +325,7 @@
   // The bubble splits off like a drop, joined to the island by a neck until they part.
   // split and merge mirror emerge and retract below: change them together.
   $effect(() => {
-    const has = !!arrangement.bubble
+    const has = !!beside
     untrack(() => (has ? split() : merge()))
   })
 
@@ -545,7 +569,7 @@
   // Gives under the finger at once. The panel opens on release and carries the press's speed.
   let pressed = false
   function press(down: boolean) {
-    if (reduced || expanded || pressed === down) return
+    if (reduced || expanded || barOpen || pressed === down) return
     pressed = down
     const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
@@ -577,6 +601,7 @@
       expanded = false
       hovered = false
       peeking = undefined
+      closeBar()
     }
     const t = performance.now()
     const off = -(TOP + height.target + 24)
@@ -591,7 +616,11 @@
 
   // A timer that runs out, or a new song while the island is compact, swells it for a moment. A new song in the
   // bubble swells the bubble.
-  const done = $derived(arrangement.island?.kind === 'timer' && now.getTime() >= arrangement.island.endsAt)
+  const done = $derived(
+    arrangement.island?.kind === 'timer' &&
+      arrangement.island.left === undefined &&
+      now.getTime() >= arrangement.island.endsAt,
+  )
   $effect(() => {
     if (done) untrack(alert)
   })
@@ -644,6 +673,7 @@
       listen('island://dismiss', () => {
         expanded = false
         closeCard()
+        closeBar()
       }),
       listen<Presence>('island://presence', ({ payload }) => {
         presence = payload
@@ -655,7 +685,7 @@
 
   $effect(() => {
     // Esc and a click elsewhere close the tag's card too.
-    if (tauri) invoke('set_island_expanded', { expanded: expanded || card })
+    if (tauri) invoke('set_island_expanded', { expanded: expanded || card || barOpen })
   })
 
   let peekTimer: ReturnType<typeof setTimeout>
@@ -801,12 +831,57 @@
     card = false
   }
 
+  // --- Command bar ---
+
+  // It opens from whatever the island shows, and gives that view back on Esc or when its answer is done.
+  function toggleBar() {
+    if (barOpen) return closeBar()
+    if (hidden) return
+    expanded = false
+    hovered = false
+    closeCard()
+    clearTimeout(launchTimer)
+    launch = undefined
+    barOpen = true
+  }
+
+  // Nothing typed outlives the bar.
+  function closeBar() {
+    barOpen = false
+    line = ''
+  }
+
+  // Enter: the bar folds into its answer. A timer becomes the island's timer; an app or a question shows what
+  // opens for 1.2 s, then the previous view comes back. The demo opens nothing.
+  function run(choice: Choice<Listed>) {
+    if (!barOpen) return
+    closeBar()
+    const t = Date.now()
+    const edit = (id: string, change: (timer: Extract<Activity, { kind: 'timer' }>) => Activity | undefined) =>
+      (activities = activities.flatMap((a) => (a.id === id && a.kind === 'timer' ? (change(a) ?? []) : [a])))
+    if (choice.kind === 'timer') {
+      swell = true
+      activities = [...activities, { id: `timer:${t}`, kind: 'timer', endsAt: t + choice.ms, label: choice.name }]
+    } else if (choice.kind === 'add') {
+      edit(choice.id, (a) =>
+        a.left === undefined ? { ...a, endsAt: a.endsAt + choice.ms } : { ...a, left: a.left + choice.ms },
+      )
+    } else if (choice.kind === 'pause') edit(choice.id, (a) => ({ ...a, left: Math.max(0, a.endsAt - t) }))
+    else if (choice.kind === 'resume') edit(choice.id, (a) => ({ ...a, endsAt: t + (a.left ?? 0), left: undefined }))
+    else if (choice.kind === 'stop') edit(choice.id, () => undefined)
+    else if (choice.kind === 'app' || choice.kind === 'ask') {
+      launch = { text: choice.kind === 'app' ? choice.app.name : choice.peek, ...markOf(choice) }
+      clearTimeout(launchTimer)
+      launchTimer = setTimeout(() => (launch = undefined), 1200)
+    }
+  }
+
   // --- Bubble swap and seek ---
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
-    const picked = arrangement.bubble
-    if (picked && arrangement.island?.kind !== 'call') prefer = picked.id
+    const picked = beside
+    if (picked && arrangement.island?.kind !== 'call' && !barOpen && !launch) prefer = picked.id
   }
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
@@ -900,6 +975,19 @@
         press,
         alert,
         fullscreen: () => fullscreen(!hidden),
+        bar: toggleBar,
+        get apps() {
+          return apps
+        },
+        set apps(next) {
+          apps = next
+        },
+        get claudeApp() {
+          return claudeApp
+        },
+        set claudeApp(next) {
+          claudeApp = next
+        },
       }),
     )
   }
@@ -913,7 +1001,11 @@
   onpointermove={move}
   onresize={wake}
   onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
-  onpointerdown={(event) => !tauri && !island.contains(event.target as Node) && (expanded = false)}
+  onpointerdown={(event) => {
+    if (tauri || island.contains(event.target as Node)) return
+    expanded = false
+    closeBar()
+  }}
 />
 
 {#snippet digits(text: string)}
@@ -962,7 +1054,9 @@
   {:else if activity.kind === 'call'}
     <span class="dots">{@render dots(activity)}</span>
   {:else if activity.kind === 'timer'}
-    <span class="countdown">{@render digits(formatCountdown(activity.endsAt - now.getTime(), true))}</span>
+    <span class="countdown" class:paused={activity.left !== undefined}>
+      {@render digits(formatCountdown(activity.left ?? activity.endsAt - now.getTime(), true))}
+    </span>
   {:else if activity.art}
     <span class="art" style:background={activity.color}><img src={activity.art} alt="" /></span>
   {:else}
@@ -1015,7 +1109,7 @@
   onpointerleave={() => (tauri ? press(false) : point(false))}
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
-  {#if !expanded}
+  {#if !expanded && !barOpen && !launch}
     <button type="button" class="opener" aria-label="Open" aria-expanded="false" onclick={open}></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
@@ -1070,7 +1164,7 @@
                 if (step && playback.canSeek) hold(position(playback, Date.now()) + step, false)
               }}
             >
-              <span class="bar" bind:this={bar}>
+              <span class="rail" bind:this={bar}>
                 <span bind:this={played} style:background={parts.player.color}></span>
               </span>
             </span>
@@ -1116,9 +1210,18 @@
       <span class="dots" in:enter={{ step: 1 }} out:exit>{@render dots(parts.call)}</span>
     {/if}
     {#if parts.timer}
-      <span class="countdown" in:enter out:exit>
-        {@render digits(formatCountdown(parts.timer.endsAt - now.getTime()))}
+      <span class="countdown" class:paused={parts.timer.left !== undefined} in:enter out:exit>
+        {@render digits(formatCountdown(parts.timer.left ?? parts.timer.endsAt - now.getTime()))}
       </span>
+    {/if}
+    {#if parts.bar}
+      <CommandBar bind:line choices={options} {lang} {reduced} {enter} {exit} onrun={run} onclose={closeBar} />
+    {/if}
+    {#if parts.launch}
+      <span class="mark" style:background={parts.launch.color} in:enter out:exit>
+        {#if parts.launch.letter}{parts.launch.letter}{/if}
+      </span>
+      <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
     {/if}
     {#if parts.music}
       <span
@@ -1148,10 +1251,10 @@
 
 {#if geometry.dot}
   <button type="button" class="island bubble" aria-label="Show in the island" style={place(geometry.dot)} onclick={swap}>
-    {#if arrangement.bubble && revealed}
-      {#key arrangement.bubble.id}
+    {#if beside && revealed}
+      {#key beside.id}
         <span class="content" in:enter|global out:exit|global={{ shrinks: true }}>
-          {@render glyph(arrangement.bubble)}
+          {@render glyph(beside)}
         </span>
       {/key}
     {/if}
@@ -1290,6 +1393,37 @@
     padding: 0 18px 0 10px;
   }
 
+  /* The command bar: the field from the left, the chip 8 px from the right end. */
+  .view.bar {
+    justify-content: space-between;
+    padding: 0 8px 0 18px;
+  }
+
+  /* An app launching or a question handed off: its icon, and what opens. */
+  .launch {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 16px 0 8px;
+  }
+
+  .launch .mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .launched {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+  }
+
   .expanded {
     flex-direction: column;
     justify-content: flex-start;
@@ -1361,7 +1495,7 @@
     outline: none;
   }
 
-  .bar {
+  .rail {
     height: 4px;
     border-radius: 4px;
     overflow: hidden;
@@ -1369,13 +1503,13 @@
     transition: height 0.15s;
   }
 
-  .scrub[aria-disabled='false']:hover .bar,
-  .scrub.held .bar,
-  .scrub:focus-visible .bar {
+  .scrub[aria-disabled='false']:hover .rail,
+  .scrub.held .rail,
+  .scrub:focus-visible .rail {
     height: 7px;
   }
 
-  .bar > span {
+  .rail > span {
     display: block;
     height: 100%;
     transform: scaleX(0);
@@ -1558,6 +1692,11 @@
   .countdown {
     margin: auto;
     color: #fbbf24;
+  }
+
+  /* Paused, the digits freeze at half strength, without a blink. */
+  .countdown.paused {
+    opacity: 0.5;
   }
 
   .bubble .countdown {
