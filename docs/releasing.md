@@ -12,7 +12,7 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
 
    - the README: the note on what the current version does, and the roadmap's box for this version;
    - the site: the roadmap (the line's tag, and its live preview if the feature has one), the home page if it shows the feature, and the feature's page in the docs;
-   - a short GIF of the new feature in `.github/assets/`, recorded from the site's showcase island (`npm run showcase`).
+   - a short GIF of the new feature in `.github/assets/`, recorded from the site's showcase island (`npm run showcase`), and the README's demo GIF (`.github/assets/demo.gif`) recorded again so it shows the new feature too.
 
    Open a pull request into `dev` titled `chore: release 0.2.0`.
 

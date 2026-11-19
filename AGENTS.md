@@ -10,7 +10,7 @@ npm run build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-A change users can see updates, in the same pull request and in both languages: the feature's page in the site's docs, the README when what users can do changes, and `docs/design.md` when a value changes (with the OK below). A release also updates the site's roadmap and home page, and its notes open with a GIF of what's new: see [docs/releasing.md](docs/releasing.md).
+A change users can see updates, in the same pull request and in both languages: the feature's page in the site's docs, the README when what users can do changes, and `docs/design.md` when a value changes (with the OK below). A release also updates the site's roadmap and home page, its notes open with a GIF of what's new, and the README's demo GIF is recorded again to show it: see [docs/releasing.md](docs/releasing.md).
 
 Never:
 
