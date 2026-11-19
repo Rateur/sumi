@@ -53,6 +53,16 @@ describe('parseTimer', () => {
     ['make it a 10 min timer', minutes(10)],
     ['countdown 5 minutes', minutes(5)],
     ['pasta timer 12 min', minutes(12), 'pasta'],
+    // Fillers and politeness are no name once a timer is asked for, nor is a slipped verb or keyword.
+    ['minuteur 10 min stp pour les pates', minutes(10), 'pates'],
+    ['pendant 10 min', minutes(10)],
+    ['set the timer to 10 minutes', minutes(10)],
+    ['set a timer for 10 more minutes', minutes(10)],
+    ['timer 10 min asap', minutes(10)],
+    ['set a tiemr for 10 minutes', minutes(10)],
+    ['lacne un minuteur de 10', minutes(10)],
+    // The clock's notation is a timer bare, or asked for: 'reveil 7h' alone is a time of day.
+    ['minuteur reveil 7h', minutes(420), 'reveil'],
   ]
   it.each(accepted)('reads %s', (line, ms, label) => {
     expect(parseTimer(line)).toEqual({ ms, label })
@@ -349,6 +359,33 @@ describe('natural phrasing', () => {
         expect(choices(line.slice(0, n), options)[0], line.slice(0, n)).toMatchObject({ kind: 'clock', what })
   })
 
+  it('holds an app or the time while a tail is typed after it', () => {
+    for (const [line, from] of [
+      ['ouvre spotify maintenant', 'ouvre spotify'],
+      ['ouvre discord stp', 'ouvre discord'],
+      ['ouvre discord merci', 'ouvre discord'],
+      ['open discord rn', 'open discord'],
+      ['open discord please', 'open discord'],
+      ['il est quelle heure stp', 'il est quelle heure'],
+      ['launch vs code', 'launch vs'],
+    ]) {
+      const first = choices(from, options)[0]
+      for (let n = from.length; n <= line.length; n++)
+        expect(choices(line.slice(0, n), options)[0], line.slice(0, n)).toEqual(first)
+    }
+    // A bare name keeps its politeness: 'discord stp' is a question, so 'discord st' holds nothing.
+    expect(choices('discord st', options)[0].kind).toBe('ask')
+  })
+
+  it('holds a spelled timer while its unit is typed', () => {
+    for (const [line, from] of [
+      ['minuteur de vingt minutes', 'minuteur de vingt'],
+      ['timer twenty five minutes', 'timer twenty five'],
+    ])
+      for (let n = from.length; n <= line.length; n++)
+        expect(parseTimer(line.slice(0, n)), line.slice(0, n)).toEqual(parseTimer(from))
+  })
+
   it('arms no timer before the first digit: a masculine "un" is no minute', () => {
     for (const line of ['mets un minuteur de 25 minutes', 'lance un minuteur de 20 minutes'])
       for (let n = 1; n < line.indexOf('2'); n++) expect(choices(line.slice(0, n), options)[0].kind).toBe('ask')
@@ -419,6 +456,12 @@ describe('findApp', () => {
     expect(findApp('mails', apps)?.name).toBe('Mail')
     expect(findApp('emails', apps)).toBeUndefined()
     expect(findApp('codes', apps)).toBeUndefined()
+  })
+
+  it('reads a pronoun as a whole word, never the start of a name', () => {
+    const list = [{ name: 'OneNote' }]
+    for (const line of ['open one', 'ouvre one', 'ouvre ça']) expect(top(line, { ...fr, apps: list }).kind).toBe('ask')
+    expect(top('open onenote', { ...fr, apps: list })).toMatchObject({ kind: 'app', app: { name: 'OneNote' } })
   })
 
   it('reads a list once, and again when it changes', () => {
