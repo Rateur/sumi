@@ -17,7 +17,7 @@ Thanks for helping. Sumi has one maintainer, so here is what gets merged.
 
 `main` is what users get. It only changes when `dev` is merged for a release.
 
-`dev` is where work lands. Open your pull request against `dev`, from a branch named after what it does: `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`.
+`dev` is where work lands. Open your pull request against `dev`, from a branch named after what it does: `feat/media-module`, `fix/click-through-win10`, `docs/shortcuts`, `refactor/rust-cleanups`, `chore/release-0.5.0`.
 
 Pull requests into `dev` are squash-merged, so the PR title becomes the commit message. Write it as a [Conventional Commit](https://www.conventionalcommits.org): `feat: show album art in the island`, `fix: keep focus on the game when a timer ends`.
 
@@ -42,6 +42,38 @@ npm run tauri dev
 
 The island appears at the top of your primary screen. Quit it from the tray icon. Changes to the frontend reload instantly; changes to Rust restart the app.
 
+## How the code is laid out
+
+- `src-tauri/src/lib.rs` starts the app: the tray icon, the list of commands the page can call, and each module's watcher.
+- `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, and closes the panel.
+- `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen.
+- `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
+- `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
+- `src/Island.svelte` draws the island and is the only file that talks to Rust.
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy. Each file but `demo.ts` has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
+- `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
+
+The page calls Rust with `invoke()` and listens to its events with `listen()`. Each Rust type has a TypeScript twin: change both together. TypeScript types without a file are written inline in `src/Island.svelte`.
+
+| Name | Direction | Rust | TypeScript |
+|---|---|---|---|
+| `set_island_rects` | page → Rust | `rects: Vec<Rect>` (`island.rs`) | `{ x, y, width, height, radius }[]` |
+| `set_island_expanded` | page → Rust | `expanded: bool` | `boolean` |
+| `media_control` | page → Rust | `id: String`, `action: Action` (`media.rs`) | `'play'`, `'pause'`, `'next'` or `'previous'` |
+| `media_seek` | page → Rust | `id: String`, `ms: i64` | `number` |
+| `media_players` | page → Rust | returns `Snapshot` (`media.rs`) | `{ players: Player[]; artwork: Record<string, string> }` |
+| `privacy_state` | page → Rust | returns `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+| `privacy_mute` | page → Rust | `muted: bool` | `boolean` |
+| `privacy_settings` | page → Rust | `camera: bool` | `boolean` |
+| `privacy_show` | page → Rust | `name: String`, returns `bool` | `boolean` |
+| `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
+| `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
+| `island://dismiss` | Rust → page | nothing | nothing |
+| `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
+| `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
+| `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+
 ## Before you push
 
 Run what CI runs:
@@ -51,6 +83,8 @@ npm run lint && npm run check && npm test
 npm run build
 cd src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
 ```
+
+TypeScript and Svelte have no formatter: match the surrounding style (single quotes, no semicolons, 2 spaces) and don't run Prettier.
 
 To try your change as users will get it, build the installer with `npm run tauri build`.
 
