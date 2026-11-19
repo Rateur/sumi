@@ -12,7 +12,8 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
 
    - the README: the note on what the current version does, and the roadmap's box for this version;
    - the site: the roadmap in `site/src/i18n/home.ts`, in both languages (the line's tag, and its live preview if the feature has one), the home page if it shows the feature, and the feature's page in the docs;
-   - a short GIF of the new feature in `.github/assets/`, recorded from the site's showcase island (`npm run dev` in `site/` builds it first), and the README's demo GIF (`.github/assets/demo.gif`) recorded again so it shows the new feature too.
+   - a short GIF of the new feature in `.github/assets/`, recorded from the site's showcase island (`npm run dev` in `site/` builds it first);
+   - the README's demo GIF, `.github/assets/demo.gif`, recorded again so it shows the new feature too.
 
    Open a pull request into `dev` titled `chore: release 0.2.0`.
 
@@ -26,7 +27,7 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
    git push origin v0.2.0
    ```
 
-4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Put the GIF at the top of the notes (its `raw.githubusercontent.com` link at the tag) and the [code signing policy](https://rateur.github.io/sumi/docs/code-signing/) link at the bottom. Install the attached `Sumi-setup.exe`, then click **Publish release** with **Set as the latest release** checked. Then check the site: its download links point to this release now.
+4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Put the GIF at the top of the notes (`https://raw.githubusercontent.com/Rateur/sumi/v0.2.0/.github/assets/<name>.gif`) and the [code signing policy](https://rateur.github.io/sumi/docs/code-signing/) link at the bottom. Install the attached `Sumi-setup.exe`, then click **Publish release** with **Set as the latest release** checked. Then check the site: its download links point to this release now.
 
    Each installer carries a build attestation. Anyone can check it came from this repository's workflow:
 
