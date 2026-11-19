@@ -32,7 +32,7 @@ body:
     id: version
     attributes:
       label: Sumi version
-      description: Settings → Apps → Installed apps (Windows 10: Apps & features) → Sumi.
+      description: Settings → Apps → Installed apps (Windows 10 and the first Windows 11: Apps & features) → Sumi.
       placeholder: "0.2.0"
     validations:
       required: true
