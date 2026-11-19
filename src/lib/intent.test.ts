@@ -427,6 +427,11 @@ describe('natural phrasing', () => {
     ['ouvre la fenetre', 'ask', 'claude'],
     ['ouvre la ame', 'ask', 'claude'],
     ['open the door', 'ask', 'claude'],
+    ['ouvre mes', 'ask', 'claude'],
+    ['lance le pr', 'ask', 'claude'],
+    ['show the ti', 'ask', 'claude'],
+    ['start a ti', 'ask', 'claude'],
+    ['mets un minuteur de 2 he', 'timer', 120 * min],
   ]
   it.each(table)('%s → %s %s', (line, kind, to) => {
     const c = choices(line, options)[0]
@@ -466,7 +471,9 @@ describe('findApp', () => {
     const list = ['Paramètres', 'Spotify', 'Discord', 'Disco Elysium'].map((name) => ({ name }))
     expect(findApp('parametre', list)?.name).toBe('Paramètres')
     expect(findApp('spotifi', list)?.name).toBe('Spotify')
-    expect(findApp('disco', list)?.name).toBe('Discord')
+    // 'disco' could be either: nothing until it can't.
+    expect(findApp('disco', list)).toBeUndefined()
+    expect(findApp('discor', list)?.name).toBe('Discord')
     expect(findApp('dicsord', list)?.name).toBe('Discord')
     // Too short to tell a typo from another name.
     expect(findApp('dsic', list)).toBeUndefined()

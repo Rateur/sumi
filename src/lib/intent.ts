@@ -190,9 +190,10 @@ export function normalize(typed: string): { text: string; at: number[] } {
 // --- Timers ---
 
 const NUM = String.raw`\d+(?:[.,]\d+)?`
-const SEC = 'secondes?|seconds?|secs?|s'
-const MIN = 'minutes?|mins?|mn|m'
-const HOUR = 'heures?|hours?|hrs?|h'
+// A unit half typed is that unit, so the chip holds still while 'heures' is typed: 'he', 'heu' and 'heur' are hours.
+const SEC = 's(?:e(?:c(?:o(?:n(?:d(?:es?|s)?)?)?|s)?)?)?'
+const MIN = 'm(?:i(?:n(?:u(?:t(?:es?)?)?|s)?)?|n)?'
+const HOUR = 'h(?:e(?:u(?:r(?:es?)?)?)?|o(?:u(?:rs?)?)?|rs?)?'
 const UNIT: [RegExp, number][] = [
   [new RegExp(`^(?:${SEC})$`), 1000],
   [new RegExp(`^(?:${MIN})$`), 60_000],
@@ -484,8 +485,8 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
 
 /**
  * The app a query names, by fixed tiers: an exact alias or name, a prefix, the start of a word, a typo, then a
- * shortening. The shorter name wins a prefix or a word start ('ste' is Steam, not Steam VR); a tie among typos or
- * shortenings finds nothing, as does a known name whose app is missing. Usage never reorders it.
+ * shortening. The shorter name wins a prefix or a word start when the others carry it ('ste' is Steam, not Steam
+ * VR); any other tie finds nothing, as does a known name whose app is missing. Usage never reorders it.
  */
 export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
   const q = key(query)
@@ -497,11 +498,16 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
   if (GROUPS.has(q)) return
   // One letter is too little to act on.
   if (q.length < 2) return
+  // A prefix, then the start of a word, the shorter name first. It wins only when every name that starts a word with
+  // the query carries it: 'ste' is Steam rather than Steam VR, but 'st' is neither Steam nor Microsoft Store, so a
+  // half-typed name never opens its neighbor.
   const spaced = ' ' + q
-  for (const test of [(e: Entry<A>) => e.keys.some((k) => k.startsWith(q)), (e: Entry<A>) => e.spaced.some((k) => k.includes(spaced))]) {
-    let best: A | undefined
-    for (const e of entries) if (test(e) && (!best || e.app.name.length < best.name.length)) best = e.app
-    if (best) return best
+  const hits = entries.filter((e) => e.spaced.some((w) => w.includes(spaced)))
+  if (hits.length) {
+    const prefix = hits.filter((e) => e.keys.some((k) => k.startsWith(q)))
+    const best = (prefix.length ? prefix : hits).reduce((a, b) => (b.app.name.length < a.app.name.length ? b : a))
+    const carried = hits.every((e) => e === best || best.keys.some((k) => e.spaced.some((w) => w.includes(' ' + k))))
+    return carried ? best.app : undefined
   }
   // Typos and shortenings are for words: '10' is no typo of '11'.
   if (/\d/.test(q)) return
@@ -570,11 +576,18 @@ const BY_NAME = new RegExp(
 )
 const SEARCH = /^(?:cherche|chercher|recherche|rechercher|trouve|trouver|search|look up|find)(?: moi)? (.+)$/
 // Dropped after a verb: 'ouvre les paramètres', 'open the calculator', "lance l'explorateur".
-const DET = "(?:(?:le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my|l'|d') )?"
+const DETS = "le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my|l'|d'"
+const DET = `(?:(?:${DETS}) )?`
 // The word for an app is no part of its name: "lance l'appli discord", 'open the spotify app'. Nor is the 'moi' of
 // 'ouvre-moi discord'.
-const NOUN = '(?:(?:app|appli|application|logiciel|programme) )?'
-// The first group says no app aloud; 'montre' or 'show' without an app is just a question.
+const NOUNS = 'app|appli|application|logiciel|programme'
+const NOUN = `(?:(?:${NOUNS}) )?`
+// Words still being typed name no app yet: 'ouvre me' may become 'ouvre mes réglages', 'lance le pr' 'lance le
+// programme', and after a timer's verb, 'start a ti' 'start a timer'.
+const TYPING = [...DETS.split('|'), ...NOUNS.split('|')]
+const TIMING = [...KEYWORDS]
+// The first group opens what it names, or says no app aloud. 'montre', 'show' or 'run' takes an exact name: without
+// one it is just a question, so 'show the ti' is no Time Doctor.
 const VERB = new RegExp(
   '^(?:(ouvre|ouvres|ouvrez|ouvrir|lance|lances|lancer|lancez|demarre|demarrer|demarrez|open|launch|start)|' +
     `affiche|afficher|montre|montrer|show|run) (?:moi )?${DET}${NOUN}(.+?)(?: (?:app|appli|application))?$`,
@@ -626,8 +639,9 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     const search = SEARCH.exec(text)
     if (search) return [ask('search', rest(search[1]), claudeApp, lang), rest(search[1])]
     const verb = VERB.exec(text)
-    if (verb) {
-      const app = findApp(verb[2], options.apps)
+    const typing = (words: string[]) => words.some((w) => w.startsWith(verb![2]))
+    if (verb && !typing(TYPING) && !(SET.test(text) && typing(TIMING))) {
+      const app = verb[1] ? findApp(verb[2], options.apps) : exact.get(key(verb[2]))
       if (app) return [open(app), typed]
       // Named as typed. 'lance un minuteur' is no missing app, just a question.
       const [from, to] = verb.indices![2]!
