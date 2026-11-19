@@ -36,7 +36,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [ ] Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche, et des minuteurs : tapez `25m`
 - [ ] Ranger l'île en un fin trait en haut d'un défilement vers le haut, et une icône vivante dans la barre des tâches qui la range ou la fait revenir
 - [ ] La météo d'[Open-Meteo](https://open-meteo.com), et sur portable des alertes de charge et de batterie faible
-- [ ] Les réglages (position en haut ou à côté de la barre des tâches, écran, thème, langue, raccourcis), les mises à jour automatiques et un installateur signé
+- [ ] Les réglages (écran, thème, langue, raccourcis), les mises à jour automatiques et un installateur signé
 
 ## Comment c'est fait
 
