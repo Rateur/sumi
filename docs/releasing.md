@@ -29,3 +29,13 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
    ```
 
 Leave **Set as a pre-release** unchecked, except for test builds like `0.2.0-beta.1`: GitHub skips pre-releases when it resolves `releases/latest`, and the download links point there.
+
+5. **Send it to the Microsoft Store.** The release also carries `Sumi_<version>.0_x64.msix`, built from the same commit. In [Partner Center](https://partner.microsoft.com/dashboard), open Sumi, start an update, drop the `.msix` into **Packages**, and submit. Microsoft certifies it, signs it and updates every Store install, usually within three business days.
+
+   The package's identity lives in `src-tauri/store/AppxManifest.xml` and must match Partner Center's **Product identity** page. To try the package before a release, lay it out from a local build and register it (Windows **Developer Mode** must be on):
+
+   ```powershell
+   npm run tauri build
+   src-tauri/store/pack.ps1 -LayoutOnly
+   Add-AppxPackage -Register src-tauri\target\store\layout\AppxManifest.xml
+   ```
