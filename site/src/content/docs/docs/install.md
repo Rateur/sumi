@@ -19,7 +19,7 @@ Right-click the Sumi icon in the notification area, then select **Quit Sumi**.
 
 ## Uninstall
 
-**Settings** › **Apps** › **Installed apps** › **Sumi** › **Uninstall**.
+**Settings** › **Apps** › **Installed apps** (on Windows 10: **Apps & features**) › **Sumi** › **Uninstall**.
 
 ## Requirements
 
