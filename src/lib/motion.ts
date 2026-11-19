@@ -23,9 +23,9 @@ export function motion(from: View, to: View): Motion {
     to.name === 'compact' && from.name !== 'expanded' && !('activity' in from && from.activity?.id === to.activity.id)
   const [width, height]: Axis[] =
     to.name === 'expanded'
-      ? [[0.46, 0.26], [0.52, 0.18]]
+      ? [OPEN.width, OPEN.height]
       : from.name === 'expanded'
-        ? [[0.4, 0], [0.34, 0]]
+        ? [CLOSE.width, CLOSE.height]
         : to.name === 'hover'
           ? [[0.4, 0.25], [0.34, 0.15]]
           : from.name === 'hover' && to.name === 'idle'
@@ -44,6 +44,12 @@ export function motion(from: View, to: View): Motion {
     pulse,
   }
 }
+
+/** The panel and the privacy card open leading with the width, with a little bounce. */
+export const OPEN: { width: Axis; height: Axis } = { width: [0.46, 0.26], height: [0.52, 0.18] }
+
+/** They close leading with the height, without a bounce. */
+export const CLOSE: { width: Axis; height: Axis } = { width: [0.4, 0], height: [0.34, 0] }
 
 /** Content comes in from a blur, a beat after the shape starts, one piece after another. Times in ms. */
 export const ENTER = { delay: 50, stagger: 35, duration: 280, easing: [0.2, 0, 0, 1], blur: 6, scale: 0.9 } as const

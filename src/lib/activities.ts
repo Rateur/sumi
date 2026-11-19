@@ -9,7 +9,10 @@ export type Activity =
   // `art` is a data: URL and `player` the live state behind it; the demo's songs have neither.
   | { id: string; kind: 'music'; title: string; artist: string; color: string; art?: string; player?: Player }
 
-/** How much of the island shows: quiet while Windows says you're busy, hidden while something is fullscreen. */
+/**
+ * How much of the island shows (src-tauri/src/fullscreen.rs): quiet while Windows says you're busy, hidden while
+ * something is fullscreen.
+ */
 export type Presence = 'shown' | 'quiet' | 'hidden'
 
 export interface Arrangement {

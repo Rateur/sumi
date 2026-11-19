@@ -17,7 +17,7 @@
     msUntilNextSecond,
   } from './lib/clock'
   import { tint } from './lib/color'
-  import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
+  import { CLOSE, ENTER, EXIT, FULLSCREEN, OPEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
   import { label, light, quiet, tagged, type Privacy } from './lib/privacy'
   import {
     BUBBLE,
@@ -41,8 +41,10 @@
     shown as showing,
     songs,
     update,
+    type Artwork,
     type Player,
     type Players,
+    type Snapshot,
   } from './lib/music'
   import { Spring } from './lib/spring'
   import PrivacyCard from './PrivacyCard.svelte'
@@ -233,6 +235,7 @@
     delayed = undefined
     const target = sizeOf(to)
     // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
+    // Unlike the drops, it still springs in forced colors: an outline follows it fine.
     if (reduced || (hidden && drop.resting)) {
       width.jump(target.width)
       height.jump(target.height)
@@ -284,6 +287,9 @@
     wake()
   }
 
+  // A drop lands at once without motion, in forced colors, where the goo can't show, and off the screen.
+  const instant = () => reduced || forced.current || (hidden && drop.resting)
+
   // The bubble splits off like a drop, joined to the island by a neck until they part.
   $effect(() => {
     const has = !!arrangement.bubble
@@ -292,7 +298,7 @@
 
   function split() {
     if (phase === 'split' || phase === 'shown') return
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -314,7 +320,7 @@
 
   function merge() {
     if (phase === 'none' || phase === 'merge') return
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -336,7 +342,7 @@
   function emerge() {
     if (tagPhase === 'split' || tagPhase === 'shown') return
     const w = Math.max(TAG, tagContent)
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       tagShift.jump(0)
       tagW.jump(w)
       tagH.jump(TAG)
@@ -368,7 +374,7 @@
       retracting = setTimeout(() => tagged(privacy) || retract(), 320)
       return
     }
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       tagW.jump(0)
       tagH.jump(0)
       tagPhase = 'none'
@@ -688,14 +694,16 @@
         latest = payload
         refresh()
       }),
-      listen<{ id: string; url: string | null }>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
+      listen<Artwork>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
     ]
     // What Rust sent before these listeners existed.
-    invoke<{ players: Player[]; artwork: Record<string, string> }>('media_players').then((snapshot) => {
-      if (!heard) latest = snapshot.players
-      Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
-      refresh()
-    })
+    invoke<Snapshot>('media_players')
+      .then((snapshot) => {
+        if (!heard) latest = snapshot.players
+        Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
+        refresh()
+      })
+      .catch(console.error)
     return () => {
       stops.forEach((stop) => stop.then((unlisten) => unlisten()))
       clearTimeout(change)
@@ -715,7 +723,9 @@
       privacy = payload
     })
     // What Rust found before this listener existed.
-    invoke<Privacy>('privacy_state').then((state) => heard || (privacy = state))
+    invoke<Privacy>('privacy_state')
+      .then((state) => heard || (privacy = state))
+      .catch(console.error)
     return () => {
       stop.then((unlisten) => unlisten())
     }
@@ -730,18 +740,18 @@
     untrack(() => {
       if (tagPhase !== 'split' && tagPhase !== 'shown') return
       if (w === tagW.target && h === tagH.target) return
-      if (reduced || forced.current || (hidden && drop.resting)) {
+      if (instant()) {
         tagW.jump(w)
         tagH.jump(h)
         return wake()
       }
       const t = performance.now()
       if (h > tagH.target) {
-        drive(tagW, w, [0.46, 0.26], t)
-        drive(tagH, h, [0.52, 0.18], t)
+        drive(tagW, w, OPEN.width, t)
+        drive(tagH, h, OPEN.height, t)
       } else if (h < tagH.target) {
-        drive(tagW, w, [0.4, 0], t)
-        drive(tagH, h, [0.34, 0], t)
+        drive(tagW, w, CLOSE.width, t)
+        drive(tagH, h, CLOSE.height, t)
       } else drive(tagW, w, w > tagW.value ? [0.4, 0.3] : [0.3, 0], t)
       wake()
     })
