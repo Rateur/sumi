@@ -289,6 +289,8 @@ mod win {
             &self,
             reason: AudioSessionDisconnectReason,
         ) -> windows::core::Result<()> {
+            // shortcut: Windows only says its audio service stopped through a capture session's callback; with no
+            // session, or after a crash, nothing reopens until Sumi restarts. Watch the service if that's reported.
             self.send(if reason == DisconnectReasonServerShutdown {
                 Msg::Service
             } else {
@@ -360,17 +362,21 @@ mod win {
     }
 
     /// A microphone as mute sees it: whether mute covers it, as a default or one an app is capturing from at that
-    /// moment, and whether Windows has it muted.
+    /// moment, and whether Windows has it muted: `None` when the mute can't be read, as while the service stops.
     struct Mic {
         id: String,
         covered: bool,
-        muted: bool,
+        muted: Option<bool>,
     }
 
     /// Mute counts as on only when every microphone it covers is muted: a live headset beside a muted laptop mic
     /// still hears.
     fn all_muted(mics: &[Mic]) -> bool {
-        mics.iter().any(|m| m.covered) && mics.iter().filter(|m| m.covered).all(|m| m.muted)
+        mics.iter().any(|m| m.covered)
+            && mics
+                .iter()
+                .filter(|m| m.covered)
+                .all(|m| m.muted == Some(true))
     }
 
     /// The microphones a click sets. Mute takes each covered one that still hears, never an idle one. Unmute gives
@@ -380,28 +386,32 @@ mod win {
         if muted {
             return mics
                 .iter()
-                .filter(|m| m.covered && !m.muted)
+                .filter(|m| m.covered && m.muted != Some(true))
                 .map(|m| m.id.as_str())
                 .collect();
         }
         let mine: Vec<&str> = mics
             .iter()
-            .filter(|m| m.muted && ours.contains(&m.id))
+            .filter(|m| m.muted == Some(true) && ours.contains(&m.id))
             .map(|m| m.id.as_str())
             .collect();
         if !mine.is_empty() {
             return mine;
         }
         mics.iter()
-            .filter(|m| m.covered && m.muted)
+            .filter(|m| m.covered && m.muted == Some(true))
             .map(|m| m.id.as_str())
             .collect()
     }
 
     /// Sumi stops owning a microphone's mute once Windows reports it unmuted, so a later mute there by hand stays.
-    /// One that isn't present now is kept: it may come back still muted.
+    /// One that isn't present now, or whose mute can't be read, is kept: it may come back still muted.
     fn forget_unmuted(ours: &mut Vec<String>, mics: &[Mic]) {
-        ours.retain(|id| mics.iter().find(|m| &m.id == id).is_none_or(|m| m.muted));
+        ours.retain(|id| {
+            mics.iter()
+                .find(|m| &m.id == id)
+                .is_none_or(|m| m.muted != Some(false))
+        });
     }
 
     /// The capture devices being watched, by id: each one's session manager and mute, and the sessions heard from.
@@ -516,7 +526,7 @@ mod win {
                 .map(|(id, volume)| Mic {
                     id: id.clone(),
                     covered: self.defaults.contains(id) || self.live.contains(id),
-                    muted: unsafe { volume.GetMute() }.is_ok_and(BOOL::as_bool),
+                    muted: unsafe { volume.GetMute() }.ok().map(BOOL::as_bool),
                 })
                 .collect()
         }
@@ -1197,7 +1207,7 @@ mod win {
                 .map(|&(id, covered, muted)| Mic {
                     id: id.to_string(),
                     covered,
-                    muted,
+                    muted: Some(muted),
                 })
                 .collect()
         }
@@ -1215,6 +1225,10 @@ mod win {
                 ("idle", false, false)
             ])));
             assert!(!all_muted(&mics(&[("idle", false, true)])));
+            // A mute that can't be read isn't taken for muted.
+            let mut list = mics(&[("laptop", true, true), ("headset", true, true)]);
+            list[1].muted = None;
+            assert!(!all_muted(&list));
         }
 
         #[test]
@@ -1251,6 +1265,11 @@ mod win {
                 &mut ours,
                 &mics(&[("laptop", true, false), ("headset", true, true)]),
             );
+            assert_eq!(ours, ["headset", "usb"]);
+            // While the audio service stops, no mute can be read: Sumi keeps what it muted.
+            let mut list = mics(&[("headset", true, true)]);
+            list[0].muted = None;
+            forget_unmuted(&mut ours, &list);
             assert_eq!(ours, ["headset", "usb"]);
             // Muted again by hand: it stays muted on Sumi's next unmute.
             let list = mics(&[("laptop", true, true), ("headset", true, true)]);
