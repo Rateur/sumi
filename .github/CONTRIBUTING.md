@@ -44,7 +44,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 
 ## How the code is laid out
 
-- `src-tauri/src/lib.rs` starts the app: the tray icon, the list of commands the page can call, and each module's watcher.
+- `src-tauri/src/lib.rs` starts the app, one copy at a time: the tray icon, the list of commands the page can call, and each module's watcher.
 - `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, and closes the panel.
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.

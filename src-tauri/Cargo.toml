@@ -42,7 +42,7 @@ windows = { version = "0.62", features = [
 ] }
 # Its implement macro, for the callbacks Windows calls, names this crate directly. Same version as windows' own.
 windows-core = "0.62"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Threading", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Security", "Win32_System_Threading", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 # Smaller, faster release binary (see Tauri's "App Size" guide).
 [profile.release]
