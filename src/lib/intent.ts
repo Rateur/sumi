@@ -1,8 +1,9 @@
 /**
  * What a line typed in the command bar does: a timer, an app, the time or a question. Local rules only, so the same
- * text always gives the same chip, and nothing is sent anywhere while typing. The line is read without politeness
- * or punctuation, then the first rule that matches wins: a timer, an app's exact name or alias, the time or the
- * date, an assistant by name, a search, a verb and an app, then the default target.
+ * text always gives the same chip, and nothing is sent anywhere while typing. The line is read once, the same way
+ * every time (folded, elisions and clitics split, politeness off its ends), then the first rule that matches wins: a
+ * timer, an app's exact name or alias as typed, the time or the date, an assistant by name, a search, a verb and an
+ * app, then the default target. When in doubt the line is a question: acting wrongly costs more than not acting.
  */
 
 import { formatLongDate, formatTime } from './clock'
@@ -100,44 +101,91 @@ export function fold(text: string): string {
 
 // --- Reading the line ---
 
-// Punctuation outside numbers ('1:30' and '1,5h' keep theirs), and a hyphen between letters ('est-il', 'peux-tu').
-const PUNCT = /[?!;«»"“”()]|(?<!\d)[.,:]|[.,:](?!\d)|(?<=\p{L})-(?=\p{L})/gu
-// Politeness anywhere, and what opens a request at the start. Matched on the folded line.
-const POLITE = /(?<=^| )(?:s'il (?:te|vous) plait|stp|svp|merci(?: beaucoup)?|please|thanks|thank you)(?= |$)/g
-const OPENER = new RegExp(
-  '^(?:hey sumi|sumi|est ce que|tu peux|tu pourrais|peux tu|pourrais tu|vous pouvez|pouvez vous|pourriez vous|' +
-    "can you|could you|would you|je veux|je voudrais|j'aimerais|i want to|i want|i'd like to|i'd like|" +
-    'i would like to|i would like|dis moi|dites moi|me dire|tell me)(?= |$)',
-  'g',
+// Punctuation outside numbers ('1:30' and '1,5h' keep theirs), and a hyphen after a number ('3-min').
+const PUNCT = /[?!;«»"“”()]|(?<!\d)[.,:]|[.,:](?!\d)|(?<=\d)-(?=\p{L})/gu
+// "l'explorateur" reads as two words, as do "qu'il" and "j'aimerais".
+const ELISION = /^(?:qu|[cdjlmnst])'(?=\p{L})/u
+// A hyphen splits only before these: 'ouvre-moi', 'lance-le', 'sommes-nous', 'a-t-il'. 'peux-tu' and 'est-il' stay.
+const CLITICS = new Set(['moi', 'toi', 'le', 'la', 'les', 'lui', 'leur', 'nous', 'vous', 'y', 'en', 't'])
+// Kept whole, as are the hyphenated words of app names.
+const FROZEN = new Set(['rendez-vous', 'peut-etre', "aujourd'hui", "c'est-a-dire", 'notepad++'])
+// Politeness, on the ends of the line only. 'dis-moi' and 'tell me' ask for something, so they stay.
+const START = new RegExp(
+  "^(?:hey sumi|sumi|est[- ]ce que (?:tu peux|vous pouvez)|tu peux|tu pourrais|peux[- ]tu|pourrais[- ]tu|" +
+    "vous pouvez|pouvez vous|pourriez vous|stp|svp|s' il (?:te|vous) plait|please|can you|could you|would you|" +
+    "je veux|je voudrais|j' aimerais|i want to|i want|i'd like to|i'd like|i would like to|i would like)(?= |$)",
 )
+const END = / (?:stp|svp|s' il (?:te|vous) plait|please|merci(?: beaucoup)?|thanks|thank you)$/
+// A command said in the negative is no command: "n'ouvre pas discord", 'cherche pas', "don't open spotify".
+const NEGATION = /^(?:ne|n'|pas|jamais|don't|dont|do not|never) |^\S+ (?:pas|jamais|rien|plus)(?: |$)/
 
-/**
- * The line as the rules read it: one apostrophe, no punctuation that can't matter, no politeness, single spaces.
- * The letters stay as typed, and `at` gives each one's place in the typed line, so a question is cut from what was
- * typed. A line that is only politeness ('merci') stays whole.
- */
-export function normalize(typed: string): { text: string; at: number[] } {
-  const s = typed.replace(/[’‘ʼ]/g, "'").replace(PUNCT, ' ')
-  // UTF-16 places, as fold keeps one unit for one.
-  let at = Array.from({ length: s.length }, (_, i) => i)
-  const text = () => at.map((i) => s[i]).join('')
-  const squeeze = () => {
-    at = at.filter((i, k) => s[i] !== ' ' || (k > 0 && s[at[k - 1]] !== ' '))
-    while (at.length && s[at.at(-1)!] === ' ') at.pop()
-  }
-  const cut = (re: RegExp) => {
-    const gone = new Set<number>()
-    for (const m of fold(text()).matchAll(re)) for (let k = m.index; k < m.index + m[0].length; k++) gone.add(k)
-    at = at.filter((_, k) => !gone.has(k))
-    return gone.size > 0
-  }
-  squeeze()
-  while (cut(OPENER) || cut(POLITE)) squeeze()
-  return at.length ? { text: text(), at } : { text: typed, at: Array.from({ length: typed.length }, (_, i) => i) }
+/** A line as the rules read it: `text` folded for matching, `raw` with the letters as typed, `at` their places. */
+interface Read {
+  text: string
+  raw: string
+  at: number[]
 }
 
-// Dropped after a verb: 'ouvre les paramètres', 'open the calculator', 'lance l'explorateur'.
-const DET = String.raw`(?:(?:le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my) |l'|d')?`
+// One apostrophe, no punctuation that can't matter, elisions and clitics split, single spaces. Words in `frozen`
+// keep their hyphens. Places are UTF-16 ones in the typed line, as fold keeps one unit for one.
+function prep(typed: string, frozen?: ReadonlySet<string>): Read {
+  const s = typed.replace(/[’‘ʼ]/g, "'")
+  const whole = (w: string) => FROZEN.has(w) || !!frozen?.has(w)
+  const words: [string, number][] = []
+  for (const m of fold(s).replace(PUNCT, ' ').matchAll(/\S+/g)) {
+    let word = m[0]
+    let at = m.index
+    const elision = whole(word) ? null : ELISION.exec(word)
+    if (elision) {
+      words.push([elision[0], at])
+      at += elision[0].length
+      word = word.slice(elision[0].length)
+    }
+    const bits = whole(word) ? [word] : word.split('-')
+    let piece = bits[0]
+    for (let k = 1; k < bits.length; k++) {
+      if (CLITICS.has(bits[k]) || (k > 1 && bits[k - 1] === 't')) {
+        words.push([piece, at])
+        at += piece.length + 1
+        piece = bits[k]
+      } else piece += '-' + bits[k]
+    }
+    words.push([piece, at])
+  }
+  const read: Read = { text: '', raw: '', at: [] }
+  for (const [word, start] of words) {
+    if (read.text) {
+      read.text += ' '
+      read.raw += ' '
+      read.at.push(start)
+    }
+    read.text += word
+    for (let i = 0; i < word.length; i++) {
+      read.raw += s[start + i]
+      read.at.push(start + i)
+    }
+  }
+  return read
+}
+
+// Politeness off both ends, as long as something is left: 'merci' alone stays a line.
+function strip(read: Read): Read {
+  for (;;) {
+    const { text } = read
+    const start = START.exec(text)
+    const end = END.exec(text)
+    const [from, to] =
+      start && start[0].length < text.length ? [start[0].length + 1, text.length] : [0, end ? end.index : text.length]
+    if (from === 0 && to === text.length) return read
+    read = { text: text.slice(from, to), raw: read.raw.slice(from, to), at: read.at.slice(from, to) }
+  }
+}
+
+/** The line as the rules read it, letters as typed, and each one's place in the typed line. */
+export function normalize(typed: string): { text: string; at: number[] } {
+  const { raw, at } = strip(prep(typed))
+  return { text: raw, at }
+}
 
 // --- Timers ---
 
@@ -150,11 +198,80 @@ const UNIT: [RegExp, number][] = [
   [new RegExp(`^(?:${MIN})$`), 60_000],
   [new RegExp(`^(?:${HOUR})$`), 3_600_000],
 ]
-// 1h30, 1 h 30, 1h30m, 2m30, 2m30s, 2 min 30, 90s, 1,5h, or a bare number of minutes.
+// 1h30, 1 h 30, 1 hour and 30 minutes, 2m30, 2 min 30, 90s, 1,5h, or a bare number of minutes. A number after
+// hours is minutes unless seconds follow it: 'an hour and 30 seconds'.
+const AND = String.raw`(?:\s*(?:and|et)\b)?\s*`
 const DURATION = new RegExp(
-  String.raw`(?<![\w.,])(?:(${NUM})\s*(${HOUR})(?:\s*(\d+)\s*(?:${MIN})?)?(?:\s*(\d+)\s*(?:${SEC}))?` +
-    String.raw`|(${NUM})\s*(${MIN})(?:\s*(\d+)\s*(?:${SEC})?)?|(${NUM})\s*(${SEC})|(\d+))(?![\w.,])`,
+  String.raw`(?<![\w.,])(?:(${NUM})\s*(${HOUR})(?:${AND}(\d+)(?!\d)\s*(?:(?:${MIN})(?![a-z])|(?!\s*(?:${SEC})(?![a-z]))))?` +
+    String.raw`(?:${AND}(\d+)\s*(?:${SEC}))?|(${NUM})\s*(${MIN})(?:${AND}(\d+)\s*(?:${SEC})?)?|(${NUM})\s*(${SEC})` +
+    String.raw`|(\d+))(?![\w.,])`,
 )
+// Spelled numbers up to a hundred, French and English: a closed table, never a guess.
+const NUMBERS: Record<string, number> = {
+  un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11,
+  douze: 12, treize: 13, quatorze: 14, quinze: 15, seize: 16, vingt: 20, vingts: 20, trente: 30, quarante: 40,
+  cinquante: 50, soixante: 60, cent: 100, one: 1, two: 2, three: 3, four: 4, five: 5, seven: 7, eight: 8, nine: 9,
+  ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17,
+  eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, ninety: 90, hundred: 100,
+}
+const WORD = Object.keys(NUMBERS)
+  .toSorted((a, b) => b.length - a.length)
+  .join('|')
+// 'vingt-cinq', 'vingt et un', 'soixante-dix', 'quatre-vingt-dix', 'twenty-five'.
+const SPELLED = `(?:${WORD})(?:[- ](?:et[- ])?(?:${WORD}))*`
+const SPOKEN_UNIT = 'secondes?|seconds?|secs?|minutes?|mins?|heures?|hours?|hrs?'
+const COUNT = `(${SPELLED}|${NUM}|an?)`
+const words = (s: string) => new RegExp(`(?<![\\p{L}\\d])(?:${s})(?![\\p{L}\\d])`, 'gu')
+// 'quatre-vingt' is 80, 'cent' and 'hundred' multiply, the rest adds up.
+const count = (n: string) =>
+  /\d/.test(n)
+    ? Number(n.replace(',', '.'))
+    : n
+        .split(/[- ]/)
+        .filter((w) => w !== 'et')
+        .reduce(
+          (sum, w) =>
+            w === 'cent' || w === 'hundred' ? (sum || 1) * 100 : w.startsWith('vingt') && sum === 4 ? 80 : sum + (NUMBERS[w] ?? 1),
+          0,
+        )
+// Halves and quarters first ('une et demi heure' before 'demi heure'), then a number and its unit, then a number
+// after a unit ('1 hour thirty').
+const SPELL: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [words(`${COUNT} (?:et|and) (?:an? )?(?:demie?|half) (${SPOKEN_UNIT})`), (m) => `${count(m[1]) + 0.5} ${m[2]}`],
+  [words(`(?:une? )?demi[- ]heure|(?:a )?half[- ](?:an )?hour`), () => '30 min'],
+  [words(`(?:un )?quart d'heure|(?:a |one )?quarter (?:of an )?hour`), () => '15 min'],
+  [words(`trois quarts? d'heure|three quarters of an hour`), () => '45 min'],
+  [words(`${COUNT} (${SPOKEN_UNIT}) (?:et|and) (?:a )?(?:demie?|half)`), (m) => `${count(m[1]) + 0.5} ${m[2]}`],
+  [words(`${COUNT} (?:heures?|hours?) (?:et|and) (?:a )?quart(?:er)?`), (m) => `${count(m[1])} h 15`],
+  [words(`${COUNT} heures? moins (?:le )?quart`), (m) => `${count(m[1]) - 1} h 45`],
+]
+const ONE = words(`${COUNT} (${SPOKEN_UNIT})`)
+const AFTER = words(`(${SPOKEN_UNIT}) (?:(?:et|and) )?(${SPELLED})`)
+
+// Rewrites what `re` finds in the folded line, in the line as typed: fold keeps one character for one.
+function rewrite(line: string, re: RegExp, write: (m: RegExpMatchArray) => string): string {
+  let out = ''
+  let last = 0
+  for (const m of fold(line).matchAll(re)) {
+    out += line.slice(last, m.index) + write(m)
+    last = m.index + m[0].length
+  }
+  return out + line.slice(last)
+}
+
+// Spelled durations as digits: 'une demi-heure' is '30 min', 'ten minutes' '10 minutes'. `article` says a lone
+// 'a', 'an', 'un' or 'une' gave one, as in 'une minute' or 'wait a minute': a phrase unless a timer is asked for.
+function spell(line: string): { line: string; article: boolean } {
+  let article = false
+  for (const [re, write] of SPELL) line = rewrite(line, re, write)
+  line = rewrite(line, ONE, (m) => {
+    article ||= /^(?:an?|une?)$/.test(m[1])
+    return `${count(m[1])} ${m[2]}`
+  })
+  line = rewrite(line, AFTER, (m) => `${m[1]} ${count(m[2])}`)
+  return { line, article }
+}
+
 // 'chrono' counts up, so it is a timer only with a unit: 'chrono 5 min', never 'chrono 5'.
 const KEYWORDS = new Set(['minuteur', 'minuterie', 'timer', 'chrono', 'chronometre'])
 // Glue and determiners around the duration and the label, with their accents: 'thé' is no 'the'.
@@ -183,14 +300,15 @@ const toMs = (n: string, unit: string) => {
 
 /** A whole line read as a new timer: its length, and its label of at most 3 words. Anything else is no timer. */
 export function parseTimer(line: string): { ms: number; label?: string } | undefined {
-  const raw = line.trim().replace(/\s+/g, ' ')
+  const { line: raw, article } = spell(line.trim().replace(/\s+/g, ' ').replace(/[’‘ʼ]/g, "'"))
   const folded = fold(raw)
   if (QUESTION.test(folded) || CONVERSION.test(folded) || NOT_A_TIMER.test(folded) || TIME_OF_DAY.test(raw.toLowerCase()))
     return
-  let typed = normalize(raw).text
-  typed = typed.slice(SET.exec(fold(typed))?.[0].length ?? 0)
-  const text = fold(typed)
-  const m = DURATION.exec(text)
+  const read = strip(prep(raw))
+  if (NEGATION.test(read.text)) return
+  const verb = SET.exec(read.text)?.[0].length ?? 0
+  const typed = read.raw.slice(verb)
+  const m = DURATION.exec(read.text.slice(verb))
   if (!m) return
   const [, h, hu, hm, hs, mn, mu, ms, sn, su, bare] = m
   const n = (s?: string) => (s ? Number(s) : 0)
@@ -206,9 +324,9 @@ export function parseTimer(line: string): { ms: number; label?: string } | undef
             : 0
   if (total < 1000 || total > HOURS_12) return
   // The words around the duration, without the keyword and the glue next to them, are its label.
-  const words = (s: string) => s.split(' ').filter(Boolean)
-  const before = words(typed.slice(0, m.index).replace(/(^|\s)d'$/i, ''))
-  const after = words(typed.slice(m.index + m[0].length))
+  const split = (s: string) => s.split(' ').filter(Boolean)
+  const before = split(typed.slice(0, m.index).replace(/(^|\s)d'$/i, ''))
+  const after = split(typed.slice(m.index + m[0].length))
   const trim = (list: string[]) => {
     while (list.length && EDGE.has(list[0].toLowerCase())) list.shift()
     while (list.length && EDGE.has(list.at(-1)!.toLowerCase())) list.pop()
@@ -222,7 +340,8 @@ export function parseTimer(line: string): { ms: number; label?: string } | undef
   trim(after)
   const label = [...before, ...after]
   if (label.length > 3 || label.some((w) => /\d/.test(w) || !/\p{L}/u.test(w) || KEYWORDS.has(fold(w)))) return
-  // A bare number with words is a name ('gpt 4', 'windows 11') unless a keyword says it is a timer.
+  if (article && !keyword && !verb) return
+// A bare number with words is a name ('gpt 4', 'windows 11') unless a keyword says it is a timer.
   if (bare !== undefined && ((label.length && !keyword) || fold(keyword ?? '').startsWith('chrono'))) return
   return { ms: Math.round(total), label: label.join(' ') || undefined }
 }
@@ -281,26 +400,25 @@ const ALIASES = [
   ['calculatrice', 'calculator', 'calc'],
   ['visual studio code', 'code', 'vscode'],
 ]
+const GROUPS = new Map(ALIASES.flatMap((group) => group.map((a) => [key(a), group] as const)))
 
-// Optimal string alignment: a wrong, missing or extra letter, or two swapped neighbors, is one typo.
-function typos(a: string, b: string): number {
-  const d = Array.from({ length: a.length + 1 }, (_, i) => [i])
-  for (let j = 1; j <= b.length; j++) d[0][j] = j
-  for (let i = 1; i <= a.length; i++)
+// Optimal string alignment: a wrong, missing or extra letter, or two swapped neighbors, is one typo. Past `max`, it
+// stops early and says max + 1.
+function typos(a: string, b: string, max: number): number {
+  if (Math.abs(a.length - b.length) > max) return max + 1
+  let before: number[] = []
+  let last = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const row = [i]
     for (let j = 1; j <= b.length; j++) {
-      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
-      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
-        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+      row[j] = Math.min(last[j] + 1, row[j - 1] + 1, last[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], before[j - 2] + 1)
     }
-  return d[a.length][b.length]
-}
-
-// Exact, then prefix, then the start of a word, then the letters in order. 0 is no match.
-function rank(query: string, name: string): number {
-  if (name === query) return 4
-  if (name.startsWith(query)) return 3
-  if ((' ' + name).includes(' ' + query)) return 2
-  return query.length > 1 && shortens(query, name) ? 1 : 0
+    if (Math.min(...row) > max) return max + 1
+    before = last
+    last = row
+  }
+  return last[b.length]
 }
 
 // Letters in order, the way people shorten a name: from the start of a word, then dropping only vowels ('ntpd')
@@ -317,44 +435,114 @@ function shortens(query: string, name: string): boolean {
   return false
 }
 
-// A typo or two, ranked last. Each word allows as many as its own length does, plural kept: one from 5 letters,
-// two from 9, so 'timer' never finds 'Time' and 'teans' finds 'Teams'. Against the name, its start, or a word.
-function near(query: string, name: string): boolean {
-  return [name, name.slice(0, query.length).trim(), ...name.split(' ')].some(
-    (w) => w.length >= 5 && typos(query, w) <= (w.length >= 9 ? 2 : 1),
-  )
+interface Entry<A> {
+  app: A
+  // The name's key, then its aliases', and the same with a space in front, for the start of a word.
+  keys: string[]
+  spaced: string[]
+  // Plural kept, each with its words, for typos.
+  typo: string[][]
 }
 
-const keys = (app: App, plural = false) => {
-  const group = ALIASES.find((g) => g.some((a) => key(a) === key(app.name)))
-  return [app.name, ...(group?.filter((a) => key(a) !== key(app.name)) ?? [])].map((k) => key(k, plural))
+interface Index<A> {
+  entries: Entry<A>[]
+  // Exact keys: aliases first, then names, so an alias wins as the research ranks it.
+  exact: Map<string, A>
+  // The hyphenated words of names, kept whole when the line is read.
+  frozen: Set<string>
 }
 
-/** The best app for a query, by a fixed ranking: on a tie the shorter name wins. Usage never reorders it. */
+// Built once per list, so a keystroke only compares.
+const INDEXES = new WeakMap<readonly App[], Index<App>>()
+
+function indexOf<A extends App>(apps: readonly A[]): Index<A> {
+  const known = INDEXES.get(apps) as Index<A> | undefined
+  if (known) return known
+  const index: Index<A> = { entries: [], exact: new Map(), frozen: new Set() }
+  const names = new Map<string, A>()
+  for (const app of apps) {
+    const folded = fold(app.name)
+    const name = key(app.name)
+    // Uninstallers never open from the bar, and a name seen twice is the first one.
+    if (/\b(uninstall|desinstall)/.test(folded) || names.has(name)) continue
+    names.set(name, app)
+    const group = GROUPS.get(name)?.filter((a) => key(a) !== name) ?? []
+    const keys = [name, ...group.map((a) => key(a))]
+    for (const k of keys.slice(1)) if (!index.exact.has(k)) index.exact.set(k, app)
+    index.entries.push({
+      app,
+      keys,
+      spaced: keys.map((k) => ' ' + k),
+      typo: [app.name, ...group].map((a) => key(a, true)).map((k) => [k, ...k.split(' ')]),
+    })
+    for (const w of folded.split(/\s+/)) if (w.includes('-')) index.frozen.add(w)
+  }
+  for (const [name, app] of names) if (!index.exact.has(name)) index.exact.set(name, app)
+  INDEXES.set(apps, index)
+  return index
+}
+
+/**
+ * The app a query names, by fixed tiers: an exact alias or name, a prefix, the start of a word, a typo, then a
+ * shortening. The shorter name wins a prefix or a word start ('ste' is Steam, not Steam VR); a tie among typos or
+ * shortenings finds nothing, as does a known name whose app is missing. Usage never reorders it.
+ */
 export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
   const q = key(query)
   if (!q) return
+  const { entries, exact } = indexOf(apps)
+  const named = exact.get(q)
+  if (named) return named
+  // No Calculator never opens Calendar.
+  if (GROUPS.has(q)) return
+  // One letter is too little to act on.
+  if (q.length < 2) return
+  const spaced = ' ' + q
+  for (const test of [(e: Entry<A>) => e.keys.some((k) => k.startsWith(q)), (e: Entry<A>) => e.spaced.some((k) => k.includes(spaced))]) {
+    let best: A | undefined
+    for (const e of entries) if (test(e) && (!best || e.app.name.length < best.name.length)) best = e.app
+    if (best) return best
+  }
+  // Typos and shortenings are for words: '10' is no typo of '11'.
+  if (/\d/.test(q)) return
+  // Each word allows as many typos as its own length does, plural kept: none up to 4 letters, one from 5, two from
+  // 9, so 'timer' never finds 'Time' and 'teans' finds 'Teams'. Against the name, its start, or a word.
   const typed = key(query, true)
-  const score = (app: A) =>
-    Math.max(...keys(app).map((k) => rank(q, k))) || (keys(app, true).some((k) => near(typed, k)) ? 0.5 : 0)
-  return apps
-    .map((app) => ({ app, score: score(app) }))
-    .filter((a) => a.score > 0)
-    .toSorted((a, b) => b.score - a.score || a.app.name.length - b.app.name.length)[0]?.app
+  let best = Infinity
+  let found: A[] = []
+  for (const e of entries) {
+    let d = Infinity
+    for (const [name, ...parts] of e.typo)
+      for (const w of [name, name.slice(0, typed.length).trim(), ...parts]) {
+        const max = w.length >= 9 ? 2 : w.length >= 5 ? 1 : 0
+        const t = max ? typos(typed, w, max) : Infinity
+        if (t <= max) d = Math.min(d, t)
+      }
+    if (d < best) [best, found] = [d, [e.app]]
+    else if (d === best && d !== Infinity) found.push(e.app)
+  }
+  if (found.length) return found.length === 1 ? found[0] : undefined
+  if (q.length < 3) return
+  const short = entries.filter((e) => e.keys.some((k) => shortens(q, k)))
+  return short.length === 1 ? short[0].app : undefined
 }
 
 // --- The time and the date ---
 
-// Whole lines only, so 'quelle heure est-il à Tokyo' stays a question.
+// Whole lines only, so 'quelle heure est-il à Tokyo' and 'time management tips' stay questions. Read with elisions
+// split: "c' est", "l' heure".
 const TIME = new RegExp(
-  "^(?:(?:il est |c'est )?quel(?:le)? heure(?: (?:est(?: | t'| t )il|il est|c'est|est ce))?|l'heure|heure|" +
-    "what time is it|what time it is|what(?:'s| is) the time|whats the time|(?:the |current )?time)$",
+  "^(?:(?:il est |c' est )?quel(?:le)? heure(?: (?:est(?:[- ]t'?)?[- ]il|il est|c' est|est[- ]ce))?|" +
+    "(?:(?:affiche|montre|donne|dis)(?: moi)? )?(?:l'? )?heure|" +
+    "what time is it|what time it is|what(?:'s| is) the time|whats the time|" +
+    '(?:(?:show|tell)(?: me)? )?(?:the |current )?time)$',
 )
 const DATE = new RegExp(
-  "^(?:(?:on est |c'est )?quel jour(?: (?:sommes nous|nous sommes|on est|est on|est il|c'est|est ce))?|" +
-    "(?:on est|nous sommes) le combien|quelle date(?: (?:sommes nous|on est|est on))?|" +
-    "(?:la )?date(?: d'aujourd'hui)?|what day is it|what day is today|" +
-    "what(?:'s| is) (?:the|today's) date(?: today)?|whats the date|(?:the |today's )?date)$",
+  "^(?:(?:on est |c' est )?quel jour(?: (?:sommes nous|nous sommes|on est|est[- ]on|est[- ]il|c' est|est[- ]ce))?|" +
+    '(?:on est|nous sommes) le combien|quelle date(?: (?:sommes nous|on est|est[- ]on))?|' +
+    "(?:(?:affiche|montre|donne|dis)(?: moi)? )?(?:la )?date(?: d' aujourd'hui)?|what day is it|what day is today|" +
+    "what(?:'s| is) (?:the|today's) date(?: today)?|whats (?:the|todays) date|" +
+    "(?:(?:show|tell)(?: me)? )?(?:the |today's |todays )?date)$",
 )
 
 // --- Assistants ---
@@ -381,10 +569,16 @@ const BY_NAME = new RegExp(
     '(claude|chatgpt|gpt|gemini|perplexity|google) (.+)$',
 )
 const SEARCH = /^(?:cherche|chercher|recherche|rechercher|trouve|trouver|search|look up|find)(?: moi)? (.+)$/
+// Dropped after a verb: 'ouvre les paramètres', 'open the calculator', "lance l'explorateur".
+const DET = "(?:(?:le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my|l'|d') )?"
+// The word for an app is no part of its name: "lance l'appli discord", 'open the spotify app'. Nor is the 'moi' of
+// 'ouvre-moi discord'.
+const NOUN = '(?:(?:app|appli|application|logiciel|programme) )?'
 // The first group says no app aloud; 'montre' or 'show' without an app is just a question.
 const VERB = new RegExp(
-  '^(?:(ouvre|ouvres|ouvrez|ouvrir|lance|lancer|lancez|demarre|demarrer|demarrez|open|launch|start)|' +
-    `affiche|afficher|montre|montrer|show|run) ${DET}(.+)$`,
+  '^(?:(ouvre|ouvres|ouvrez|ouvrir|lance|lances|lancer|lancez|demarre|demarrer|demarrez|open|launch|start)|' +
+    `affiche|afficher|montre|montrer|show|run) (?:moi )?${DET}${NOUN}(.+?)(?: (?:app|appli|application))?$`,
+  'd',
 )
 
 /**
@@ -395,12 +589,12 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
   const { lang, claudeApp, timers = [], now = Date.now(), locale, order = ORDER } = options
   const typed = line.normalize('NFC').trim().replace(/\s+/g, ' ')
   if (!typed) return []
-  const read = normalize(typed)
-  const text = fold(read.text)
-  const apps = options.apps.filter((app) => !/\b(uninstall|desinstall)/.test(fold(app.name)))
-  // The end of the line a rule matched, as typed for a question, as read for a label.
-  const rest = (match: string) => typed.slice(read.at[read.text.length - match.length])
-  const tail = (match: string) => read.text.slice(read.text.length - match.length)
+  const { exact, frozen } = indexOf(options.apps)
+  const whole = prep(typed, frozen)
+  const read = strip(whole)
+  const text = read.text
+  // The end of the line a rule matched, as typed, for a question.
+  const rest = (match: string) => typed.slice(read.at[text.length - match.length])
   const open = (app: A): Choice<A> => ({ kind: 'app', app, label: `${WORDS[lang].open} ${app.name}` })
 
   // The top guess, and the question the alternatives pass on: a named assistant's own, or the whole line.
@@ -412,9 +606,11 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
       const label = `${WORDS[lang].timer} ${formatDuration(timer.ms)}${timer.label ? ` · ${timer.label}` : ''}`
       return [{ kind: 'timer', ms: timer.ms, name: timer.label, label }, typed]
     }
-    // An exact name comes before the assistants, so 'Google Chrome' opens Chrome rather than searching 'chrome'.
-    const named = apps.find((app) => keys(app).includes(key(read.text)))
+    // An exact name as typed comes before the assistants, so 'Google Chrome' opens Chrome rather than searching
+    // 'chrome'. Politeness stays on for it: 'merci claude' and 'sumi claude' are questions.
+    const named = exact.get(key(whole.text))
     if (named) return [open(named), typed]
+    if (NEGATION.test(text)) return [ask(order[0], typed, claudeApp, lang), typed]
     if (TIME.test(text)) {
       return [{ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) }, typed]
     }
@@ -431,9 +627,12 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     if (search) return [ask('search', rest(search[1]), claudeApp, lang), rest(search[1])]
     const verb = VERB.exec(text)
     if (verb) {
-      const app = findApp(verb[2], apps)
+      const app = findApp(verb[2], options.apps)
       if (app) return [open(app), typed]
-      if (verb[1]) return [ask(order[0], typed, claudeApp, lang, WORDS[lang].none(tail(verb[2]))), typed]
+      // Named as typed. 'lance un minuteur' is no missing app, just a question.
+      const [from, to] = verb.indices![2]!
+      const none = WORDS[lang].none(typed.slice(read.at[from], read.at[to - 1] + 1))
+      if (verb[1] && !KEYWORDS.has(verb[2].split(' ')[0])) return [ask(order[0], typed, claudeApp, lang, none), typed]
     }
     return [ask(order[0], typed, claudeApp, lang), typed]
   })()

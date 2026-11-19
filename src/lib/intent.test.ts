@@ -85,6 +85,84 @@ describe('parseTimer', () => {
     expect(parseTimer('un minuteur de 10 min pour les pâtes')).toEqual({ ms: 600_000, label: 'pâtes' })
     expect(parseTimer('set a timer for 5 minutes for the pasta')).toEqual({ ms: 300_000, label: 'pasta' })
   })
+
+  // Test data only, after a timer keyword: Duckling's Duration corpora (Duckling/Duration/FR and EN/Corpus.hs,
+  // github.com/facebook/duckling, BSD-3-Clause, Copyright (c) Facebook, Inc. and its affiliates), and the French
+  // DurationParser spec of Recognizers-Text (github.com/microsoft/Recognizers-Text, MIT, Copyright (c) Microsoft).
+  const s = 1000
+  const min = 60_000
+  const spelled: [string, number][] = [
+    ['une sec', 1 * s],
+    ['1 seconde', 1 * s],
+    ['2 mins', 2 * min],
+    ['deux minutes', 2 * min],
+    ['one sec', 1 * s],
+    ['1 second', 1 * s],
+    ['two minutes', 2 * min],
+    ['2m', 2 * min],
+    ['2 m', 2 * min],
+    ['half an hour', 30 * min],
+    ['half hour', 30 * min],
+    ['an hour and a half', 90 * min],
+    ['one hour and half', 90 * min],
+    ['1 hour thirty', 90 * min],
+    ['1 hour and thirty', 90 * min],
+    ['1.5 hours', 90 * min],
+    ['1.5 hrs', 90 * min],
+    ['1 hour fifteen', 75 * min],
+    ['1 hour and fifteen', 75 * min],
+    ['2 hours ten', 130 * min],
+    ['2 hour and 10', 130 * min],
+    ['1 hour fifteen seconds', 3615 * s],
+    ['1 hour and fifteen seconds', 3615 * s],
+    ['5 and a half minutes', 330 * s],
+    ['five and half min', 330 * s],
+    ['5 and an half minute', 330 * s],
+    ['an hour and 45 minutes', 105 * min],
+    ['one hour and 45 minutes', 105 * min],
+    ['a minute and 30 seconds', 90 * s],
+    ['one minute and 30 seconds', 90 * s],
+    ['an hour and 30 seconds', 3630 * s],
+    ['15.5 minutes', 930 * s],
+    ['15.5 min', 930 * s],
+    ['3h', 180 * min],
+    ['3 heures', 180 * min],
+    ['3 hrs', 180 * min],
+    ['3 min', 3 * min],
+    ['3,5 seconde', 3.5 * s],
+    ['123,45 sec', 123.45 * s],
+    ['vingt min', 20 * min],
+    ['une heure', 60 * min],
+    ['3-min', 3 * min],
+    ['30-minutes', 30 * min],
+    ['un et demi heures', 90 * min],
+    ['une et demi heure', 90 * min],
+    ['demi heure', 30 * min],
+    ['deux heures', 120 * min],
+    ['deux et demi heures', 150 * min],
+    ['2 heures 50 minutes', 170 * min],
+    ['trois heures', 180 * min],
+    ['trois secondes et demi', 3.5 * s],
+    ['une heure et demie', 90 * min],
+    ['demi-heure', 30 * min],
+    ['deux heures et demie', 150 * min],
+  ]
+  it.each(spelled)('reads the spelled duration in minuteur %s', (line, ms) => {
+    expect(parseTimer(`minuteur ${line}`)?.ms).toBe(ms)
+  })
+
+  it('needs a timer word for a lone article, so a phrase stays a phrase', () => {
+    expect(parseTimer('une minute')).toBeUndefined()
+    expect(parseTimer('wait a minute')).toBeUndefined()
+    expect(parseTimer('minuteur d’une minute')?.ms).toBe(min)
+    expect(parseTimer('set a timer for a minute')?.ms).toBe(min)
+    expect(parseTimer('dix minutes')?.ms).toBe(10 * min)
+  })
+
+  it('is no timer when said in the negative', () => {
+    expect(parseTimer('ne mets pas de minuteur de 10 min')).toBeUndefined()
+    expect(parseTimer("don't set a timer for 5 minutes")).toBeUndefined()
+  })
 })
 
 describe('formatDuration', () => {
@@ -132,6 +210,19 @@ describe('choices', () => {
 
   it('matches a bare name exactly only', () => {
     expect(top('disc')).toMatchObject({ kind: 'ask', to: 'claude' })
+  })
+
+  it('reads a bare name as typed: politeness only helps a verb', () => {
+    for (const line of ['merci claude', 'dis-moi claude', 'sumi claude', 'est-ce que discord ?', 'claude stp'])
+      expect(top(line)).toMatchObject({ kind: 'ask', label: 'Demander à Claude' })
+    expect(top('stp ouvre claude')).toMatchObject({ kind: 'app', label: 'Ouvrir Claude' })
+  })
+
+  it('reads a verb said in the negative as a question', () => {
+    for (const line of ['cherche pas', "n'ouvre pas discord", 'ne lance jamais steam', 'lance rien'])
+      expect(top(line)).toMatchObject({ kind: 'ask', label: 'Demander à Claude' })
+    for (const line of ["don't open spotify", 'do not launch steam', 'never open discord'])
+      expect(top(line, en)).toMatchObject({ kind: 'ask', label: 'Claude · browser' })
   })
 
   it('asks an assistant by name, with the rest as the question', () => {
@@ -379,5 +470,27 @@ describe('findApp', () => {
     expect(findApp('dicsord', list)?.name).toBe('Discord')
     // Too short to tell a typo from another name.
     expect(findApp('dsic', list)).toBeUndefined()
+  })
+
+  it('finds nothing on a tie among typos or shortenings, or from one letter', () => {
+    const list = ['Paint', 'Point', 'Notepad', 'Notepad++', 'Steam', 'Spotify'].map((name) => ({ name }))
+    expect(findApp('pxint', list)).toBeUndefined()
+    expect(findApp('paimt', list)?.name).toBe('Paint')
+    expect(findApp('ntpd', list)).toBeUndefined()
+    expect(findApp('s', list)).toBeUndefined()
+    expect(findApp('st', list)?.name).toBe('Steam')
+  })
+
+  it('never opens a look-alike of an app that is missing', () => {
+    const list = ['Calendrier', 'Calendar', 'Windows 10'].map((name) => ({ name }))
+    for (const q of ['calculatrice', 'calculator', 'calc', 'windows 11']) expect(findApp(q, list)).toBeUndefined()
+    expect(choices('ouvre la calculatrice', { ...fr, apps: list })[0]).toMatchObject({ kind: 'ask', label: 'Aucune app « calculatrice »' })
+  })
+
+  it('reads a list once, and again when it changes', () => {
+    const list = [{ name: 'Discord' }]
+    expect(findApp('discord', list)?.name).toBe('Discord')
+    expect(findApp('discord', [...list, { name: 'Discord' }])?.name).toBe('Discord')
+    expect(findApp('spotify', [{ name: 'Spotify' }])?.name).toBe('Spotify')
   })
 })
