@@ -44,6 +44,10 @@ updates:
     groups:
       cargo:
         update-types: [minor, patch]
+    ignore:
+      # windows-core moves with the windows crate, by hand: alone, its new versions don't build.
+      - dependency-name: windows-core
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
