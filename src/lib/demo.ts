@@ -80,14 +80,15 @@ const KEYS: Record<string, string> = {
   ',': 'press',
   '.': 'cancel',
   i: 'claude',
+  b: 'bar',
 }
 
 /**
  * Dev only, in the browser. Each transition has a key and a name for `window.__sumiDemo.trigger(name)`:
  * C call, T timer, D a timer that ends in 3 s, M music, V a second player (a second activity splits the
  * bubble off, ending it merges it back; a click on the bubble swaps the two), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
- * comma press and period cancel the press (E releases it into the panel). Ctrl+Alt+Space opens or closes the
- * command bar ('bar'), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
+ * comma press and period cancel the press (E releases it into the panel). B or Ctrl+Alt+Space opens the command
+ * bar ('bar'; the Claude app takes Ctrl+Alt+Space when it runs), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
  * nothing: the island only plays its answer.
  */
 export function demo(island: {
