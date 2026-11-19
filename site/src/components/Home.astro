@@ -196,7 +196,7 @@ const island = `${base}island/index.html`;
 						<span class="rm-tag rm-done">{t.roadmap[0].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-hover="hover" data-click="expand" data-opens="panel" title="" tabindex="-1" loading="lazy"></iframe></span>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-hover="hover" title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[1].title}</strong><span>{t.roadmap[1].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[1].tag}</span>
 					</li>
@@ -207,7 +207,7 @@ const island = `${base}island/index.html`;
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(GAP + BUBBLE) / 2}px`}>
-							<iframe src={`${island}?${song}`} data-start="music" data-hover="expand" data-opens="player" title="" tabindex="-1" loading="lazy"></iframe>
+							<iframe src={`${island}?${song}`} data-start="music" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>
@@ -442,7 +442,7 @@ const island = `${base}island/index.html`;
 				const row = frame.closest<HTMLElement>('.rm-row')!;
 				const say = (name?: string) => name && frame.contentWindow?.postMessage(name, location.origin);
 				const list = (key: string) => frame.dataset[key]?.split(' ').filter(Boolean) ?? [];
-				let [ready, seen, started, on, opened] = [false, false, false, false, false];
+				let [ready, seen, started, on] = [false, false, false, false];
 				const start = () => {
 					if (!ready || !seen || started) return;
 					started = true;
@@ -459,26 +459,14 @@ const island = `${base}island/index.html`;
 					seen = true;
 					start();
 				}, { threshold: 0.6 }).observe(row);
-				const mark = (open: boolean) => {
-					if (open && frame.dataset.opens) row.dataset.open = frame.dataset.opens;
-					else delete row.dataset.open;
-				};
 				const hover = (next: boolean) => {
 					if (!started || next === on) return;
-					if (!next && opened) say(frame.dataset.click);
-					[on, opened] = [next, false];
+					on = next;
 					list('hover').forEach(say);
-					mark(next && !frame.dataset.click);
 				};
 				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
 				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
-				row.addEventListener('click', (e) => {
-					if (e.pointerType !== 'mouse') return hover(!on);
-					if (!on || !frame.dataset.click) return;
-					opened = !opened;
-					say(frame.dataset.click);
-					mark(opened);
-				});
+				row.addEventListener('click', (e) => e.pointerType !== 'mouse' && hover(!on));
 			});
 
 			// The scroll cue leaves for good with the first real scroll.
@@ -1578,8 +1566,8 @@ const island = `${base}island/index.html`;
 		color: #a1a1aa;
 		font-weight: 500;
 	}
-	/* The real island, from the app's own code: its frame is the top of a screen, and its panels drop over the
-	   lines below as they would over windows. The frame lets the cursor through, so the line under it stays hovered. */
+	/* The real island, from the app's own code, as a preview: each line plays one small thing within its own column,
+	   and nothing around it moves. The frame lets the cursor through, so the line under it stays hovered. */
 	.rm-pill,
 	.rm-live {
 		justify-self: center;
@@ -1604,35 +1592,6 @@ const island = `${base}island/index.html`;
 	/* The island and its bubble, or its disc, are centered together, as the eye reads them. */
 	.rm-live.split iframe {
 		left: calc(50% - var(--split));
-	}
-	.rm-row:has(.rm-live):hover {
-		position: relative;
-		z-index: 3;
-	}
-	/* An open panel pushes the lines below down, with the island's own spring, instead of covering them. */
-	.rm > .rm-row[data-open='panel'] ~ .rm-row {
-		translate: 0 64px;
-	}
-	.rm > .rm-row[data-open='player'] ~ .rm-row {
-		translate: 0 108px;
-	}
-	.rm-row[data-open] {
-		position: relative;
-	}
-	.rm-row[data-open]::after {
-		content: '';
-		position: absolute;
-		top: 100%;
-		right: 0;
-		left: 0;
-		height: 64px;
-	}
-	.rm-row[data-open='player']::after {
-		height: 108px;
-	}
-	.rm-copy,
-	.rm-tag {
-		transition: translate var(--open-h);
 	}
 	.rm-ask {
 		justify-content: flex-start;
@@ -1949,9 +1908,6 @@ const island = `${base}island/index.html`;
 		.rm-live.split iframe {
 			left: 50%;
 			width: min(480px, 100vw);
-		}
-		.rm-row[data-open='player'] > :not(.rm-live) {
-			translate: 0 108px;
 		}
 		.rm-pill,
 		.rm-live {
