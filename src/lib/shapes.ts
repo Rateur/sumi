@@ -3,6 +3,9 @@ import type { Activity } from './activities'
 export type View =
   | { name: 'idle' }
   | { name: 'hover' }
+  // The command bar, and the peek it folds into after Enter: an app launching or a question handed off.
+  | { name: 'bar' }
+  | { name: 'launch' }
   // Music opens into its own panel; anything else opens the clock's.
   | { name: 'expanded'; activity?: Activity }
   | { name: 'compact' | 'peek'; activity: Activity }
@@ -30,6 +33,8 @@ const SIZES = {
   idle: { width: 132, height: 34 },
   hover: { width: 152, height: 36 },
   expanded: { width: 280, height: 120 },
+  bar: { width: 480, height: 44 },
+  launch: { width: 200, height: 34 },
 } satisfies Record<string, Size>
 
 const PLAYER: Size = { width: 360, height: 164 }
@@ -56,14 +61,21 @@ const PEEK: Partial<Record<Activity['kind'], Size>> = {
   music: { width: 300, height: 56 },
 }
 
-/** What the island shows. A click beats a peek, a peek beats an activity, an activity beats the clock. */
+/**
+ * What the island shows. The command bar and its answer beat everything, a click beats a peek, a peek beats an
+ * activity, an activity beats the clock.
+ */
 export function resolveView(state: {
   activity?: Activity
   hovered: boolean
   expanded: boolean
   peeking?: string
+  bar?: boolean
+  launch?: boolean
 }): View {
-  const { activity, hovered, expanded, peeking } = state
+  const { activity, hovered, expanded, peeking, bar, launch } = state
+  if (bar) return { name: 'bar' }
+  if (launch) return { name: 'launch' }
   if (expanded) return activity?.kind === 'music' ? { name: 'expanded', activity } : { name: 'expanded' }
   if (activity) return { name: activity.id === peeking ? 'peek' : 'compact', activity }
   return { name: hovered ? 'hover' : 'idle' }

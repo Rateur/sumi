@@ -19,20 +19,21 @@ export interface Motion {
 export function motion(from: View, to: View): Motion {
   const [a, b] = [sizeOf(from), sizeOf(to)]
   const grows = b.width * b.height >= a.width * a.height
-  const pulse =
-    to.name === 'compact' && from.name !== 'expanded' && !('activity' in from && from.activity?.id === to.activity.id)
+  // Back from the panel or the command bar, what was there before comes back without a swell.
+  const back = from.name === 'expanded' || from.name === 'bar' || from.name === 'launch'
+  const pulse = to.name === 'compact' && !back && !('activity' in from && from.activity?.id === to.activity.id)
   const [width, height]: Axis[] =
-    to.name === 'expanded'
+    to.name === 'expanded' || to.name === 'bar'
       ? [OPEN.width, OPEN.height]
-      : from.name === 'expanded'
+      : from.name === 'expanded' || from.name === 'bar'
         ? [CLOSE.width, CLOSE.height]
         : to.name === 'hover'
           ? [[0.4, 0.25], [0.34, 0.15]]
           : from.name === 'hover' && to.name === 'idle'
             ? [[0.34, 0], [0.3, 0]]
-            : to.name === 'peek'
+            : to.name === 'peek' || to.name === 'launch'
               ? [[0.44, 0.28], [0.48, 0.2]]
-              : from.name === 'peek'
+              : from.name === 'peek' || from.name === 'launch'
                 ? [[0.38, 0], [0.32, 0]]
                 : [grows ? [0.44, 0.28] : [0.36, 0], [0.3, 0]]
   // An axis that shrinks never bounces, even when the shape as a whole grows.

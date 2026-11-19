@@ -27,6 +27,12 @@ describe('resolveView', () => {
     expect(resolveView({ ...rest, activity: music, hovered: true })).toEqual({ name: 'compact', activity: music })
   })
 
+  it('opens the command bar, then its answer, over everything else', () => {
+    const all = { activity: music, hovered: true, expanded: true, peeking: 'm' }
+    expect(resolveView({ ...all, bar: true, launch: true })).toEqual({ name: 'bar' })
+    expect(resolveView({ ...all, launch: true })).toEqual({ name: 'launch' })
+  })
+
   it('peeks only the activity that asked for it', () => {
     expect(resolveView({ ...rest, activity: music, peeking: 'm' })).toEqual({ name: 'peek', activity: music })
     expect(resolveView({ ...rest, activity: music, peeking: 't' })).toEqual({ name: 'compact', activity: music })
@@ -38,6 +44,9 @@ describe('sizeOf', () => {
     expect(sizeOf({ name: 'idle' })).toEqual({ width: 132, height: 34 })
     expect(sizeOf({ name: 'hover' })).toEqual({ width: 152, height: 36 })
     expect(sizeOf({ name: 'compact', activity: music })).toEqual({ width: 200, height: 34 })
+    expect(sizeOf({ name: 'bar' })).toEqual({ width: 480, height: 44 })
+    expect(sizeOf({ name: 'launch' })).toEqual({ width: 200, height: 34 })
+    expect(radius(44)).toBe(22)
   })
 
   it('keeps the panel within 560 px', () => {

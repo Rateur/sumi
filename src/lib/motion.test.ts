@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { bezier, motion, squash } from './motion'
+import { CLOSE, OPEN, bezier, motion, squash } from './motion'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
 const timer: Activity = { id: 't', kind: 'timer', endsAt: 0 }
@@ -24,6 +24,13 @@ describe('motion', () => {
     expect(motion({ name: 'idle' }, { name: 'compact', activity: timer }).pulse).toBe(true)
     expect(motion({ name: 'expanded' }, { name: 'compact', activity: timer }).pulse).toBe(false)
     expect(motion({ name: 'peek', activity: music }, { name: 'compact', activity: music }).pulse).toBe(false)
+    expect(motion({ name: 'bar' }, { name: 'compact', activity: music }).pulse).toBe(false)
+    expect(motion({ name: 'launch' }, { name: 'compact', activity: music }).pulse).toBe(false)
+  })
+
+  it('opens and closes the command bar as the panel', () => {
+    expect(motion({ name: 'idle' }, { name: 'bar' })).toMatchObject({ width: OPEN.width, height: OPEN.height })
+    expect(motion({ name: 'bar' }, { name: 'idle' })).toMatchObject({ width: CLOSE.width, height: CLOSE.height })
   })
 })
 
