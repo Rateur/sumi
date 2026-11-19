@@ -16,12 +16,15 @@ pub fn run() {
     // One Sumi at a time: a second copy would draw a second island and a second tray icon. A dev build uses its
     // own name, so it still starts while the installed Sumi runs.
     #[cfg(windows)]
-    if already_running(if cfg!(debug_assertions) {
-        r"Local\io.github.rateur.sumi.dev"
-    } else {
-        r"Local\io.github.rateur.sumi"
-    }) {
-        return;
+    {
+        let name = if cfg!(debug_assertions) {
+            r"Local\io.github.rateur.sumi.dev"
+        } else {
+            r"Local\io.github.rateur.sumi"
+        };
+        if already_running(name) {
+            return;
+        }
     }
 
     // A hang must not draw a frozen "Not responding" copy over the top of the screen.
