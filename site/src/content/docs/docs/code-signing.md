@@ -7,18 +7,20 @@ Every Windows release of Sumi is built from the public source of [this repositor
 
 ## Signing
 
-Sumi has applied to [SignPath Foundation](https://signpath.org) for free code signing. Until it is approved, the installer is unsigned and Windows warns about an unknown publisher. Once approved, every release from then on will be signed:
+The installer on GitHub isn't signed yet, so Windows warns about an unknown publisher. A Microsoft Store version is on its way: the Store signs the apps it distributes, so installing Sumi from it brings no warning.
 
-> Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+Until then, you can check that an installer was built by this repository's release workflow, from its public source:
 
-Only files built from this repository by its release workflow are signed, and each signing request is approved by hand.
+```bash
+gh attestation verify Sumi-setup.exe -R Rateur/sumi
+```
 
 ## Team roles
 
 - **Committers and reviewers:** [Rateur](https://github.com/Rateur). Changes from anyone else come as pull requests that Rateur reviews before they are merged.
-- **Approvers:** [Rateur](https://github.com/Rateur), who approves each release and each signing request.
+- **Approvers:** [Rateur](https://github.com/Rateur), who approves each release.
 
-Every member uses two-factor authentication on GitHub and on SignPath.
+Every member uses two-factor authentication on GitHub.
 
 ## Privacy
 
