@@ -12,6 +12,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 
 /// One app using the microphone, the camera or both. `since_ms` is Unix time, when Sumi first saw it.
+/// Mirrored in src/lib/privacy.ts (`PrivacyApp`).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct App {
@@ -23,14 +24,14 @@ pub struct App {
 }
 
 /// An app's icon as straight RGBA pixels in base64, `side` px square, for the page to paint without an image
-/// encoder in the app.
+/// encoder in the app. Mirrored in src/lib/privacy.ts, inline in `PrivacyApp`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Icon {
     pub side: u32,
     pub rgba: String,
 }
 
-/// What the page draws: the apps, oldest first, and the microphone's mute.
+/// What the page draws: the apps, oldest first, and the microphone's mute. Mirrored in src/lib/privacy.ts.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Privacy {
@@ -53,7 +54,7 @@ enum Msg {
 }
 
 pub struct Devices {
-    tx: Mutex<Sender<Msg>>,
+    tx: Sender<Msg>,
     snapshot: Mutex<Privacy>,
     /// The processes behind each app shown, for bringing its own window forward.
     owners: Mutex<HashMap<String, Vec<u32>>>,
@@ -71,9 +72,7 @@ pub fn privacy_state(devices: tauri::State<'_, Devices>) -> Privacy {
 /// Mutes or unmutes the default microphone, for every app, as Windows' own mute does.
 #[tauri::command]
 pub fn privacy_mute(devices: tauri::State<'_, Devices>, muted: bool) {
-    if let Ok(tx) = devices.tx.lock() {
-        let _ = tx.send(Msg::Mute(muted));
-    }
+    let _ = devices.tx.send(Msg::Mute(muted));
 }
 
 /// Brings an app's window to the front, where its own camera and microphone buttons are: Windows can't turn the
@@ -107,7 +106,7 @@ pub fn privacy_settings(camera: bool) {
 pub fn watch(app: &AppHandle) {
     let (tx, rx) = channel();
     app.manage(Devices {
-        tx: Mutex::new(tx.clone()),
+        tx: tx.clone(),
         snapshot: Mutex::default(),
         owners: Mutex::default(),
     });
@@ -209,6 +208,19 @@ mod win {
 
     /// Several callbacks come in a row when an app opens the microphone: one wait gathers them into one message.
     const BURST: Duration = Duration::from_millis(150);
+
+    /// A running process: its parent and its exe's file name.
+    struct Process {
+        parent: u32,
+        exe: String,
+    }
+
+    /// The name read for a pid, with the exe it was read for and that exe's full path, for its icon.
+    struct Named {
+        exe: String,
+        name: String,
+        path: Option<String>,
+    }
 
     /// Callbacks run on Windows' threads: they only post a message.
     #[implement(
@@ -462,28 +474,34 @@ mod win {
     // shortcut: a capture driver that hangs inside one of Windows' calls holds this thread, and the dot waits with it;
     // the rest of Sumi doesn't. Add timeouts if one is ever seen doing it.
     pub(super) fn run(app: &AppHandle, tx: &Sender<Msg>, rx: &Receiver<Msg>) {
-        if unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_err() {
+        if let Err(e) = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok() {
+            log::warn!("privacy: COM didn't start: {e}");
             return;
         }
         let Ok(enumerator) = (unsafe {
             CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL)
-        }) else {
+        })
+        .inspect_err(|e| log::warn!("privacy: no audio device enumerator: {e}")) else {
             return;
         };
         let ping = ComObject::new(Ping(tx.clone()));
         let client: IMMNotificationClient = ping.to_interface();
-        let _ = unsafe { enumerator.RegisterEndpointNotificationCallback(&client) };
+        // Without it, a microphone plugged in later goes unseen until Sumi restarts.
+        if let Err(e) = unsafe { enumerator.RegisterEndpointNotificationCallback(&client) } {
+            log::warn!("privacy: no device notifications: {e}");
+        }
         // The camera half: kept alive as long as the loop. Without Media Foundation, only the microphone shows.
-        let _monitor = camera_monitor(tx);
+        let _monitor =
+            camera_monitor(tx).inspect_err(|e| log::warn!("privacy: no camera monitor: {e}"));
 
         let own = std::process::id();
         let mut capture = Capture::open(&enumerator, &ping);
         let mut camera: Vec<u32> = Vec::new();
         let mut since: HashMap<String, i64> = HashMap::new();
-        // Each pid's exe and name. A pid Windows has since given to another exe gets a new name.
-        let mut names: HashMap<u32, (String, String, Option<String>)> = HashMap::new();
+        // The name read for each pid. A pid Windows has since given to another exe gets a new name.
+        let mut names: HashMap<u32, Named> = HashMap::new();
         let mut icons: HashMap<String, Option<Icon>> = HashMap::new();
-        // The processes behind each app shown, for bringing its own window forward.
+        // The state sent last, so an unchanged one isn't sent again.
         let mut last: Option<Privacy> = None;
         let mut next = Some(Msg::Sessions);
         loop {
@@ -514,14 +532,19 @@ mod win {
                 let host = host(pid, &processes);
                 let exe = processes
                     .get(&host)
-                    .map(|(_, exe)| exe.clone())
+                    .map(|p| p.exe.clone())
                     .unwrap_or_default();
                 let (name, path) = match names.get(&host) {
-                    Some((known, name, path)) if *known == exe => (name.clone(), path.clone()),
+                    Some(known) if known.exe == exe => (known.name.clone(), known.path.clone()),
                     _ => {
                         let path = image_path(host);
                         let name = app_name(host, path.clone(), &processes)?;
-                        names.insert(host, (exe, name.clone(), path.clone()));
+                        let named = Named {
+                            exe,
+                            name: name.clone(),
+                            path: path.clone(),
+                        };
+                        names.insert(host, named);
                         (name, path)
                     }
                 };
@@ -592,19 +615,21 @@ mod win {
 
     /// Media Foundation, found at run time: Windows N editions ship without it unless the Media Feature Pack is in,
     /// and a load-time import would keep Sumi from starting there at all.
-    fn camera_monitor(tx: &Sender<Msg>) -> Option<IMFSensorActivityMonitor> {
+    fn camera_monitor(tx: &Sender<Msg>) -> windows::core::Result<IMFSensorActivityMonitor> {
         type Startup = unsafe extern "system" fn(u32, u32) -> windows::core::HRESULT;
         type Create = unsafe extern "system" fn(
             *mut core::ffi::c_void,
             *mut *mut core::ffi::c_void,
         ) -> windows::core::HRESULT;
         let load = |dll: &str| unsafe {
-            LoadLibraryExW(&HSTRING::from(dll), None, LOAD_LIBRARY_SEARCH_SYSTEM32).ok()
+            LoadLibraryExW(&HSTRING::from(dll), None, LOAD_LIBRARY_SEARCH_SYSTEM32)
         };
         let (plat, sensors) = (load("mfplat.dll")?, load("mfsensorgroup.dll")?);
-        let startup = unsafe { GetProcAddress(plat, windows::core::s!("MFStartup")) }?;
+        let startup = unsafe { GetProcAddress(plat, windows::core::s!("MFStartup")) }
+            .ok_or_else(windows::core::Error::from_thread)?;
         let create =
-            unsafe { GetProcAddress(sensors, windows::core::s!("MFCreateSensorActivityMonitor")) }?;
+            unsafe { GetProcAddress(sensors, windows::core::s!("MFCreateSensorActivityMonitor")) }
+                .ok_or_else(windows::core::Error::from_thread)?;
         // SAFETY: both are documented with exactly these signatures.
         let (startup, create): (Startup, Create) = unsafe {
             (
@@ -612,46 +637,46 @@ mod win {
                 std::mem::transmute::<unsafe extern "system" fn() -> isize, Create>(create),
             )
         };
-        unsafe { startup(MF_VERSION, MFSTARTUP_LITE) }.ok().ok()?;
+        unsafe { startup(MF_VERSION, MFSTARTUP_LITE) }.ok()?;
         let callback: IMFSensorActivitiesReportCallback = Sensors(tx.clone()).into();
         let mut monitor = std::ptr::null_mut();
-        unsafe { create(callback.as_raw(), &mut monitor) }
-            .ok()
-            .ok()?;
+        unsafe { create(callback.as_raw(), &mut monitor) }.ok()?;
         // SAFETY: on success the call hands over one reference to the new monitor.
         let monitor = unsafe { IMFSensorActivityMonitor::from_raw(monitor) };
-        unsafe { monitor.Start() }.ok()?;
-        Some(monitor)
+        unsafe { monitor.Start() }?;
+        Ok(monitor)
     }
 
-    /// Brings forward the frontmost window of these processes. A Store app's window belongs to ApplicationFrameHost,
-    /// with the app's own window inside it.
     /// The processes that own an app's windows: from the one capturing, up its parents of the same exe, as a
     /// browser's or Electron app's helper process leads to the main one.
-    fn roots(pids: &[u32], processes: &HashMap<u32, (u32, String)>) -> Vec<u32> {
+    fn roots(pids: &[u32], processes: &HashMap<u32, Process>) -> Vec<u32> {
         let mut roots = Vec::new();
         for &pid in pids {
             let mut pid = pid;
             for _ in 0..8 {
-                let Some((parent, exe)) = processes.get(&pid) else {
+                let Some(process) = processes.get(&pid) else {
                     break;
                 };
-                match processes.get(parent) {
-                    Some((_, up)) if up.eq_ignore_ascii_case(exe) => pid = *parent,
+                match processes.get(&process.parent) {
+                    Some(up) if up.exe.eq_ignore_ascii_case(&process.exe) => pid = process.parent,
                     _ => break,
                 }
             }
             roots.push(pid);
         }
         roots.extend_from_slice(pids);
+        // dedup only drops repeats that sit side by side.
+        roots.sort_unstable();
         roots.dedup();
         roots
     }
 
+    /// Brings forward the frontmost window of these processes. A Store app's window belongs to ApplicationFrameHost,
+    /// with the app's own window inside it.
     pub(super) fn show(pids: &[u32]) -> bool {
-        use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
         use windows_sys::Win32::Foundation::{HWND, LPARAM};
         use windows_sys::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
+        use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
         use windows_sys::Win32::UI::WindowsAndMessaging::{
             EnumChildWindows, EnumWindows, GW_OWNER, GetClassNameW, GetForegroundWindow, GetWindow,
             GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, MSG,
@@ -670,29 +695,32 @@ mod win {
             pids.contains(&pid)
         }
         unsafe extern "system" fn child(hwnd: HWND, search: LPARAM) -> i32 {
-            let search = unsafe { &mut *(search as *mut Search) };
+            // SAFETY: show() passes a pointer to its own Search, alive for the whole EnumWindows call, and only
+            // shared references to it exist while children are listed.
+            let search = unsafe { &*(search as *const Search) };
             i32::from(!owned(hwnd, &search.pids))
         }
-        unsafe extern "system" fn each(hwnd: HWND, search: LPARAM) -> i32 {
-            let hidden = unsafe { (*(search as *mut Search)).hidden };
+        unsafe extern "system" fn each(hwnd: HWND, lparam: LPARAM) -> i32 {
+            // SAFETY: as in child. Only shared references are taken, even across EnumChildWindows, and `found` is
+            // written once, through the pointer, after the last of them.
+            let search = unsafe { &*(lparam as *const Search) };
             let found = unsafe {
                 let mut cloaked = 0u32;
                 let _ =
                     DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED as u32, (&raw mut cloaked).cast(), 4);
-                (hidden || (IsWindowVisible(hwnd) != 0 && cloaked == 0))
+                (search.hidden || (IsWindowVisible(hwnd) != 0 && cloaked == 0))
                     && GetWindow(hwnd, GW_OWNER).is_null()
                     && GetWindowTextLengthW(hwnd) > 0
             } && {
-                let search_ref = unsafe { &mut *(search as *mut Search) };
                 let mut class = [0u16; 32];
                 let len = unsafe { GetClassNameW(hwnd, class.as_mut_ptr(), 32) };
                 let frame = String::from_utf16_lossy(&class[..usize::try_from(len).unwrap_or(0)])
                     == "ApplicationFrameWindow";
-                owned(hwnd, &search_ref.pids)
-                    || (frame && unsafe { EnumChildWindows(hwnd, Some(child), search) } == 0)
+                owned(hwnd, &search.pids)
+                    || (frame && unsafe { EnumChildWindows(hwnd, Some(child), lparam) } == 0)
             };
             if found {
-                unsafe { (*(search as *mut Search)).found = hwnd };
+                unsafe { (*(lparam as *mut Search)).found = hwnd };
             }
             i32::from(!found)
         }
@@ -725,11 +753,10 @@ mod win {
             PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_NOREMOVE);
             let front = GetWindowThreadProcessId(GetForegroundWindow(), std::ptr::null_mut());
             let me = GetCurrentThreadId();
-            let attached =
-                front != 0 && front != me && AttachThreadInput(me, front, true).as_bool();
+            let attached = front != 0 && front != me && AttachThreadInput(me, front, 1) != 0;
             let shown = SetForegroundWindow(hwnd) != 0;
             if attached {
-                let _ = AttachThreadInput(me, front, false);
+                AttachThreadInput(me, front, 0);
             }
             shown
         }
@@ -742,8 +769,8 @@ mod win {
             .unwrap_or(0)
     }
 
-    /// Every process now: its parent and its exe's file name.
-    fn processes() -> HashMap<u32, (u32, String)> {
+    /// Every process now.
+    fn processes() -> HashMap<u32, Process> {
         let mut all = HashMap::new();
         let Ok(snapshot) = (unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }) else {
             return all;
@@ -760,7 +787,8 @@ mod win {
                 .position(|&c| c == 0)
                 .unwrap_or(entry.szExeFile.len());
             let exe = String::from_utf16_lossy(&entry.szExeFile[..len]);
-            all.insert(entry.th32ProcessID, (entry.th32ParentProcessID, exe));
+            let parent = entry.th32ParentProcessID;
+            all.insert(entry.th32ProcessID, Process { parent, exe });
             more = unsafe { Process32NextW(snapshot, &mut entry) }.is_ok();
         }
         let _ = unsafe { CloseHandle(snapshot) };
@@ -768,15 +796,15 @@ mod win {
     }
 
     /// The app a process belongs to: a WebView2 process stands for the app that hosts it.
-    fn host(pid: u32, processes: &HashMap<u32, (u32, String)>) -> u32 {
+    fn host(pid: u32, processes: &HashMap<u32, Process>) -> u32 {
         let mut pid = pid;
         for _ in 0..8 {
             match processes.get(&pid) {
-                Some((parent, exe))
-                    if exe.eq_ignore_ascii_case("msedgewebview2.exe")
-                        && processes.contains_key(parent) =>
+                Some(process)
+                    if process.exe.eq_ignore_ascii_case("msedgewebview2.exe")
+                        && processes.contains_key(&process.parent) =>
                 {
-                    pid = *parent;
+                    pid = process.parent;
                 }
                 _ => break,
             }
@@ -788,11 +816,11 @@ mod win {
     fn app_name(
         pid: u32,
         path: Option<String>,
-        processes: &HashMap<u32, (u32, String)>,
+        processes: &HashMap<u32, Process>,
     ) -> Option<String> {
         let described = path.as_deref().and_then(description);
         described.or_else(|| {
-            let exe = path.or_else(|| processes.get(&pid).map(|(_, exe)| exe.clone()))?;
+            let exe = path.or_else(|| processes.get(&pid).map(|p| p.exe.clone()))?;
             let file = exe.rsplit(['\\', '/']).next()?;
             Some(
                 file.strip_suffix(".exe")
@@ -932,7 +960,8 @@ mod win {
         if size == 0 {
             return None;
         }
-        let mut data = vec![0u8; size as usize];
+        // u32s, so the block starts 4-byte aligned and the u16 reads below are aligned.
+        let mut data = vec![0u32; (size as usize).div_ceil(4)];
         unsafe { GetFileVersionInfoW(&path, None, size, data.as_mut_ptr().cast()) }.ok()?;
         let query = |key: &str| -> Option<(*const u16, u32)> {
             let mut value: *mut core::ffi::c_void = std::ptr::null_mut();
@@ -948,15 +977,73 @@ mod win {
             (found.as_bool() && !value.is_null() && len > 0)
                 .then_some((value.cast_const().cast::<u16>(), len))
         };
-        let (translation, _) = query("\\VarFileInfo\\Translation")?;
+        // Its first entry is a language and a code page, two u16s: 4 bytes.
+        let (translation, _) = query("\\VarFileInfo\\Translation").filter(|&(_, len)| len >= 4)?;
+        // SAFETY: those 4 bytes lie inside `data`, still alive; `data` is 4-byte aligned and the block keeps its
+        // values 4-byte aligned from its start.
         let (lang, codepage) = unsafe { (*translation, *translation.add(1)) };
         let (text, len) = query(&format!(
             "\\StringFileInfo\\{lang:04x}{codepage:04x}\\FileDescription"
         ))?;
+        // SAFETY: the string lies inside `data`, still alive, and a string's length comes in u16s, not bytes.
         let text = unsafe { std::slice::from_raw_parts(text, len as usize) };
         let end = text.iter().position(|&c| c == 0).unwrap_or(text.len());
         let name = String::from_utf16_lossy(&text[..end]).trim().to_string();
         (!name.is_empty()).then_some(name)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use std::collections::HashMap;
+
+        use super::{Process, app_name, host, roots};
+
+        fn table(list: &[(u32, u32, &str)]) -> HashMap<u32, Process> {
+            list.iter()
+                .map(|&(pid, parent, exe)| {
+                    let exe = exe.to_string();
+                    (pid, Process { parent, exe })
+                })
+                .collect()
+        }
+
+        #[test]
+        fn a_helper_process_leads_to_the_main_one_of_the_same_exe() {
+            let processes = table(&[
+                (1, 0, "explorer.exe"),
+                (10, 1, "chrome.exe"),
+                (11, 10, "Chrome.exe"),
+                (12, 11, "chrome.exe"),
+                (20, 1, "Discord.exe"),
+            ]);
+            // Up to the main process, not past it to explorer.exe.
+            assert_eq!(roots(&[12], &processes), [10, 12]);
+            // Each pid once, even when its repeats aren't side by side.
+            assert_eq!(roots(&[12, 20], &processes), [10, 12, 20]);
+        }
+
+        #[test]
+        fn a_webview_process_stands_for_its_host() {
+            let processes = table(&[
+                (1, 0, "explorer.exe"),
+                (30, 1, "Teams.exe"),
+                (31, 30, "msedgewebview2.exe"),
+                (32, 31, "MSEdgeWebView2.exe"),
+                (40, 99, "msedgewebview2.exe"),
+            ]);
+            assert_eq!(host(32, &processes), 30);
+            assert_eq!(host(30, &processes), 30);
+            // Its host is gone: the webview stands for itself.
+            assert_eq!(host(40, &processes), 40);
+        }
+
+        #[test]
+        fn without_a_path_the_name_is_the_exe_without_its_suffix() {
+            let processes = table(&[(5, 1, "zoom.exe"), (6, 1, "SETUP.EXE")]);
+            assert_eq!(app_name(5, None, &processes).as_deref(), Some("zoom"));
+            assert_eq!(app_name(6, None, &processes).as_deref(), Some("SETUP"));
+            assert_eq!(app_name(7, None, &processes), None);
+        }
     }
 }
 

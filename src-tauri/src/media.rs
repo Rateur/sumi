@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager};
 
 /// One player as the page draws it. Times are in milliseconds, and `updated_ms` is Unix time, like a timer's end:
 /// the page moves the progress bar on its own from there, so no message is sent while a song plays.
+/// Mirrored in src/lib/music.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Player {
@@ -54,24 +55,20 @@ enum Msg {
 
 /// The thread's mailbox and its last snapshot.
 pub struct Media {
-    tx: Mutex<Sender<Msg>>,
+    tx: Sender<Msg>,
     snapshot: Mutex<Snapshot>,
 }
 
 /// Plays, pauses or skips on one player. The answer isn't awaited: the player's own events tell the page.
 #[tauri::command]
 pub fn media_control(media: tauri::State<'_, Media>, id: String, action: Action) {
-    if let Ok(tx) = media.tx.lock() {
-        let _ = tx.send(Msg::Control(id, action));
-    }
+    let _ = media.tx.send(Msg::Control(id, action));
 }
 
 /// Moves one player to `ms` from the start of its song, for a drag on the progress bar.
 #[tauri::command]
 pub fn media_seek(media: tauri::State<'_, Media>, id: String, ms: i64) {
-    if let Ok(tx) = media.tx.lock() {
-        let _ = tx.send(Msg::Seek(id, ms));
-    }
+    let _ = media.tx.send(Msg::Seek(id, ms));
 }
 
 #[tauri::command]
@@ -85,7 +82,7 @@ pub fn media_players(media: tauri::State<'_, Media>) -> Snapshot {
 pub fn watch(app: &AppHandle) {
     let (tx, rx) = channel();
     app.manage(Media {
-        tx: Mutex::new(tx.clone()),
+        tx: tx.clone(),
         snapshot: Mutex::default(),
     });
     let app = app.clone();
@@ -224,14 +221,15 @@ mod win {
     // shortcut: a player that hangs inside one of Windows' calls holds this thread until it answers, and music
     // updates wait with it; the rest of Sumi doesn't. Add timeouts if a player is ever seen doing it.
     pub(super) fn run(app: &AppHandle, tx: &Sender<Msg>, rx: &Receiver<Msg>) {
-        let Ok(manager) = SessionManager::RequestAsync().and_then(|op| op.join()) else {
+        let Ok(manager) = SessionManager::RequestAsync()
+            .and_then(|op| op.join())
+            .inspect_err(|e| log::warn!("media: no session manager: {e}"))
+        else {
             return;
         };
         // The manager lives as long as the loop, and with it the handler.
-        if manager
-            .SessionsChanged(&ping(tx, || Msg::Sessions))
-            .is_err()
-        {
+        if let Err(e) = manager.SessionsChanged(&ping(tx, || Msg::Sessions)) {
+            log::warn!("media: session changes can't be heard: {e}");
             return;
         }
         let mut watched: Vec<Watched> = Vec::new();

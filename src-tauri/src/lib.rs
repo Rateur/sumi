@@ -1,3 +1,8 @@
+//! Sumi's Windows side. `island` polls the cursor on a thread of its own and emits island://pointer,
+//! island://presence and island://dismiss; `fullscreen` hooks the foreground window on the main thread and only feeds
+//! that poll. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
+//! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again.
+
 mod fullscreen;
 mod island;
 mod media;
@@ -7,7 +12,6 @@ use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // A hang must not draw a frozen "Not responding" copy over the top of the screen.
     #[cfg(windows)]
@@ -16,6 +20,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
+        // media::watch and privacy::watch manage their own state.
         .manage(island::IslandRects::default())
         .manage(island::IslandExpanded::default())
         .invoke_handler(tauri::generate_handler![
@@ -23,11 +28,11 @@ pub fn run() {
             island::set_island_expanded,
             media::media_control,
             media::media_seek,
+            media::media_players,
             privacy::privacy_state,
             privacy::privacy_mute,
             privacy::privacy_settings,
-            privacy::privacy_show,
-            media::media_players
+            privacy::privacy_show
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

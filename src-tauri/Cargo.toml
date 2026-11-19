@@ -10,7 +10,7 @@ rust-version = "1.100"
 
 [lib]
 name = "sumi_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.7.4", features = [] }
@@ -23,7 +23,8 @@ tauri = { version = "2.12.5", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 
 [target.'cfg(windows)'.dependencies]
-# Both already come with Tauri: the media and privacy modules only turn on the parts they read.
+# windows is for COM and WinRT (media, privacy), windows-sys for plain Win32 calls. base64, windows and windows-sys
+# already come with Tauri: Sumi only turns on the parts it reads.
 base64 = "0.23"
 windows = { version = "0.62", features = [
   "Media_Control",
@@ -41,7 +42,7 @@ windows = { version = "0.62", features = [
 ] }
 # Its implement macro, for the callbacks Windows calls, names this crate directly. Same version as windows' own.
 windows-core = "0.62"
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Threading", "Win32_UI_Accessibility", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 # Smaller, faster release binary (see Tauri's "App Size" guide).
 [profile.release]
