@@ -8,17 +8,17 @@ Appuyez sur `Win+Alt+S` et l'île devient une barre. Tapez, regardez la pastille
 ## Que taper
 
 - **Un minuteur** : `25m`, `90s`, `1h30`, `minuteur 10m` ou `mets un minuteur d'une demi-heure`. La barre se replie en minuteur. Ses commandes complètes, un clic pour le mettre en pause ou l'arrêter, arrivent avec le module minuteur dans la même version.
-- **Une app** : son nom tel que le menu Démarrer l'affiche, comme `Discord`, ou un verbe et son nom, comme `ouvre disc`, `lance spotify` ou `ouvre les paramètres`. Une faute de frappe ou un accent oublié ne gênent pas.
+- **Une app** : son nom tel que le menu Démarrer l'affiche, comme `Discord`, ses quatre premières lettres ou plus, comme `disc`, ou un verbe et son nom, comme `lance spotify` ou `ouvre les paramètres`. Un accent oublié ne gêne pas, et après un verbe, une faute de frappe non plus.
 - **L'heure ou la date** : `quelle heure est-il` ou `on est quel jour`. La pastille donne la réponse, et Entrée l'affiche dans l'île avec la date.
 - **Une question** : tout le reste va à Claude. Nommez d'abord un assistant pour en choisir un autre : `demande à chatgpt …`, `gemini …`, `perplexity …`, ou `cherche …` pour le moteur de recherche.
 
-Écrivez comme vous parlez : autour d'un verbe, `stp`, `tu peux` ou `hey Sumi` ne changent rien, la ponctuation non plus. `tu peux ouvrir Spotify stp ?` ouvre Spotify. Le nom d'une app seul ne l'ouvre que tel quel, et un verbe à la forme négative, comme `n'ouvre pas Spotify`, est une question.
+Écrivez comme vous parlez : autour d'un verbe, `stp`, `tu peux` ou `hey Sumi` ne changent rien, la ponctuation non plus. `tu peux ouvrir Spotify stp ?` ouvre Spotify. Un mot seul n'ouvre une app que si une seule app commence ainsi. Si deux le font, comme `disco` pour Discord et Disco Elysium, la pastille demande à Claude et Tab propose les deux. Un verbe à la forme négative, comme `n'ouvre pas Spotify`, est une question.
 
 ## La pastille
 
 La pastille dit ce que fera Entrée, avant que vous appuyiez. Elle ne devine rien d'après vos habitudes : la même ligne donne toujours la même pastille.
 
-- **Tab** passe à la cible suivante, **Maj+Tab** à la précédente : la première proposition, Claude, ChatGPT, Gemini, Perplexity, puis le moteur de recherche. Ainsi, `notes` ouvre Notes, et un Tab pose plutôt la question à Claude.
+- **Tab** passe à la cible suivante, **Maj+Tab** à la précédente : la première proposition, les apps à égalité, Claude, ChatGPT, Gemini, Perplexity, puis le moteur de recherche. Ainsi, `notes` ouvre Notes, et un Tab pose plutôt la question à Claude.
 - **Échap** referme la barre et rend le focus à la fenêtre où vous étiez. Un clic ailleurs ou un changement d'app la referme aussi.
 
 ## Où va votre question
@@ -34,5 +34,6 @@ Sumi n'envoie rien. La liste des apps est lue dans le menu Démarrer et reste en
 ## Limites
 
 - Une seule chose par ligne : un minuteur, une app, l'heure ou une question.
+- Le début d'un mot qui peut encore devenir une question ou un mot de la barre, comme `expl` (« explique ») ou `what`, n'ouvre pas d'app seul. Tapez le nom entier : `explorateur`, `whatsapp`.
 - Une app installée il y a quelques minutes peut n'apparaître qu'à la prochaine ouverture de la barre.
 - Tant que l'île est masquée en plein écran, le raccourci ne fait rien.

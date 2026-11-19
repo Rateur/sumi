@@ -159,6 +159,11 @@ export const corpus: Row[] = [
   ['ouvre spotify maintenant', 'fr', 'app', 'Spotify'],
   ['ouvre discord stp', 'fr', 'app', 'Discord'],
   ['ouvre discord merci', 'fr', 'app', 'Discord'],
+  // A word alone from 4 letters opens the one app it starts, or a word in it.
+  ['disc', 'fr', 'app', 'Discord'],
+  ['spot', 'fr', 'app', 'Spotify'],
+  ['chrome', 'fr', 'app', 'Google Chrome'],
+  ['teams', 'fr', 'app', 'Microsoft Teams'],
 
   // --- French: the time and the date ---
   ['quelle heure est-il', 'fr', 'clock', 'time'],
@@ -332,10 +337,13 @@ export const corpus: Row[] = [
   ['ouvre-moi une explication sur Rust', 'fr', 'ask'],
   ['ouvre le dossier documents', 'fr', 'ask'],
   ['ouvre google docs', 'fr', 'ask'],
-  ['disc', 'fr', 'ask'],
-  ['spot', 'fr', 'ask'],
-  ['chrome', 'fr', 'ask'],
-  ['teams', 'fr', 'ask'],
+  // The start of a question or of the bar's own words opens no app alone: 'expl' is no Explorateur, 'regl' no
+  // Réglages, 'clau' no Claude, 'chro' no Google Chrome.
+  ['quel', 'fr', 'ask'],
+  ['expl', 'fr', 'ask'],
+  ['regl', 'fr', 'ask'],
+  ['clau', 'fr', 'ask'],
+  ['chro', 'fr', 'ask'],
   ['ouvre paint', 'fr', 'ask'],
   ['lance photoshop', 'fr', 'ask'],
   ['ouvre la calculatrice scientifique', 'fr', 'ask'],
@@ -585,6 +593,8 @@ export const corpus: Row[] = [
   ['boot up steam', 'en', 'app', 'Steam'],
   ['boot up discord', 'en', 'app', 'Discord'],
   ['opne chrome', 'en', 'app', 'Google Chrome'],
+  ['slac', 'en', 'app', 'Slack'],
+  ['netf', 'en', 'app', 'Netflix'],
 
   // --- English: the time and the date ---
   ['what time is it', 'en', 'clock', 'time'],
@@ -813,8 +823,12 @@ export const corpus: Row[] = [
   ['start a ti', 'en', 'ask'],
   ['hour', 'en', 'ask'],
   ['open the st', 'en', 'ask'],
-  ['slac', 'en', 'ask'],
-  ['netf', 'en', 'ask'],
+  // 'what' is no WhatsApp, 'goog' no Google Chrome, 'laun' no Epic Games Launcher.
+  ['what', 'en', 'ask'],
+  ['whats', 'en', 'ask'],
+  ['goog', 'en', 'ask'],
+  ['gemi', 'en', 'ask'],
+  ['laun', 'en', 'ask'],
   ['what is 1:30 in minutes', 'en', 'ask'],
   ['open the fridge', 'en', 'ask'],
   ['find a restaurant nearby', 'en', 'ask'],

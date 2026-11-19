@@ -231,8 +231,39 @@ describe('choices', () => {
     expect(top('Google Chrome')).toMatchObject({ kind: 'app', label: 'Ouvrir Google Chrome' })
   })
 
-  it('matches a bare name exactly only', () => {
-    expect(top('disc')).toMatchObject({ kind: 'ask', to: 'claude' })
+  it('opens the one app a word alone starts, from 4 letters, with no typo or shortening', () => {
+    expect(top('disc')).toMatchObject({ kind: 'app', label: 'Ouvrir Discord' })
+    expect(top('teams')).toMatchObject({ kind: 'app', label: 'Ouvrir Microsoft Teams' })
+    for (const line of ['dis', 'dicsord', 'vsc', 'disc stp']) expect(top(line)).toMatchObject({ kind: 'ask' })
+    expect(top('ouvre dicsord')).toMatchObject({ kind: 'app', label: 'Ouvrir Discord' })
+  })
+
+  it('opens nothing from a word alone once its app is gone', () => {
+    expect(top('disc', { ...fr, apps: [{ name: 'Spotify' }] })).toMatchObject({ kind: 'ask' })
+  })
+
+  it('offers the apps that tie on Tab, right after the top guess, on a word alone and after a verb', () => {
+    const list = ['Discord', 'Disco Elysium', 'Spotify'].map((name) => ({ name }))
+    expect(labels('disco', { ...fr, apps: list }).slice(0, 4)).toEqual([
+      'Demander à Claude',
+      'Ouvrir Discord',
+      'Ouvrir Disco Elysium',
+      'ChatGPT · navigateur',
+    ])
+    expect(labels('ouvre disco', { ...fr, apps: list }).slice(0, 3)).toEqual([
+      'Aucune app « disco »',
+      'Ouvrir Discord',
+      'Ouvrir Disco Elysium',
+    ])
+    // At most 3, the shorter name first, then alphabetical.
+    const microsoft = ['Microsoft To Do', 'Microsoft Teams', 'Microsoft Store', 'Microsoft Edge'].map((name) => ({ name }))
+    expect(labels('ouvre micr', { ...fr, apps: microsoft }).slice(0, 5)).toEqual([
+      'Aucune app « micr »',
+      'Ouvrir Microsoft Edge',
+      'Ouvrir Microsoft Store',
+      'Ouvrir Microsoft Teams',
+      'ChatGPT · navigateur',
+    ])
   })
 
   it('reads a bare name as typed: politeness only helps a verb', () => {

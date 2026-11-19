@@ -24,6 +24,8 @@ const lines = {
   'command p': 'open command p',
   'control p': 'open control p',
   control: 'open control',
+  // A word alone that two names start: every rule runs, then the tie.
+  'a word alone': 'micro',
 }
 
 test.for(Object.entries(lines))('choices, 500 apps: %s', async ([, line], { bench, expect, annotate }) => {

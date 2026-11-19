@@ -3,7 +3,8 @@
  * text always gives the same chip, and nothing is sent anywhere while typing. The line is read once, the same way
  * every time (folded, elisions and clitics split, politeness off its ends), then the first rule that matches wins: a
  * timer, an app's exact name or alias as typed, the time or the date, an assistant by name, a search, a verb and an
- * app, then the default target. When in doubt the line is a question: acting wrongly costs more than not acting.
+ * app, a word alone that starts one app's name, then the default target. When in doubt the line is a question:
+ * acting wrongly costs more than not acting.
  */
 
 import { formatLongDate, formatTime } from './clock'
@@ -693,45 +694,56 @@ function exactly<A extends App>(index: Index<A>, text: string): A | undefined {
 }
 
 /**
- * The app a query names, by fixed tiers: an exact alias or name, a prefix, the start of a word, a typo, then a
- * shortening. What an app is called in capitals wins a prefix ('obs' is OBS Studio, not Obsidian), then the shorter
- * name when the others carry it ('ste' is Steam, not Steam VR); any other tie finds nothing, as does a known name
- * whose app is missing. Usage never reorders it.
+ * The tiers before typos, shared by findApp and a word alone: none for a missing app's alias, one letter, the
+ * system's name or a common noun, then a prefix, then the start of a word, the shorter name first. What an app is
+ * called in capitals wins ('obs' is OBS Studio, not Obsidian), then the shorter name when the others carry it ('ste'
+ * is Steam, not Steam VR). Any other tie is no app, and its apps go into `tied` for Tab: at most 3, the shorter name
+ * first, then alphabetical. The app, null for no app, or undefined when no name starts a word with the query.
  */
-export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
+function starts<A extends App>(index: Index<A>, q: string, tied?: A[]): A | null | undefined {
+  // No Calculator never opens Calendar.
+  if (GROUPS.has(key(q))) return null
+  // One letter is too little to act on, and the system's name is a word many of its apps share.
+  if (q.length < 2 || SHARED.has(q)) return null
+  // A word one plural letter short of a word in a name is a common noun, not that name: 'window' is no Windows
+  // Terminal, 'game' no Epic Games Launcher, and no other app either. Plurals fold only onto a whole name, above.
+  // A single word only: in 'epic game', 'epic' already names the app.
+  const initial = index.byInitial.get(q[0]) ?? []
+  const plurals = q.length > 2 && !q.includes(' ') ? [' ' + q + 's', ' ' + q + 'x'] : []
+  if (initial.some((e) => e.spaced.some((w) => plurals.some((p) => w.endsWith(p) || w.includes(p + ' '))))) return null
+  // It wins only when every name that starts a word with the query carries it: 'st' is neither Steam nor Microsoft
+  // Store, so a half-typed name never opens its neighbor.
+  const spaced = ' ' + q
+  const hits = initial.filter((e) => e.spaced.some((w) => w.includes(spaced)))
+  if (!hits.length) return
+  const called = hits.filter((e) => e.called.includes(q))
+  const pool = called.length ? called : hits
+  const prefix = pool.filter((e) => e.keys.some((k) => k.startsWith(q)))
+  const best = (prefix.length ? prefix : pool).reduce((a, b) => (b.app.name.length < a.app.name.length ? b : a))
+  // Each way the others match goes through the best one's name: 'bloc notes' carries Notes, 'notepad' does not.
+  const through = (w: string) => !w.includes(spaced) || best.keys.some((k) => w.includes(' ' + k))
+  if (pool.every((e) => e === best || e.spaced.every(through))) return best.app
+  const names = pool.map((e) => e.app).toSorted((a, b) => a.name.length - b.name.length || (a.name < b.name ? -1 : 1))
+  tied?.push(...names.slice(0, 3))
+  return null
+}
+
+/**
+ * The app a query names, by fixed tiers: an exact alias or name, a prefix, the start of a word, a typo, then a
+ * shortening. A tie finds nothing, as does a known name whose app is missing; a tie of prefixes fills `tied`. Usage
+ * never reorders it.
+ */
+export function findApp<A extends App>(query: string, apps: readonly A[], tied?: A[]): A | undefined {
   const index = indexOf(apps)
   const q = key(query, true)
   if (!q) return
   const named = exactly(index, query)
   if (named) return named
-  // No Calculator never opens Calendar.
-  if (GROUPS.has(key(query))) return
-  // One letter is too little to act on, and the system's name is a word many of its apps share.
-  if (q.length < 2 || SHARED.has(q)) return
-  const { byLength, byInitial, byStart } = index
-  // A word one plural letter short of a word in a name is a common noun, not that name: 'window' is no Windows
-  // Terminal, 'game' no Epic Games Launcher, and no other app either. Plurals fold only onto a whole name, above.
-  // A single word only: in 'epic game', 'epic' already names the app.
-  const initial = byInitial.get(q[0]) ?? []
-  const plurals = q.length > 2 && !q.includes(' ') ? [' ' + q + 's', ' ' + q + 'x'] : []
-  if (initial.some((e) => e.spaced.some((w) => plurals.some((p) => w.endsWith(p) || w.includes(p + ' '))))) return
-  // A prefix, then the start of a word, the shorter name first. It wins only when every name that starts a word with
-  // the query carries it: 'ste' is Steam rather than Steam VR, but 'st' is neither Steam nor Microsoft Store, so a
-  // half-typed name never opens its neighbor.
-  const spaced = ' ' + q
-  const hits = initial.filter((e) => e.spaced.some((w) => w.includes(spaced)))
-  if (hits.length) {
-    const called = hits.filter((e) => e.called.includes(q))
-    const pool = called.length ? called : hits
-    const prefix = pool.filter((e) => e.keys.some((k) => k.startsWith(q)))
-    const best = (prefix.length ? prefix : pool).reduce((a, b) => (b.app.name.length < a.app.name.length ? b : a))
-    // Each way the others match goes through the best one's name: 'bloc notes' carries Notes, 'notepad' does not.
-    const through = (w: string) => !w.includes(spaced) || best.keys.some((k) => w.includes(' ' + k))
-    const carried = pool.every((e) => e === best || e.spaced.every(through))
-    return carried ? best.app : undefined
-  }
+  const start = starts(index, q, tied)
+  if (start !== undefined) return start ?? undefined
   // Typos and shortenings are for words: '10' is no typo of '11'.
   if (/\d/.test(q)) return
+  const { byLength, byInitial, byStart } = index
   // Each word allows the typos its own length does, so 'timer' never finds 'Time' and 'teans' finds 'Teams'.
   // Against the name, its start, or a word.
   const near = new Map<Entry<A>, number>()
@@ -759,7 +771,7 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
     return found.length === 1 ? found[0][0].app : undefined
   }
   if (q.length < 3) return
-  const short = initial.filter((e) => e.short.some((k) => shortens(q, k)))
+  const short = (byInitial.get(q[0]) ?? []).filter((e) => e.short.some((k) => shortens(q, k)))
   return short.length === 1 ? short[0].app : undefined
 }
 
@@ -836,6 +848,17 @@ const TYPING = [...DETS.split('|'), ...NOUNS.split('|'), ...LNOUNS.split('|')]
 const TIMING = [...KEYWORDS]
 const OPEN = ['ouvre', 'ouvres', 'ouvrez', 'ouvrir', 'lance', 'lances', 'lancer', 'lancez', 'demarre', 'demarrer']
   .concat(['demarrez', 'open', 'launch', 'start'])
+// A word alone opens the app it starts, never while it may still become one of the bar's own words or a question:
+// 'what' is on its way to 'what time is it', 'regl' to 'règle un minuteur', 'clau' to 'claude …'. Folded. The
+// stays-put test fails on a word of the bar left out.
+const BARE = [...OPEN, ...SETS, ...KEYWORDS, ...ORDER, 'gpt', 'google', 'affiche', 'afficher', 'montre', 'montrer']
+  .concat(['show', 'run', 'fire', 'boot', 'demande', 'demander', 'demandez', 'pose', 'poser', 'ask', 'tell'])
+  .concat(['cherche', 'chercher', 'recherche', 'rechercher', 'search', 'look', 'pause', 'reprendre', 'resume', 'stop'])
+  .concat(['annule', 'annuler', 'cancel', 'heure', 'heures', 'hour', 'hours', 'time', 'date', 'jour', 'today'])
+  .concat(['aujourdhui', 'maintenant', 'quel', 'quelle', 'quels', 'quelles', 'quoi', 'comment', 'pourquoi', 'combien'])
+  .concat(['quand', 'explique', 'expliquer', 'traduis', 'traduire', 'resumer', 'ecris', 'ecrire', 'aide', 'aider'])
+  .concat(['donne', 'donner', 'peux', 'pourrais', 'what', 'whats', 'which', 'where', 'when', 'explain', 'translate'])
+  .concat(['summarize', 'summarise', 'write', 'help', 'give', 'could', 'would', 'should', 'please'])
 // The first group opens what it names, or says no app aloud. 'montre', 'show' or 'run' takes an exact name: without
 // one it is just a question, so 'show the ti' is no Time Doctor. "m'ouvrir" and 'mouvrir' are 'open for me', and
 // 'open up', 'fire up' and 'boot up' a verb with its particle. 'show me' is 'montre-moi'. A trailing 'now' or 'ok'
@@ -892,8 +915,8 @@ function wordOf<A extends App>(index: Index<A>, text: string): A | undefined {
 }
 
 /**
- * What Enter can do with a line, the top guess first, then what Tab reaches: the default assistant, the others
- * in the user's order, then the search engine. An empty line does nothing.
+ * What Enter can do with a line, the top guess first, then what Tab reaches: the apps that tied, the default
+ * assistant, the others in the user's order, then the search engine. An empty line does nothing.
  */
 export function choices<A extends App>(line: string, options: Options<A>): Choice<A>[] {
   const { lang, claudeApp, timers = [], now = Date.now(), locale, order = ORDER } = options
@@ -906,6 +929,7 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
   // The end of the line a rule matched, as typed, for a question.
   const rest = (match: string) => typed.slice(read.at[text.length - match.length])
   const open = (app: A): Choice<A> => ({ kind: 'app', app, label: `${WORDS[lang].open} ${app.name}` })
+  const tied: A[] = []
 
   // The top guess, and the question the alternatives pass on: a named assistant's own, or the whole line.
   const [top, question] = ((): [Choice<A>, string] => {
@@ -952,7 +976,7 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
       const held = tail && !verb[4] ? armed(VERB.exec(cut)) : undefined
       const app =
         (system && exactly(index, system[1])) ||
-        (fuzzy ? findApp(verb[3], options.apps) : exactly(index, verb[3])) ||
+        (fuzzy ? findApp(verb[3], options.apps, tied) : exactly(index, verb[3])) ||
         (held && exactly(index, held[3]))
       if (app) return [open(app), typed]
       // Named as typed. 'lance un minuteur' is no missing app, just a question.
@@ -962,10 +986,16 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     }
     const slip = found ? undefined : slipped(text, index)
     if (slip) return [open(slip), typed]
+    // Last, a word alone of 4 letters or more that starts one app's name, read as typed, as an exact name is.
+    const word = key(whole.text, true)
+    const start = word.length > 3 && !whole.text.includes(' ') && !BARE.some((w) => w.startsWith(word))
+    const alone = start && starts(index, word, tied)
+    if (alone) return [open(alone), typed]
     return [ask(order[0], typed, claudeApp, lang), typed]
   })()
 
-  const all = [top, ...[...order, 'search' as const].map((to) => ask<A>(to, question, claudeApp, lang))]
+  const offers = top.kind === 'app' ? [] : tied.map(open)
+  const all = [top, ...offers, ...[...order, 'search' as const].map((to) => ask<A>(to, question, claudeApp, lang))]
   const seen = new Set<string>()
   return all.filter((c) => {
     const id = c.kind === 'ask' ? c.to : `${c.kind}:${c.label}`
