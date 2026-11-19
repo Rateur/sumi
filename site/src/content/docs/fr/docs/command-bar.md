@@ -3,7 +3,7 @@ title: Barre de commande
 description: Un minuteur, une app ou une question, depuis un raccourci.
 ---
 
-Appuyez sur `Win+Alt+S` et l'île devient une barre. Tapez, regardez la pastille à droite, puis appuyez sur Entrée. Appuyez à nouveau sur le raccourci ou sur Échap pour la refermer.
+Appuyez sur `Win+Alt+S` et l'île devient une barre. Tapez, regardez la pastille à droite, puis appuyez sur Entrée. Appuyez à nouveau sur le raccourci ou sur Échap pour la refermer. Si une autre app l'utilise déjà, le raccourci est `Alt+Maj+S`.
 
 ## Que taper
 
