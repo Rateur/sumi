@@ -3,6 +3,7 @@ export const home = {
 		title: 'Sumi — an island for Windows',
 		description: 'A free, open-source island for the top of your Windows screen.',
 		menu: 'Menu',
+		navLabel: 'Main',
 		closeMenu: 'Close the menu',
 		download: 'Download',
 		docs: 'Docs',
@@ -57,7 +58,7 @@ export const home = {
 		quietTitle: 'It stays out of the way.',
 		quiet: [
 			{ title: 'It lets clicks through.', text: 'Only the pill reacts to the mouse.' },
-			{ title: 'It stays on top.', text: 'Always visible, never in your taskbar.' },
+			{ title: 'It stays on top.', text: 'Above your windows, never in your taskbar.' },
 			{ title: '1.1 MB.', text: 'It relies on the WebView2 built into Windows.' },
 		],
 		fileSize: '1.1 MB',
@@ -76,6 +77,7 @@ export const home = {
 		title: 'Sumi — une île pour Windows',
 		description: 'Une île gratuite et open source en haut de votre écran Windows.',
 		menu: 'Menu',
+		navLabel: 'Principale',
 		closeMenu: 'Fermer le menu',
 		download: 'Télécharger',
 		docs: 'Docs',
@@ -130,7 +132,7 @@ export const home = {
 		quietTitle: 'Elle se fait oublier.',
 		quiet: [
 			{ title: 'Elle laisse passer les clics.', text: 'Seule la pilule réagit à la souris.' },
-			{ title: 'Elle reste au-dessus.', text: 'Toujours visible, jamais dans la barre des tâches.' },
+			{ title: 'Elle reste au-dessus.', text: 'Devant vos fenêtres, jamais dans la barre des tâches.' },
 			{ title: '1,1 Mo.', text: 'Elle s’appuie sur le WebView2 intégré à Windows.' },
 		],
 		fileSize: '1,1 Mo',
