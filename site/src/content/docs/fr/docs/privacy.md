@@ -12,4 +12,6 @@ Les fonctions qui en auront besoin resteront désactivées tant que vous ne les 
 
 Ce que l'île affiche de votre PC n'est jamais écrit dans un journal ou un fichier.
 
+La barre de commande ouvre l'app ou le site que vous choisissez avec votre question ; Sumi ne l'envoie nulle part, et la liste des apps reste en mémoire.
+
 Ce site est hébergé par GitHub Pages, sert ses propres polices et ne charge aucun traceur. Sur la page d'accueil, une question posée dans la démo de la barre de commande est envoyée à Wikipédia, et seulement au moment où vous la validez.

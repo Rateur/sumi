@@ -33,7 +33,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] Hides itself while a game or video is fullscreen (0.3.0)
 - [x] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress; the time moves to a bubble beside it (0.4.0)
 - [x] An orange or green dot when an app uses your microphone or camera, with the app and a mute under the cursor (0.5.0)
-- [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine, and timers: type `25m`
+- [ ] A command bar (`Win+Alt+S`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine, and timers: type `25m`
 - [ ] Tuck the island into a thin line at the top with a scroll up, and a live taskbar icon that tucks it or brings it back
 - [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
 - [ ] Settings (screen, theme, language, shortcuts), automatic updates and a signed installer

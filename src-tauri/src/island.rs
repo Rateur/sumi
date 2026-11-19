@@ -171,6 +171,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
         // Going, the island slides up off the screen and then the window hides. Coming back, the window
         // shows first and then the island drops down.
         let mut hide_at = None;
+        // The command bar brings the island itself to the front: that change of app is not one that closes it.
+        let own = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
@@ -238,7 +240,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                 if before
                     // A press the island took is on it, even when a quick drag left its edge before this tick.
                     .is_some_and(|(keys, front)| {
-                        front != now.1 || dismisses(keys, now.0, inside || over == Some(true))
+                        (front != now.1 && now.1 != own)
+                            || dismisses(keys, now.0, inside || over == Some(true))
                     })
                 {
                     expanded.0.store(false, Ordering::Relaxed);

@@ -5,7 +5,8 @@ import type { Player } from './music'
 export type Activity =
   | { id: 'clock'; kind: 'clock' }
   | { id: string; kind: 'call'; mic: boolean; camera: boolean }
-  | { id: string; kind: 'timer'; endsAt: number }
+  // `left` is the time left while paused; `label` is the name typed with it in the command bar.
+  | { id: string; kind: 'timer'; endsAt: number; label?: string; left?: number }
   // `art` is a data: URL and `player` the live state behind it; the demo's songs have neither.
   | { id: string; kind: 'music'; title: string; artist: string; color: string; art?: string; player?: Player }
 

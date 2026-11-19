@@ -46,7 +46,7 @@ export default defineConfig({
 				{
 					label: 'Features',
 					translations: { fr: 'Fonctions' },
-					items: ['docs/time', 'docs/fullscreen', 'docs/music', 'docs/microphone-camera'],
+					items: ['docs/time', 'docs/fullscreen', 'docs/music', 'docs/microphone-camera', 'docs/command-bar'],
 				},
 				{
 					label: 'Contribute',
