@@ -1,3 +1,4 @@
+import { isTauri } from '@tauri-apps/api/core'
 import type { Listed } from '../CommandBar.svelte'
 import type { Activity } from './activities'
 import type { Player } from './music'
@@ -139,8 +140,11 @@ export function demo(island: {
       island.apps = APPS.filter((app) => island.claudeApp || app.name !== 'Claude')
     },
   }
-  island.apps = APPS
-  island.claudeApp = true
+  // In the app, the bar lists Start's own apps.
+  if (!isTauri()) {
+    island.apps = APPS
+    island.claudeApp = true
+  }
   addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {
       event.preventDefault()

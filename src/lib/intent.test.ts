@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { choices, findApp, formatDuration, handOff, parseTimer, type App, type Timer } from './intent'
+import { choices, findApp, formatDuration, parseTimer, type App, type Timer } from './intent'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
 const apps: App[] = [...names, 'Calculatrice', 'Microsoft Teams', 'Claude', 'Notes', 'Mail'].map((name) => ({ name }))
@@ -129,8 +129,8 @@ describe('choices', () => {
 
   it('asks an assistant by name, with the rest as the question', () => {
     expect(top('claude quoi de neuf')).toMatchObject({ kind: 'ask', to: 'claude', label: 'Demander à Claude', peek: 'Claude' })
-    expect(top('demande à Claude: Quoi ?')).toMatchObject({ url: 'claude://claude.ai/new?q=Quoi%20%3F' })
-    expect(top('ask gpt hello', en)).toMatchObject({ to: 'chatgpt', url: 'https://chatgpt.com/?q=hello' })
+    expect(top('demande à Claude: Quoi ?')).toMatchObject({ question: 'Quoi ?', web: false })
+    expect(top('ask gpt hello', en)).toMatchObject({ to: 'chatgpt', question: 'hello', web: true })
     expect(top('gemini météo')).toMatchObject({ to: 'gemini', label: 'Gemini · navigateur' })
     expect(top('cherche chats')).toMatchObject({ to: 'search', label: 'Rechercher · navigateur' })
     expect(top('google chats', en)).toMatchObject({ to: 'search', label: 'Search · browser', peek: 'Google · browser' })
@@ -138,7 +138,7 @@ describe('choices', () => {
 
   it('opens Claude on the web when its app is missing, and says so', () => {
     expect(top('claude hi', en)).toMatchObject({ web: true, label: 'Claude · browser', peek: 'Claude · browser' })
-    expect(top('qui a écrit Candide')).toMatchObject({ url: 'claude://claude.ai/new?q=qui%20a%20%C3%A9crit%20Candide' })
+    expect(top('qui a écrit Candide')).toMatchObject({ question: 'qui a écrit Candide', web: false })
   })
 
   it('puts the question one Tab away from a guessed app', () => {
@@ -155,7 +155,7 @@ describe('choices', () => {
   it('passes a named question on to the alternatives, once each', () => {
     const list = choices('perplexity pourquoi le ciel est bleu', en)
     expect(list.map((c) => c.kind === 'ask' && c.to)).toEqual(['perplexity', 'claude', 'chatgpt', 'gemini', 'search'])
-    expect(list[1]).toMatchObject({ url: 'https://claude.ai/new?q=pourquoi%20le%20ciel%20est%20bleu' })
+    expect(list[1]).toMatchObject({ to: 'claude', question: 'pourquoi le ciel est bleu', web: true })
   })
 
   it('follows the user order for the default target', () => {
@@ -203,11 +203,5 @@ describe('findApp', () => {
     expect(findApp('teams', list)?.name).toBe('Microsoft Teams')
     expect(findApp('ntpd', list)?.name).toBe('Notepad')
     expect(findApp('x', list)).toBeUndefined()
-  })
-})
-
-describe('handOff', () => {
-  it('cuts a long question for Claude', () => {
-    expect(handOff('claude', 'a'.repeat(20_000), true).url).toHaveLength('claude://claude.ai/new?q='.length + 14_000)
   })
 })

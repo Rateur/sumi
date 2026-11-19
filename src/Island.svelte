@@ -47,9 +47,9 @@
     type Snapshot,
   } from './lib/music'
   import { Spring } from './lib/spring'
-  import { choices, type Choice, type Lang } from './lib/intent'
+  import { ASSISTANTS, choices, type Choice, type Lang } from './lib/intent'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
-  import PrivacyCard from './PrivacyCard.svelte'
+  import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
 
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
   const LEAVE = 300
@@ -91,14 +91,19 @@
   let onTag = false
   let card = $state(false)
   let tagTimer: ReturnType<typeof setTimeout> | undefined
-  // The command bar: its line, and the peek it folds into after Enter. Only the demo opens it and lists apps for now.
+  // The command bar: its line, and the peek it folds into after Enter. Its shortcut, Start's apps and whether Claude's
+  // app is installed come from Rust; the demo brings stand-ins.
   const lang: Lang = navigator.language.toLowerCase().startsWith('fr') ? 'fr' : 'en'
   let barOpen = $state(false)
   let line = $state('')
-  let launch = $state<{ text: string; letter?: string; color?: string }>()
+  let launch = $state<ReturnType<typeof markOf> & { text: string }>()
   let launchTimer: ReturnType<typeof setTimeout> | undefined
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
+  let shortcut = $state<string>()
+  // Icons asked for, by app id: `null` while Rust reads one, or when an app has none. Not reactive: one arriving
+  // must not rerun the effect that asks for them.
+  const icons: Record<string, Listed['icon']> = {}
   // A timer started from the bar swells the island as it lands.
   let swell = false
 
@@ -679,7 +684,11 @@
         presence = payload
         fullscreen(payload === 'hidden')
       }),
+      listen('bar://toggle', () => toggleBar()),
     ]
+    invoke<string | null>('bar_shortcut')
+      .then((keys) => (shortcut = keys ?? undefined))
+      .catch(console.error)
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
 
@@ -843,19 +852,55 @@
     clearTimeout(launchTimer)
     launch = undefined
     barOpen = true
+    if (!tauri) return
+    // The list is read at startup, so this only copies it; Rust reads it again in the background when it's old.
+    invoke('bar_focus', { open: true })
+    invoke<{ name: string; id: string }[]>('apps_list')
+      .then((list) => (apps = list.map((app) => ({ ...app, color: MONOGRAM, icon: icons[app.id] }))))
+      .catch(console.error)
+    invoke<boolean>('has_claude')
+      .then((known) => (claudeApp = known))
+      .catch(console.error)
   }
 
-  // Nothing typed outlives the bar.
-  function closeBar() {
+  // Nothing typed outlives the bar. Focus goes back to the window it came from, except when an app or a site is
+  // opening: that one takes it.
+  function closeBar(giveBack = true) {
+    if (barOpen && tauri && giveBack) invoke('bar_focus', { open: false })
     barOpen = false
     line = ''
   }
 
+  // The monogram of an app whose icon hasn't come yet, as in the privacy card.
+  const MONOGRAM = 'rgb(255 255 255 / 0.16)'
+
+  // The app on the chip gets its icon from Rust, once. The monogram keeps its place until it arrives.
+  $effect(() => {
+    const top = options[0]
+    const id = top?.kind === 'app' ? top.app.id : undefined
+    if (!tauri || !id || id in icons) return
+    icons[id] = null
+    invoke<Listed['icon']>('app_icon', { id })
+      .then((icon) => {
+        icons[id] = icon
+        if (icon) apps = apps.map((app) => (app.id === id ? { ...app, icon } : app))
+      })
+      .catch(console.error)
+  })
+
+  // The peek after Enter: what opens, or that it couldn't.
+  function show(next: typeof launch, ms: number) {
+    launch = next
+    clearTimeout(launchTimer)
+    launchTimer = setTimeout(() => (launch = undefined), ms)
+  }
+
   // Enter: the bar folds into its answer. A timer becomes the island's timer; an app or a question shows what
-  // opens for 1.2 s, then the previous view comes back. The demo opens nothing.
+  // opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
+  // nothing.
   function run(choice: Choice<Listed>) {
     if (!barOpen) return
-    closeBar()
+    closeBar(choice.kind !== 'app' && choice.kind !== 'ask')
     const t = Date.now()
     const edit = (id: string, change: (timer: Extract<Activity, { kind: 'timer' }>) => Activity | undefined) =>
       (activities = activities.flatMap((a) => (a.id === id && a.kind === 'timer' ? (change(a) ?? []) : [a])))
@@ -870,9 +915,20 @@
     else if (choice.kind === 'resume') edit(choice.id, (a) => ({ ...a, endsAt: t + (a.left ?? 0), left: undefined }))
     else if (choice.kind === 'stop') edit(choice.id, () => undefined)
     else if (choice.kind === 'app' || choice.kind === 'ask') {
-      launch = { text: choice.kind === 'app' ? choice.app.name : choice.peek, ...markOf(choice) }
-      clearTimeout(launchTimer)
-      launchTimer = setTimeout(() => (launch = undefined), 1200)
+      const mark = markOf(choice)
+      show({ text: choice.kind === 'app' ? choice.app.name : choice.peek, ...mark }, 1200)
+      if (!tauri) return
+      const name = choice.kind === 'app' ? choice.app.name : ASSISTANTS[choice.to].name
+      const opened =
+        choice.kind === 'app'
+          ? invoke<boolean>('app_launch', { id: choice.app.id })
+          : invoke<boolean>('assistant_open', { target: choice.to, query: choice.question })
+      opened
+        .catch(() => false)
+        .then((ok) => {
+          if (ok || barOpen) return
+          show({ text: lang === 'fr' ? `Impossible d'ouvrir ${name}` : `Couldn't open ${name}`, ...mark }, 2000)
+        })
     }
   }
 
@@ -1224,11 +1280,23 @@
       </span>
     {/if}
     {#if parts.bar}
-      <CommandBar bind:line choices={options} {lang} {reduced} {enter} {exit} onrun={run} onclose={closeBar} />
+      <CommandBar
+        bind:line
+        choices={options}
+        {lang}
+        {reduced}
+        {shortcut}
+        {enter}
+        {exit}
+        onrun={run}
+        onclose={() => closeBar()}
+      />
     {/if}
     {#if parts.launch}
       <span class="mark" style:background={parts.launch.color} in:enter out:exit>
-        {#if parts.launch.letter}{parts.launch.letter}{/if}
+        {#if parts.launch.icon}
+          <canvas use:paintIcon={parts.launch.icon}></canvas>
+        {:else if parts.launch.letter}{parts.launch.letter}{/if}
       </span>
       <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
     {/if}
@@ -1424,6 +1492,11 @@
     border-radius: 6px;
     font-size: 11px;
     font-weight: 700;
+  }
+
+  .launch .mark canvas {
+    width: 100%;
+    height: 100%;
   }
 
   .launched {

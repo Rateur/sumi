@@ -28,7 +28,7 @@ export type Choice<A extends App = App> = { label: string } & (
   | { kind: 'pause' | 'resume' | 'stop'; id: string }
   | { kind: 'app'; app: A }
   // `peek` is what the island shows after Enter: 'Claude', or 'Claude · navigateur' when it opens on the web.
-  | { kind: 'ask'; to: Target; url: string; web: boolean; peek: string }
+  | { kind: 'ask'; to: Target; question: string; web: boolean; peek: string }
 )
 
 export interface Options<A extends App> {
@@ -43,21 +43,18 @@ export interface Options<A extends App> {
 }
 
 /**
- * A fixed table, so a link that breaks is fixed in a patch release. Only Claude has a documented app link; the
- * others open their website, prefilled and never sent.
+ * Their links are a fixed table in Rust (`link` in src-tauri/src/apps.rs), which builds them from the question. Only
+ * Claude has a documented app link; the others open their website, prefilled and never sent.
  */
-export const ASSISTANTS: Record<Target, { name: string; web: string; app?: string }> = {
-  claude: { name: 'Claude', web: 'https://claude.ai/new?q=', app: 'claude://claude.ai/new?q=' },
-  chatgpt: { name: 'ChatGPT', web: 'https://chatgpt.com/?q=' },
-  // Community-observed, may break.
-  gemini: { name: 'Gemini', web: 'https://gemini.google.com/app?q=' },
-  perplexity: { name: 'Perplexity', web: 'https://www.perplexity.ai/search?q=' },
-  search: { name: 'Google', web: 'https://www.google.com/search?q=' },
+export const ASSISTANTS: Record<Target, { name: string; app?: boolean }> = {
+  claude: { name: 'Claude', app: true },
+  chatgpt: { name: 'ChatGPT' },
+  gemini: { name: 'Gemini' },
+  perplexity: { name: 'Perplexity' },
+  search: { name: 'Google' },
 }
 
 const ORDER: Assistant[] = ['claude', 'chatgpt', 'gemini', 'perplexity']
-// Claude's own limit for a prefilled question.
-const LONGEST = 14_000
 
 const WORDS = {
   fr: {
@@ -230,22 +227,16 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
 
 // --- Assistants ---
 
-/** Where a question goes: Claude's app when Windows knows its link, the website otherwise. */
-export function handOff(to: Target, question: string, claudeApp: boolean): { url: string; web: boolean } {
-  const { web, app } = ASSISTANTS[to]
-  const q = encodeURIComponent(to === 'claude' ? question.slice(0, LONGEST) : question)
-  return app && claudeApp ? { url: app + q, web: false } : { url: web + q, web: true }
-}
-
+// A question opens in Claude's app when Windows knows its link, on the website otherwise.
 function ask<A extends App>(to: Target, question: string, claudeApp: boolean, lang: Lang, label?: string): Choice<A> {
   const words = WORDS[lang]
-  const { name } = ASSISTANTS[to]
-  const { url, web } = handOff(to, question, claudeApp)
+  const { name, app } = ASSISTANTS[to]
+  const web = !(app && claudeApp)
   const action = to === 'search' ? words.search : web ? name : `${words.ask} ${name}`
   return {
     kind: 'ask',
     to,
-    url,
+    question,
     web,
     peek: web ? `${name} · ${words.web}` : name,
     label: label ?? (web ? `${action} · ${words.web}` : action),

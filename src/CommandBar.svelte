@@ -1,8 +1,10 @@
 <script lang="ts" module>
   import { ASSISTANTS, type App, type Choice, type Lang, type Target } from './lib/intent'
 
-  /** An app from the list, with the color of the monogram that stands in until its icon loads. */
-  export type Listed = App & { color: string }
+  /** An app from the list, with the color of the monogram that stands in until its icon loads. Start's apps have
+   * the id Rust opens them by, and their icon once it is read. */
+  export type Listed = App & { color: string; id?: string; icon?: Icon | null }
+  type Icon = { side: number; rgba: string }
 
   // Monograms for the assistants, until their icons ship.
   const MARKS: Record<Target, string> = {
@@ -13,8 +15,9 @@
     search: '#5F6368',
   }
 
-  /** What fills the 16 px icon slot: a monogram, or the timer's amber ring. */
-  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string } {
+  /** What fills the 16 px icon slot: the app's icon, a monogram, or the timer's amber ring. */
+  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon } {
+    if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
     if (choice.kind === 'ask') return { letter: ASSISTANTS[choice.to].name[0], color: MARKS[choice.to] }
     return {}
@@ -25,6 +28,7 @@
   import { untrack } from 'svelte'
   import type { TransitionConfig } from 'svelte/transition'
   import { Spring } from './lib/spring'
+  import { paintIcon } from './PrivacyCard.svelte'
 
   // The command bar's content: the field, and one chip that says what Enter will do. The bar's shape stays in
   // Island.svelte, which lends its content transitions; the chip's own small springs run here, only while they move.
@@ -33,6 +37,7 @@
     choices,
     lang,
     reduced,
+    shortcut,
     enter,
     exit,
     onrun,
@@ -42,6 +47,8 @@
     choices: Choice<Listed>[]
     lang: Lang
     reduced: boolean
+    /** The shortcut that opens the bar, as Rust registered it: `Win+Alt+S`. */
+    shortcut?: string
     enter: (node: HTMLElement, params?: { step?: number }) => TransitionConfig
     exit: (node: HTMLElement, params?: { shrinks?: boolean }) => TransitionConfig
     onrun: (choice: Choice<Listed>) => void
@@ -150,7 +157,9 @@
 
 {#snippet face(choice: Choice<Listed>, mark: ReturnType<typeof markOf>)}
   <span class="mark" style:background={mark.color}>
-    {#if mark.letter}
+    {#if mark.icon}
+      <canvas use:paintIcon={mark.icon}></canvas>
+    {:else if mark.letter}
       {mark.letter}
     {:else}
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
@@ -166,6 +175,7 @@
   bind:value={line}
   placeholder={lang === 'fr' ? 'Minuteur, app, question…' : 'Timer, app, question…'}
   aria-label={lang === 'fr' ? 'Barre de commande' : 'Command bar'}
+  aria-keyshortcuts={shortcut?.replace('Win', 'Meta')}
   spellcheck="false"
   autocomplete="off"
   use:focus
@@ -251,6 +261,11 @@
     color: #fff;
     font-size: 10px;
     font-weight: 700;
+  }
+
+  .mark canvas {
+    width: 100%;
+    height: 100%;
   }
 
   .mark svg {
