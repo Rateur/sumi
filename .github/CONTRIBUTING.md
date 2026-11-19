@@ -52,7 +52,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, and what the command bar's line means (`intent.ts`). Each file but `demo.ts` has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 

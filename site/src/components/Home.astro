@@ -51,7 +51,7 @@ const island = `${base}island/index.html`;
 					try {
 						const fromSite = document.referrer.startsWith(location.origin + location.pathname);
 						const picked = localStorage.getItem('sumi-lang');
-						if (!fromSite && (picked ? picked === 'fr' : /^fr\b/i.test(navigator.language))) location.replace('fr/');
+						if (!fromSite && (picked ? picked === 'fr' : /^fr\b/i.test(navigator.language))) location.replace('fr/' + location.search + location.hash);
 					} catch {}
 				</script>
 			)
@@ -60,7 +60,7 @@ const island = `${base}island/index.html`;
 	<body>
 		<button class="scrim" type="button" aria-label={t.closeMenu} hidden></button>
 
-		<nav class="nav" data-ui aria-label="Main">
+		<nav class="nav" data-ui aria-label={t.navLabel}>
 			<div class="nav-bar">
 				<a class="brand" href={prefix}>
 					<svg aria-hidden="true" width="18" height="18" viewBox="192 192 640 640"><path transform="translate(0 15)" fill="currentColor" d={mark}></path></svg>
@@ -309,6 +309,7 @@ const island = `${base}island/index.html`;
 
 		<script>
 			import { inkWater } from '../scripts/fluid';
+			import { formatTime, msUntilNextMinute } from '../../../src/lib/clock';
 
 			const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 			const nav = document.querySelector<HTMLElement>('.nav')!;
@@ -404,13 +405,12 @@ const island = `${base}island/index.html`;
 				}),
 			);
 
-			// The visitor's own time, refreshed when the minute changes.
-			const lang = document.documentElement.lang;
+			// The visitor's own time, as the app and the live islands below write it, refreshed when the minute changes.
 			const tick = () => {
 				const now = new Date();
-				const time = now.toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
+				const time = formatTime(now);
 				document.querySelectorAll('[data-time]').forEach((el) => (el.textContent = time));
-				setTimeout(tick, 60_000 - (now.getSeconds() * 1000 + now.getMilliseconds()));
+				setTimeout(tick, msUntilNextMinute(now));
 			};
 			tick();
 
@@ -462,8 +462,8 @@ const island = `${base}island/index.html`;
 				});
 			});
 
-			// The roadmap's lines already out run the app's own island. Each starts once in view, and hovering the line,
-			// or tapping it on a touch screen, plays what that version brought.
+			// The roadmap's lines already out run the app's own island. Each plays while in view and undoes what it
+			// started when it leaves; hovering the line, or tapping it on a touch screen, plays what that version brought.
 			document.querySelectorAll<HTMLIFrameElement>('.rm-live iframe').forEach((frame) => {
 				const row = frame.closest<HTMLElement>('.rm-row')!;
 				const say = (name?: string) => name && frame.contentWindow?.postMessage(name, location.origin);
@@ -480,10 +480,14 @@ const island = `${base}island/index.html`;
 					ready = true;
 					start();
 				});
+				// The demo's actions are toggles: sending the start list again stops it.
 				new IntersectionObserver(([e]) => {
-					if (!e.isIntersecting) return;
-					seen = true;
-					start();
+					seen = e.isIntersecting;
+					if (seen) return start();
+					if (!started) return;
+					hover(false);
+					list('start').forEach(say);
+					started = false;
 				}, { threshold: 0.6 }).observe(row);
 				const hover = (next: boolean) => {
 					if (!started || next === on) return;
@@ -494,6 +498,8 @@ const island = `${base}island/index.html`;
 				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
 				row.addEventListener('click', (e) => e.pointerType !== 'mouse' && hover(!on));
 			});
+			// Every line, live or not, has CSS :hover rules: a click listener makes iOS Safari apply them on a tap, as Android does.
+			document.querySelectorAll('.rm-row').forEach((row) => row.addEventListener('click', () => {}));
 
 			// The scroll cue leaves for good with the first real scroll.
 			const scrolled = () => {
@@ -626,7 +632,7 @@ const island = `${base}island/index.html`;
 			const said = answerEl.querySelector<HTMLElement>('.answer-text')!;
 			const source = answerEl.querySelector<HTMLElement>('.answer-source')!;
 			const wiki = async (q: string) => {
-				const host = `https://${lang === 'fr' ? 'fr' : 'en'}.wikipedia.org`;
+				const host = `https://${document.documentElement.lang === 'fr' ? 'fr' : 'en'}.wikipedia.org`;
 				try {
 					const found = await fetch(`${host}/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=${encodeURIComponent(q)}`).then((r) => r.json());
 					const title: string | undefined = found?.query?.search?.[0]?.title;
@@ -747,6 +753,12 @@ const island = `${base}island/index.html`;
 		outline: 2px solid var(--ink);
 		outline-offset: 3px;
 		border-radius: 4px;
+	}
+	/* On the dark surfaces the ring is paper; the 3px offset puts it on the dark even around a light pill. */
+	.nav :focus-visible,
+	.ask-box :focus-visible,
+	.end :focus-visible {
+		outline-color: var(--paper);
 	}
 	/* Content stops at 1360px and centres; backgrounds and the ink water still run edge to edge. */
 	.wrap {
@@ -1189,7 +1201,10 @@ const island = `${base}island/index.html`;
 			scale: 1 1;
 		}
 	}
+	/* The steps sit on top of each other, so the box always has the tallest one's height and the headline never moves.
+	   Hidden ones are only transparent: a screen reader reads the three as one sentence. */
 	.steps {
+		display: grid;
 		align-self: center;
 		max-width: 40ch;
 		min-height: 1.4em;
@@ -1198,10 +1213,11 @@ const island = `${base}island/index.html`;
 		text-align: center;
 	}
 	.step {
-		display: none;
+		grid-area: 1 / 1;
+		opacity: 0;
 	}
 	.step.on {
-		display: block;
+		opacity: 1;
 	}
 	/* Scroll cue: a hairline above the painting that ink runs down twice, under 5 s. Gone at the first scroll. */
 	.cue {
@@ -1419,7 +1435,11 @@ const island = `${base}island/index.html`;
 		position: absolute;
 		top: 24px;
 		left: 232px;
-		animation: nudge 3.2s var(--settle) infinite;
+		animation: nudge 3.2s var(--settle) 1;
+	}
+	/* One round, under 5 s (WCAG 2.2.2), played when the row comes into view rather than at load. */
+	.js [data-reveal]:not(.in) .cursor {
+		animation-play-state: paused;
 	}
 	@keyframes nudge {
 		0%,
@@ -1946,6 +1966,11 @@ const island = `${base}island/index.html`;
 				filter: blur(var(--enter-blur));
 			}
 		}
+		/* The hidden steps wait where the next one comes in from; leaving stays instant. */
+		.step:not(.on) {
+			translate: 0 0.5em;
+			filter: blur(var(--enter-blur));
+		}
 		.step.on {
 			opacity: 1;
 			translate: 0 0;
@@ -1995,8 +2020,10 @@ const island = `${base}island/index.html`;
 		.ask-chip {
 			display: none;
 		}
+		/* The preview gets a fixed track, as tall as the live island, so a hover never changes the row's height. */
 		.rm-row {
 			grid-template-columns: minmax(0, 1fr) auto;
+			grid-template-rows: 52px auto;
 			gap: 16px;
 			padding: 20px 16px;
 		}
@@ -2054,6 +2081,16 @@ const island = `${base}island/index.html`;
 		}
 		.nav:hover:not(.open) {
 			scale: none;
+		}
+		/* The steps don't play: the three are read as one sentence. */
+		.steps {
+			display: block;
+		}
+		.step {
+			opacity: 1;
+		}
+		.step + .step::before {
+			content: ' ';
 		}
 	}
 </style>

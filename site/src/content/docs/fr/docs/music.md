@@ -28,4 +28,6 @@ La musique en pause reste une minute, puis l'heure revient. Relancez-la et elle 
 - Un navigateur n'affiche qu'un lecteur, l'onglet qui a joué en dernier, souvent sans pochette.
 - Certains lecteurs ne laissent pas les autres apps se déplacer dans le morceau. La barre ne bouge alors pas.
 - Une app qui se ferme emporte sa musique. Certains lecteurs, dont Spotify, peuvent continuer de tourner une fois leur fenêtre fermée.
+- Au toucher ou au stylet, le premier appui sur l'île atteint l'app en dessous ; le second l'ouvre.
+- Quand une app lancée en administrateur, comme le Gestionnaire des tâches, a le focus, Windows cache Échap et les clics à Sumi : changez d'app pour refermer le panneau.
 - Le titre, l'artiste et la pochette restent sur votre PC.

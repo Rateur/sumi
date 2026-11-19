@@ -11,7 +11,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
 | Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date. |
 | Compact | Call 144, timer 96, music 200 × 34 px* | An activity runs: content on the left and right ends. |
-| Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
+| Peek | Music 300 × 56 px*, up to 3 s | Something just happened: charger, low battery. A new song swells instead, see [Music](#music). |
 | Expanded | Clock 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
@@ -25,7 +25,7 @@ The island sits 8 px below the top edge, centered on the chosen screen. Sizes ar
 
 When several things happen at once, the highest one takes the island, the next one the bubble, and the rest wait. Between equals, what is already shown keeps its place. A click on the bubble swaps it with the island, except over a call.
 
-The time is last in line: it has the island when nothing runs, and the bubble when one thing does, so it never leaves the screen. Picked from the bubble, it keeps the island until the music ends.
+The time is last in line: it has the island when nothing runs, and the bubble when one thing does. Picked from the bubble, it keeps the island until the music ends. Otherwise it waits while two or more things run, and comes back when only one is left; a call on the island shows the time anyway.
 
 1. Call
 2. Timer
@@ -82,7 +82,7 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - It grows only after the cursor rests on it for the Windows hover time, and shrinks 300 ms after the cursor leaves. A click opens it at once.
 - It is put on top once and never pushed back up, so menus, tooltips, Start and Alt+Tab can cover it. Moving it never takes focus.
 - It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
-- While Windows says you're busy, such as a fullscreen app on another screen, news updates in place without a peek. Calls still peek.
+- While Windows says you're busy, such as a fullscreen app on another screen, news changes in place with no peek, and a new song doesn't swell. A call still peeks.
 - It sits under the top of the work area, so a taskbar at the top pushes it down. It checks once a second.
 - A frozen Sumi never leaves a "Not responding" copy at the top of the screen.
 
