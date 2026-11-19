@@ -23,8 +23,8 @@ tauri = { version = "2.12.5", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 
 [target.'cfg(windows)'.dependencies]
-# windows is for COM and WinRT (media, privacy), windows-sys for plain Win32 calls. base64, windows and windows-sys
-# already come with Tauri: Sumi only turns on the parts it reads.
+# windows is for COM and WinRT (media, privacy) and the Win32 calls that work with them, windows-sys for plain Win32
+# calls elsewhere. base64, windows and windows-sys already come with Tauri: Sumi only turns on the parts it reads.
 base64 = "0.23"
 windows = { version = "0.62", features = [
   "Media_Control",
