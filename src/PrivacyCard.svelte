@@ -1,3 +1,16 @@
+<script lang="ts" module>
+  /** An app's own icon, painted from the pixels Rust read. The command bar paints Start's icons the same way. */
+  export function paintIcon(canvas: HTMLCanvasElement, icon: { side: number; rgba: string }) {
+    const draw = ({ side, rgba }: typeof icon) => {
+      const bytes = Uint8ClampedArray.from(atob(rgba), (c) => c.charCodeAt(0))
+      canvas.width = canvas.height = side
+      canvas.getContext('2d')?.putImageData(new ImageData(bytes, side, side), 0, 0)
+    }
+    draw(icon)
+    return { update: draw }
+  }
+</script>
+
 <script lang="ts">
   import { invoke, isTauri } from '@tauri-apps/api/core'
   import type { TransitionConfig } from 'svelte/transition'
@@ -24,17 +37,6 @@
   const many = $derived(privacy.apps.length > CARD.rows)
   const rows = $derived(privacy.apps.slice(0, many ? CARD.rows - 1 : CARD.rows))
   const cardBox = $derived(cardSize(privacy.apps.length))
-
-  // The app's own icon, painted from the pixels Rust read.
-  function paintIcon(canvas: HTMLCanvasElement, icon: { side: number; rgba: string }) {
-    const draw = ({ side, rgba }: typeof icon) => {
-      const bytes = Uint8ClampedArray.from(atob(rgba), (c) => c.charCodeAt(0))
-      canvas.width = canvas.height = side
-      canvas.getContext('2d')?.putImageData(new ImageData(bytes, side, side), 0, 0)
-    }
-    draw(icon)
-    return { update: draw }
-  }
 
   // The button flips at once, so a quick second click undoes the first. Rust always answers with the real state.
   function mute() {

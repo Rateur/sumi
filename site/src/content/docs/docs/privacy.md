@@ -12,4 +12,6 @@ Features that need the network will stay off until you turn them on:
 
 What the island shows from your PC is never written to a log or a file.
 
+The command bar opens the app or site you pick with your question; Sumi sends it nowhere, and the app list stays in memory.
+
 This site is hosted on GitHub Pages, serves its own fonts and loads no tracker. On the home page, a question asked in the command bar demo is sent to Wikipedia, and only when you submit it.

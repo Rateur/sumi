@@ -34,7 +34,7 @@ const round = (x: number, digits: number) => +x.toFixed(digits)
 const bezier = (easing: readonly number[]) => `cubic-bezier(${easing.join(', ')})`
 
 const song: Activity = { id: 'song', kind: 'music', title: '', artist: '', color: '' }
-const timer: Activity = { id: 'timer', kind: 'timer', endsAt: 0 }
+const timer: Activity = { id: 'timer', kind: 'timer', endsAt: 0, total: 60_000 }
 const views = {
   idle: { name: 'idle' },
   hover: { name: 'hover' },
