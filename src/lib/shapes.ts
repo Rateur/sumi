@@ -10,6 +10,10 @@ export type View =
   // Music and a running timer open into their own panels; anything else opens the clock's.
   | { name: 'expanded'; activity?: Activity }
   | { name: 'compact' | 'peek'; activity: Activity; size?: Size }
+  // The first-launch welcome: the greeting, then the command bar's shortcut. Its width is measured from its text.
+  | Welcome
+
+export type Welcome = { name: 'welcome'; step: 'hello' | 'keys'; width: number }
 
 export interface Size {
   width: number
@@ -37,6 +41,15 @@ const SIZES = {
   bar: { width: 480, height: 44 },
   launch: { width: 200, height: 34 },
 } satisfies Record<string, Size>
+
+/** The welcome is as tall as a peek. The greeting is at least 200 px wide with 40 px each side, the shortcut row 24. */
+export const WELCOME_H = 56
+
+/** The welcome's width around text this wide. A shortcut row that measured nothing gets 0: no shortcut beat. */
+export function welcomeWidth(step: Welcome['step'], text: number): number {
+  if (step === 'hello') return Math.max(200, text + 2 * 40)
+  return text && text + 2 * 24
+}
 
 const PLAYER: Size = { width: 360, height: 164 }
 
@@ -105,9 +118,9 @@ export function timerSize(fit: TimerFit, hovered: boolean): Size {
 }
 
 /**
- * What the island shows. The command bar and its answer beat everything, a click beats a peek, a peek beats an
- * activity, an activity beats the clock. `timer` says how the island's timer fits, when it has one: under the
- * cursor it shows its name, and once it ended it peeks, then stays as a done pill and never opens.
+ * What the island shows. The command bar and its answer beat everything, then the welcome. A click beats a peek,
+ * a peek beats an activity, an activity beats the clock. `timer` says how the island's timer fits, when it has one:
+ * under the cursor it shows its name, and once it ended it peeks, then stays as a done pill and never opens.
  */
 export function resolveView(state: {
   activity?: Activity
@@ -119,10 +132,15 @@ export function resolveView(state: {
   /** The bar's answer to 'quelle heure est-il': the hover view, over whatever runs. */
   clock?: boolean
   timer?: TimerFit
+  welcome?: Welcome
+  /** The welcome's drop and bead: the empty idle island, even with a song already playing. */
+  blank?: boolean
 }): View {
-  const { activity, hovered, expanded, peeking, bar, launch, clock, timer } = state
+  const { activity, hovered, expanded, peeking, bar, launch, clock, timer, welcome, blank } = state
   if (bar) return { name: 'bar' }
   if (launch) return { name: 'launch' }
+  if (welcome) return welcome
+  if (blank) return { name: 'idle' }
   if (clock) return { name: 'hover' }
   const done = activity?.kind === 'timer' && !!timer?.ended
   if (expanded && !done) {
@@ -140,6 +158,7 @@ export function resolveView(state: {
 }
 
 export function sizeOf(view: View): Size {
+  if (view.name === 'welcome') return { width: view.width, height: WELCOME_H }
   if ('size' in view && view.size) return view.size
   if (view.name === 'expanded' && view.activity?.kind === 'music') return PLAYER
   if (view.name === 'expanded') return SIZES.expanded

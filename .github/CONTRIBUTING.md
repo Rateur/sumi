@@ -52,8 +52,9 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
+- `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
 - `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
@@ -63,6 +64,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 |---|---|---|---|
 | `set_island_rects` | page → Rust | `rects: Vec<Rect>` (`island.rs`) | `{ x, y, width, height, radius }[]` |
 | `set_island_expanded` | page → Rust | `expanded: bool` | `boolean` |
+| `island_presence` | page → Rust | returns `Presence` (`fullscreen.rs`), as last decided | `Presence` (`src/lib/activities.ts`) |
 | `media_control` | page → Rust | `id: String`, `action: Action` (`media.rs`) | `'play'`, `'pause'`, `'next'` or `'previous'` |
 | `media_seek` | page → Rust | `id: String`, `ms: i64` | `number` |
 | `media_players` | page → Rust | returns `Snapshot` (`media.rs`) | `{ players: Player[]; artwork: Record<string, string> }` |
@@ -78,6 +80,8 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
 | `bar_focus` | page → Rust | `open: bool` | `boolean` |
 | `timer_chime` | page → Rust | nothing | nothing |
+| `welcome_pending` | page → Rust | returns `bool` (`welcome.rs`) | `boolean` |
+| `welcome_done` | page → Rust | returns `Result<(), String>` | nothing, or an error |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
 | `island://dismiss` | Rust → page | nothing | nothing |
