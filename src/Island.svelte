@@ -68,6 +68,7 @@
   let clock = $state<HTMLElement>()
   let art = $state<HTMLElement>()
   let eq = $state<HTMLElement>()
+  // Calls and timers. Only the demo sets them for now.
   let activities = $state<Activity[]>([])
   // Music comes from Rust; `prefer` is the activity picked with a click on the bubble.
   let music = $state<Activity[]>([])
@@ -89,6 +90,8 @@
   let card = $state(false)
   let tagTimer: ReturnType<typeof setTimeout> | undefined
 
+  // The last arrangement, so equals keep their place. Written from the derived as a plain variable: reading it
+  // there doesn't make the derived depend on itself.
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
   const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
@@ -123,6 +126,8 @@
     }, wait())
     return () => clearTimeout(timer)
   })
+
+  // --- Shape springs ---
 
   // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
   // of the island and `bubble` is its size; `tagShift`, `tagW` and `tagH` do the same for the privacy tag, which
@@ -165,6 +170,7 @@
     const [tw, th] = [tagW.value, tagH.value]
     const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
     const beside = right.x + right.width + TAG_GAP
+    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize.
     anchor = card ? (anchor ?? beside) : undefined
     const flag =
       tw > 0.5
@@ -287,10 +293,13 @@
     wake()
   }
 
+  // --- Bubble ---
+
   // A drop lands at once without motion, in forced colors, where the goo can't show, and off the screen.
   const instant = () => reduced || forced.current || (hidden && drop.resting)
 
   // The bubble splits off like a drop, joined to the island by a neck until they part.
+  // split and merge mirror emerge and retract below: change them together.
   $effect(() => {
     const has = !!arrangement.bubble
     untrack(() => (has ? split() : merge()))
@@ -332,7 +341,10 @@
     drive(bubble, 20, [0.36, 0], t)
   }
 
+  // --- Privacy tag ---
+
   // The privacy tag splits off whatever is rightmost like a drop, as the bubble does, and sinks back into it.
+  // emerge and retract mirror split and merge above: change them together.
   let tagPhase: 'none' | 'split' | 'shown' | 'merge' = 'none'
   $effect(() => {
     const has = tagged(privacy)
@@ -387,6 +399,8 @@
     drive(tagW, 12, [0.36, 0], t)
     drive(tagH, 12, [0.36, 0], t)
   }
+
+  // --- Content transitions ---
 
   // Pieces that stay from one view to the next move from their old box to their new one, in step
   // with the shape, so a change of mind halfway costs nothing.
@@ -504,6 +518,8 @@
     }
   }
 
+  // --- Cursor and fullscreen from Rust ---
+
   // The Rust side lets clicks through everywhere except over these rounded rectangles, padded by a pixel.
   let sent: (Rect & { radius: number })[] = []
   function report(moving: boolean) {
@@ -580,8 +596,8 @@
     if (done) untrack(alert)
   })
 
-  const newSong = (now?: Activity, was?: Activity) =>
-    now?.kind === 'music' && was?.kind === 'music' && now.id === was.id && now.title !== was.title
+  const newSong = (next?: Activity, prev?: Activity) =>
+    next?.kind === 'music' && prev?.kind === 'music' && next.id === prev.id && next.title !== prev.title
   let song: Activity | undefined
   let aside: Activity | undefined
   $effect(() => {
@@ -595,6 +611,7 @@
   })
 
   // The cursor crosses the island on its way to tabs: it grows only once the cursor rests on it.
+  // point and move share their rest logic with pointTag and moveTag below: change them together.
   let hoverTimer: ReturnType<typeof setTimeout>
   let pointer = false
   let rest: { x: number; y: number } | undefined
@@ -649,6 +666,8 @@
     clearTimeout(peekTimer)
     peekTimer = setTimeout(() => (peeking = undefined), 3000)
   }
+
+  // --- Music ---
 
   // Every player Windows can see. A paused one stays a minute, and one that vanishes for a moment is held.
   let players: Players = nobody()
@@ -715,16 +734,18 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
+  // --- Privacy card ---
+
   $effect(() => {
     if (!tauri) return
-    let heard = false
+    let privacyHeard = false
     const stop = listen<Privacy>('privacy://state', ({ payload }) => {
-      heard = true
+      privacyHeard = true
       privacy = payload
     })
     // What Rust found before this listener existed.
     invoke<Privacy>('privacy_state')
-      .then((state) => heard || (privacy = state))
+      .then((state) => privacyHeard || (privacy = state))
       .catch(console.error)
     return () => {
       stop.then((unlisten) => unlisten())
@@ -758,6 +779,7 @@
   })
 
   // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
+  // pointTag and moveTag share their rest logic with point and move above: change them together.
   let tagRest: { x: number; y: number } | undefined
   function pointTag(inside: boolean) {
     onTag = inside
@@ -779,6 +801,8 @@
     card = false
   }
 
+  // --- Bubble swap and seek ---
+
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
     const picked = arrangement.bubble
@@ -786,7 +810,7 @@
   }
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
-  let track = $state<HTMLElement>()
+  let bar = $state<HTMLElement>()
   let scrub = $state<{ id: string; ms: number; held: boolean; at: number; from: Player }>()
   const playback = $derived.by(() => {
     const p = parts.player?.player
@@ -818,19 +842,19 @@
   // Where the cursor is on the bar, in ms of the song shown.
   const under = ({ clientX }: PointerEvent) => {
     const end = parts.player?.player?.endMs
-    if (!track || !end) return 0
-    const { left, width } = track.getBoundingClientRect()
+    if (!bar || !end) return 0
+    const { left, width } = bar.getBoundingClientRect()
     return ((clientX - left) / width) * end
   }
 
   // In the panel the browser moves the progress bar on its own, and the times tick once a second while it plays.
-  let bar = $state<HTMLElement>()
+  let played = $state<HTMLElement>()
   let tick = $state(Date.now())
   $effect(() => {
     const p = playback
-    if (!bar || !p || p.endMs <= 0) return
+    if (!played || !p || p.endMs <= 0) return
     const at = position(p, Date.now())
-    const animation = bar.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
+    const animation = played.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
       duration: Math.max(1, (p.endMs - at) / (p.rate > 0 ? p.rate : 1)),
       fill: 'forwards',
     })
@@ -1046,8 +1070,8 @@
                 if (step && playback.canSeek) hold(position(playback, Date.now()) + step, false)
               }}
             >
-              <span class="bar" bind:this={track}>
-                <span bind:this={bar} style:background={parts.player.color}></span>
+              <span class="bar" bind:this={bar}>
+                <span bind:this={played} style:background={parts.player.color}></span>
               </span>
             </span>
             <span>-{clockTime(playback.endMs - at)}</span>
