@@ -134,7 +134,7 @@ fn foreground() -> usize {
 /// The window's width, and the cursor from its top-left corner, in physical pixels. Plain Win32 calls from the
 /// poll's thread: Tauri's getters make the same ones, but each after a round trip to the main thread.
 #[cfg(windows)]
-fn cursor_over(window: usize) -> Option<(i32, i32, i32)> {
+fn window_and_cursor(window: usize) -> Option<(i32, i32, i32)> {
     use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
 
@@ -156,8 +156,32 @@ fn cursor_over(window: usize) -> Option<(i32, i32, i32)> {
 }
 
 #[cfg(not(windows))]
-fn cursor_over(_: usize) -> Option<(i32, i32, i32)> {
+fn window_and_cursor(_: usize) -> Option<(i32, i32, i32)> {
     None
+}
+
+/// The primary screen's size in physical pixels, read from the poll's thread.
+#[cfg(windows)]
+fn screen() -> (i32, i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    // SAFETY: no pointer and no handle; a failed read returns 0.
+    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
+}
+
+#[cfg(not(windows))]
+fn screen() -> (i32, i32) {
+    (0, 0)
+}
+
+/// Whether the poll moves the window this tick. Right after the island comes back, only once the primary screen
+/// has its size from before the hide: a game's resolution can come back a moment after the game leaves the front.
+/// Otherwise on a new window width, which a new scale brings, and once a second.
+pub fn places(settling: bool, screen_back: bool, width_changed: bool, second: bool) -> bool {
+    if settling {
+        screen_back
+    } else {
+        width_changed || second
+    }
 }
 
 /// Top-left corner that centers a window of `width` on the top edge of an area.
@@ -167,8 +191,8 @@ pub fn top_center(area_x: i32, area_y: i32, area_width: u32, width: u32) -> (i32
 }
 
 /// Gives the window back its size and moves it to the top center of the primary screen's work area, if it isn't
-/// there yet. Not while `fullscreen::set_visible` keeps it hidden: during a game, the work area is the game's
-/// resolution, and the window would come back off center.
+/// there yet. Callers don't run it while `fullscreen::set_visible` keeps it hidden: during a game, the work area is
+/// the game's resolution, and the window would come back off center.
 pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
     let Some(monitor) = window.primary_monitor()? else {
         return Ok(());
@@ -214,8 +238,9 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
         let hwnd = 0;
         let mut width = 0;
         let mut scale = 1.0;
-        // Ticks left placing the window on every tick: a game's resolution can come back a moment after the game.
+        // Ticks left, after the island comes back, to wait for the primary screen's size from before the hide.
         let mut settle = 0u32;
+        let mut screen_before = screen();
         let mut over = None;
         let mut before = None;
         let mut tick: u32 = 0;
@@ -248,10 +273,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                             let _ = window.set_ignore_cursor_events(true);
                             hide_at = Some(tick.wrapping_add(HIDE_AFTER));
                         } else if hide_at.take().is_none() {
-                            // Back after the window hid, rather than before. Placed once shown, where the
-                            // screen is now.
+                            // Back after the window hid, rather than before. Placed below, once the screen is back.
                             let _ = fullscreen::set_visible(&window, true);
-                            let _ = place(&window);
                             settle = 30;
                         }
                     }
@@ -262,18 +285,32 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             if presence == Presence::Hidden {
                 continue;
             }
-            let Some((now_width, x, y)) = cursor_over(hwnd) else {
+            let Some((now_width, x, y)) = window_and_cursor(hwnd) else {
                 continue;
             };
             // Windows resizes the window for a new scale: center it again at once, not at the next second.
-            if now_width != width {
+            let width_changed = now_width != width;
+            if width_changed {
                 width = now_width;
+                // shortcut: where Windows keeps the old pixel width on a new scale (Windows 10, no contents while
+                // dragging), the hit test uses the old scale until the once-a-second place() resizes the window.
+                // Read the scale every second too if that shows.
                 scale = window.scale_factor().unwrap_or(scale);
-                let _ = place(&window);
-            } else if second || settle > 0 {
+            }
+            let now_screen = screen();
+            let screen_back = now_screen == screen_before;
+            if places(settle > 0, screen_back, width_changed, second) {
                 let _ = place(&window);
             }
-            settle = settle.saturating_sub(1);
+            // Once the wait is over, the screen's size now is the one to come back to.
+            settle = if screen_back {
+                0
+            } else {
+                settle.saturating_sub(1)
+            };
+            if settle == 0 {
+                screen_before = now_screen;
+            }
             let (x, y) = (f64::from(x) / scale, f64::from(y) / scale);
             let inside = app
                 .state::<IslandRects>()
@@ -385,6 +422,19 @@ mod tests {
         // Even out of the island, until the button is up.
         assert!(takes_cursor(true, false, true));
         assert!(!takes_cursor(true, false, false));
+    }
+
+    #[test]
+    fn coming_back_waits_for_the_screen_size_from_before_the_hide() {
+        assert!(!places(true, false, true, true));
+        assert!(places(true, true, false, false));
+    }
+
+    #[test]
+    fn otherwise_places_on_a_new_width_and_once_a_second() {
+        assert!(places(false, false, true, false));
+        assert!(places(false, true, false, true));
+        assert!(!places(false, true, false, false));
     }
 
     #[test]
