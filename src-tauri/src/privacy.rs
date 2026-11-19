@@ -398,6 +398,12 @@ mod win {
             .collect()
     }
 
+    /// Sumi stops owning a microphone's mute once Windows reports it unmuted, so a later mute there by hand stays.
+    /// One that isn't present now is kept: it may come back still muted.
+    fn forget_unmuted(ours: &mut Vec<String>, mics: &[Mic]) {
+        ours.retain(|id| mics.iter().find(|m| &m.id == id).is_none_or(|m| m.muted));
+    }
+
     /// The capture devices being watched, by id: each one's session manager and mute, and the sessions heard from.
     #[derive(Default)]
     struct Capture {
@@ -464,16 +470,18 @@ mod win {
         }
 
         /// Who captures sound now, and from which microphones. Sessions are listed again, each with a callback for
-        /// when it starts or stops.
-        fn listen(&mut self, ping: &ComObject<Ping>) -> Vec<u32> {
+        /// when it starts or stops. The flag says every microphone answered: the audio service is up.
+        fn listen(&mut self, ping: &ComObject<Ping>) -> (Vec<u32>, bool) {
             let events: IAudioSessionEvents = ping.to_interface();
             for session in self.sessions.drain(..) {
                 let _ = unsafe { session.UnregisterAudioSessionNotification(&events) };
             }
             self.live.clear();
             let mut pids = Vec::new();
+            let mut answered = !self.managers.is_empty();
             for (id, manager) in &self.managers {
                 let Ok(list) = (unsafe { manager.GetSessionEnumerator() }) else {
+                    answered = false;
                     continue;
                 };
                 for i in 0..unsafe { list.GetCount() }.unwrap_or(0) {
@@ -498,7 +506,7 @@ mod win {
                     }
                 }
             }
-            pids
+            (pids, answered)
         }
 
         /// Each active microphone, whether mute covers it, and whether it's muted now.
@@ -513,24 +521,17 @@ mod win {
                 .collect()
         }
 
-        /// `ours` keeps the microphones Sumi muted, across reopens, until it unmutes them.
+        /// `ours` gains each microphone Sumi mutes. The run loop drops one once Windows reports it unmuted.
         fn mute(&self, muted: bool, ours: &mut Vec<String>) {
             let mics = self.mics();
-            let mut failed = Vec::new();
             for id in pick(&mics, muted, ours) {
                 let Some((_, volume)) = self.volumes.iter().find(|(v, _)| v == id) else {
                     continue;
                 };
                 let set = unsafe { volume.SetMute(muted, std::ptr::null()) }.is_ok();
-                if !set {
-                    failed.push(id);
-                } else if muted && !ours.iter().any(|o| o == id) {
+                if set && muted && !ours.iter().any(|o| o == id) {
                     ours.push(id.to_string());
                 }
-            }
-            // One that stayed muted is still Sumi's to give back.
-            if !muted {
-                ours.retain(|o| failed.contains(&o.as_str()));
             }
         }
 
@@ -594,13 +595,17 @@ mod win {
         let mut last: Option<Privacy> = None;
         let mut next = Some(Msg::Sessions);
         loop {
-            let (mut devices, mut full, mut answer) = (false, false, false);
+            // While the audio service is coming back, each pass opens the microphones again.
+            let (mut devices, mut full, mut answer) = (tries > 0, false, false);
             while let Some(msg) = next.take() {
                 match msg {
                     Msg::Devices => devices = true,
                     // Not opened again in this pass: the service may still be stopping. The first retry, a second
                     // later, opens what answers after the stop.
-                    Msg::Service => tries = TRIES,
+                    Msg::Service => {
+                        tries = TRIES;
+                        devices = false;
+                    }
                     Msg::Camera(pids) => {
                         camera = pids;
                         full = true;
@@ -619,23 +624,27 @@ mod win {
             if devices {
                 capture.close(&ping);
                 // The audio service took the device callback with it if its device half restarted too.
-                if tries > 0
-                    && let Ok(fresh) = audio_devices(&client)
-                {
-                    let _ = unsafe { enumerator.UnregisterEndpointNotificationCallback(&client) };
-                    enumerator = fresh;
+                if tries > 0 {
+                    tries -= 1;
+                    if let Ok(fresh) = audio_devices(&client) {
+                        let _ =
+                            unsafe { enumerator.UnregisterEndpointNotificationCallback(&client) };
+                        enumerator = fresh;
+                    }
                 }
                 capture = Capture::open(&enumerator, &ping);
-                if !capture.managers.is_empty() {
-                    tries = 0;
-                }
                 full = true;
             }
 
             let apps = match &last {
                 Some(last) if !full => last.apps.clone(),
                 _ => {
-                    let mic = capture.listen(&ping);
+                    let (mic, answered) = capture.listen(&ping);
+                    // Listing sessions needs the service itself, so it's back once every microphone opened again
+                    // answers. Not on the pass that heard of the stop: the dying service may still answer then.
+                    if answered && devices {
+                        tries = 0;
+                    }
                     let processes = processes();
                     // Which path each name came from, for its icon, and which processes.
                     let mut paths: HashMap<String, String> = HashMap::new();
@@ -694,6 +703,7 @@ mod win {
                 }
             };
             let mics = capture.mics();
+            forget_unmuted(&mut ours, &mics);
             let state = Privacy {
                 apps,
                 muted: all_muted(&mics),
@@ -709,7 +719,6 @@ mod win {
             }
             next = if tries > 0 {
                 // The audio service isn't back yet: try again in a second, a set number of times.
-                tries -= 1;
                 match rx.recv_timeout(RETRY) {
                     Ok(msg) => Some(msg),
                     Err(RecvTimeoutError::Timeout) => Some(Msg::Devices),
@@ -804,8 +813,9 @@ mod win {
         roots
     }
 
-    /// Brings forward the frontmost window of these processes. A Store app's window belongs to ApplicationFrameHost,
-    /// with the app's own window inside it.
+    /// Brings forward the app's window: the frontmost visible one, or else the largest hidden one that looks like its
+    /// own. False when none qualifies. A Store app's window belongs to ApplicationFrameHost, with the app's own window
+    /// inside it.
     pub(super) fn show(pids: &[u32]) -> bool {
         use std::cell::Cell;
         use windows_sys::Win32::Foundation::{HWND, LPARAM};
@@ -1171,7 +1181,7 @@ mod win {
     mod tests {
         use std::collections::HashMap;
 
-        use super::{Mic, Process, all_muted, app_name, host, pick, roots};
+        use super::{Mic, Process, all_muted, app_name, forget_unmuted, host, pick, roots};
 
         fn table(list: &[(u32, u32, &str)]) -> HashMap<u32, Process> {
             list.iter()
@@ -1227,6 +1237,24 @@ mod win {
             // One Sumi muted, now idle, comes back too.
             let list = mics(&[("laptop", true, true), ("usb", false, true)]);
             assert_eq!(pick(&list, false, &["usb".to_string()]), ["usb"]);
+        }
+
+        #[test]
+        fn sumi_forgets_a_microphone_once_windows_reports_it_unmuted() {
+            let mut ours = vec![
+                "laptop".to_string(),
+                "headset".to_string(),
+                "usb".to_string(),
+            ];
+            // The laptop mic was unmuted in Windows, the headset's unmute failed, the USB mic is unplugged.
+            forget_unmuted(
+                &mut ours,
+                &mics(&[("laptop", true, false), ("headset", true, true)]),
+            );
+            assert_eq!(ours, ["headset", "usb"]);
+            // Muted again by hand: it stays muted on Sumi's next unmute.
+            let list = mics(&[("laptop", true, true), ("headset", true, true)]);
+            assert_eq!(pick(&list, false, &ours), ["headset"]);
         }
 
         #[test]
