@@ -31,6 +31,7 @@ describe('resolveView', () => {
     const all = { activity: music, hovered: true, expanded: true, peeking: 'm' }
     expect(resolveView({ ...all, bar: true, launch: true })).toEqual({ name: 'bar' })
     expect(resolveView({ ...all, launch: true })).toEqual({ name: 'launch' })
+    expect(resolveView({ ...all, clock: true })).toEqual({ name: 'hover' })
   })
 
   it('peeks only the activity that asked for it', () => {

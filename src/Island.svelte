@@ -98,6 +98,8 @@
   let line = $state('')
   let launch = $state<ReturnType<typeof markOf> & { text: string }>()
   let launchTimer: ReturnType<typeof setTimeout> | undefined
+  // The time asked in the bar: the hover view shows it with the date, then the previous view comes back.
+  let telling = $state(false)
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -112,10 +114,18 @@
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
   const view = $derived(
-    resolveView({ activity: arrangement.island, hovered, expanded, peeking, bar: barOpen, launch: !!launch }),
+    resolveView({
+      activity: arrangement.island,
+      hovered,
+      expanded,
+      peeking,
+      bar: barOpen,
+      launch: !!launch,
+      clock: telling,
+    }),
   )
   // While the bar and its answer hold the island, what had it waits in the bubble.
-  const beside = $derived(barOpen || launch ? arrangement.island : arrangement.bubble)
+  const beside = $derived(barOpen || launch || telling ? arrangement.island : arrangement.bubble)
   const timers = $derived(activities.flatMap((a) => (a.kind === 'timer' ? [a] : [])))
   const options = $derived(
     barOpen ? choices(line, { apps, lang, claudeApp, timers, now: now.getTime() }) : ([] as Choice<Listed>[]),
@@ -851,6 +861,7 @@
     closeCard()
     clearTimeout(launchTimer)
     launch = undefined
+    telling = false
     barOpen = true
     if (!tauri) return
     // The list is read at startup, so this only copies it; Rust reads it again in the background when it's old.
@@ -895,8 +906,8 @@
     launchTimer = setTimeout(() => (launch = undefined), ms)
   }
 
-  // Enter: the bar folds into its answer. A timer becomes the island's timer; an app or a question shows what
-  // opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
+  // Enter: the bar folds into its answer. A timer becomes the island's timer; the time shows in the hover view for
+  // 2.5 s; an app or a question shows what opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
   // nothing.
   function run(choice: Choice<Listed>) {
     if (!barOpen) return
@@ -914,7 +925,11 @@
     } else if (choice.kind === 'pause') edit(choice.id, (a) => ({ ...a, left: Math.max(0, a.endsAt - t) }))
     else if (choice.kind === 'resume') edit(choice.id, (a) => ({ ...a, endsAt: t + (a.left ?? 0), left: undefined }))
     else if (choice.kind === 'stop') edit(choice.id, () => undefined)
-    else if (choice.kind === 'app' || choice.kind === 'ask') {
+    else if (choice.kind === 'clock') {
+      telling = true
+      clearTimeout(launchTimer)
+      launchTimer = setTimeout(() => (telling = false), 2500)
+    } else if (choice.kind === 'app' || choice.kind === 'ask') {
       const mark = markOf(choice)
       show({ text: choice.kind === 'app' ? choice.app.name : choice.peek, ...mark }, 1200)
       if (!tauri) return
@@ -939,7 +954,7 @@
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
     const picked = beside
-    if (picked && arrangement.island?.kind !== 'call' && !barOpen && !launch) prefer = picked.id
+    if (picked && arrangement.island?.kind !== 'call' && !barOpen && !launch && !telling) prefer = picked.id
   }
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.

@@ -7,9 +7,12 @@ Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the righ
 
 ## What to type
 
-- **A timer**: `25m`, `90s`, `1h30` or `timer 10m`. The bar folds into the timer.
-- **An app**: its name as Start shows it, such as `Discord`, or `open` and the start of its name, such as `open disc`.
-- **A question**: anything else goes to Claude. Name an assistant first to pick another: `chatgpt …`, `gemini …`, `perplexity …`, or `search …` for the search engine.
+- **A timer**: `25m`, `90s`, `1h30`, `timer 10m` or `set a timer for 10 minutes`. The bar folds into the timer.
+- **An app**: its name as Start shows it, such as `Discord`, or a verb and its name, such as `open disc`, `launch spotify` or `open the settings`. A typo or a missing accent is fine.
+- **The time or the date**: `what time is it` or `what's the date`. The chip gives the answer, and Enter shows it in the island with the date.
+- **A question**: anything else goes to Claude. Name an assistant first to pick another: `ask chatgpt …`, `gemini …`, `perplexity …`, or `search …` for the search engine.
+
+Write as you speak: `please`, `can you` or `hey Sumi` change nothing, and neither does punctuation. `can you open Spotify please?` opens Spotify.
 
 ## The chip
 
@@ -30,6 +33,6 @@ Sumi sends nothing. The list of apps is read from Start and stays in memory. Wha
 
 ## Limits
 
-- One thing per line: a timer, an app or a question.
+- One thing per line: a timer, an app, the time or a question.
 - An app installed in the last few minutes may only show up the next time you open the bar.
 - While the island is hidden in fullscreen, the shortcut does nothing.

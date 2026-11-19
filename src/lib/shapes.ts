@@ -72,10 +72,13 @@ export function resolveView(state: {
   peeking?: string
   bar?: boolean
   launch?: boolean
+  /** The bar's answer to 'quelle heure est-il': the hover view, over whatever runs. */
+  clock?: boolean
 }): View {
-  const { activity, hovered, expanded, peeking, bar, launch } = state
+  const { activity, hovered, expanded, peeking, bar, launch, clock } = state
   if (bar) return { name: 'bar' }
   if (launch) return { name: 'launch' }
+  if (clock) return { name: 'hover' }
   if (expanded) return activity?.kind === 'music' ? { name: 'expanded', activity } : { name: 'expanded' }
   if (activity) return { name: activity.id === peeking ? 'peek' : 'compact', activity }
   return { name: hovered ? 'hover' : 'idle' }

@@ -1,8 +1,11 @@
 /**
- * What a line typed in the command bar does: a timer, an app or a question. Local rules only, so the same text
- * always gives the same chip, and nothing is sent anywhere while typing. The first rule that matches wins:
- * a timer, an app's exact name or alias, an assistant by name, a verb and an app, then the default target.
+ * What a line typed in the command bar does: a timer, an app, the time or a question. Local rules only, so the same
+ * text always gives the same chip, and nothing is sent anywhere while typing. The line is read without politeness
+ * or punctuation, then the first rule that matches wins: a timer, an app's exact name or alias, the time or the
+ * date, an assistant by name, a search, a verb and an app, then the default target.
  */
+
+import { formatLongDate, formatTime } from './clock'
 
 export type Lang = 'fr' | 'en'
 
@@ -27,6 +30,8 @@ export type Choice<A extends App = App> = { label: string } & (
   | { kind: 'add'; id: string; ms: number }
   | { kind: 'pause' | 'resume' | 'stop'; id: string }
   | { kind: 'app'; app: A }
+  // The answer is the label itself: 'Il est 11:27' or 'Jeudi 19 novembre'.
+  | { kind: 'clock'; what: 'time' | 'date' }
   // `peek` is what the island shows after Enter: 'Claude', or 'Claude · navigateur' when it opens on the web.
   | { kind: 'ask'; to: Target; question: string; web: boolean; peek: string }
 )
@@ -38,6 +43,8 @@ export interface Options<A extends App> {
   claudeApp: boolean
   timers?: readonly Timer[]
   now?: number
+  /** The locale of the island's clock; the system's when left out. */
+  locale?: string
   /** The default target first, then the others in the user's order. The search engine always comes last. */
   order?: readonly Assistant[]
 }
@@ -64,6 +71,7 @@ const WORDS = {
     search: 'Rechercher',
     timer: 'Minuteur',
     none: (q: string) => `Aucune app « ${q} »`,
+    time: (t: string) => `Il est ${t}`,
     pause: ['Pause', 'Mettre en pause'],
     resume: ['Reprendre', 'Reprendre'],
     stop: ['Arrêter', 'Arrêter le minuteur'],
@@ -75,19 +83,12 @@ const WORDS = {
     search: 'Search',
     timer: 'Timer',
     none: (q: string) => `No app "${q}"`,
+    time: (t: string) => `It's ${t}`,
     pause: ['Pause', 'Pause the timer'],
     resume: ['Resume', 'Resume the timer'],
     stop: ['Stop', 'Stop the timer'],
   },
 } as const
-
-// Hand-written aliases, French and English alike: any word of a group finds the app named by another.
-const ALIASES = [
-  ['parametres', 'settings', 'reglages'],
-  ['explorateur de fichiers', 'file explorer', 'explorateur', 'explorer'],
-  ['calculatrice', 'calculator', 'calc'],
-  ['visual studio code', 'code', 'vscode'],
-]
 
 /** Lowercase without accents, one character for one, so a match in the folded text slices the typed one. */
 export function fold(text: string): string {
@@ -96,6 +97,47 @@ export function fold(text: string): string {
     return f.length === c.length ? f : c
   }).join('')
 }
+
+// --- Reading the line ---
+
+// Punctuation outside numbers ('1:30' and '1,5h' keep theirs), and a hyphen between letters ('est-il', 'peux-tu').
+const PUNCT = /[?!;«»"“”()]|(?<!\d)[.,:]|[.,:](?!\d)|(?<=\p{L})-(?=\p{L})/gu
+// Politeness anywhere, and what opens a request at the start. Matched on the folded line.
+const POLITE = /(?<=^| )(?:s'il (?:te|vous) plait|stp|svp|merci(?: beaucoup)?|please|thanks|thank you)(?= |$)/g
+const OPENER = new RegExp(
+  '^(?:hey sumi|sumi|est ce que|tu peux|tu pourrais|peux tu|pourrais tu|vous pouvez|pouvez vous|pourriez vous|' +
+    "can you|could you|would you|je veux|je voudrais|j'aimerais|i want to|i want|i'd like to|i'd like|" +
+    'i would like to|i would like|dis moi|dites moi|me dire|tell me)(?= |$)',
+  'g',
+)
+
+/**
+ * The line as the rules read it: one apostrophe, no punctuation that can't matter, no politeness, single spaces.
+ * The letters stay as typed, and `at` gives each one's place in the typed line, so a question is cut from what was
+ * typed. A line that is only politeness ('merci') stays whole.
+ */
+export function normalize(typed: string): { text: string; at: number[] } {
+  const s = typed.replace(/[’‘ʼ]/g, "'").replace(PUNCT, ' ')
+  // UTF-16 places, as fold keeps one unit for one.
+  let at = Array.from({ length: s.length }, (_, i) => i)
+  const text = () => at.map((i) => s[i]).join('')
+  const squeeze = () => {
+    at = at.filter((i, k) => s[i] !== ' ' || (k > 0 && s[at[k - 1]] !== ' '))
+    while (at.length && s[at.at(-1)!] === ' ') at.pop()
+  }
+  const cut = (re: RegExp) => {
+    const gone = new Set<number>()
+    for (const m of fold(text()).matchAll(re)) for (let k = m.index; k < m.index + m[0].length; k++) gone.add(k)
+    at = at.filter((_, k) => !gone.has(k))
+    return gone.size > 0
+  }
+  squeeze()
+  while (cut(OPENER) || cut(POLITE)) squeeze()
+  return at.length ? { text: text(), at } : { text: typed, at: Array.from({ length: typed.length }, (_, i) => i) }
+}
+
+// Dropped after a verb: 'ouvre les paramètres', 'open the calculator', 'lance l'explorateur'.
+const DET = String.raw`(?:(?:le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my) |l'|d')?`
 
 // --- Timers ---
 
@@ -113,12 +155,23 @@ const DURATION = new RegExp(
   String.raw`(?<![\w.,])(?:(${NUM})\s*(${HOUR})(?:\s*(\d+)\s*(?:${MIN})?)?(?:\s*(\d+)\s*(?:${SEC}))?` +
     String.raw`|(${NUM})\s*(${MIN})(?:\s*(\d+)\s*(?:${SEC})?)?|(${NUM})\s*(${SEC})|(\d+))(?![\w.,])`,
 )
-const KEYWORDS = new Set(['minuteur', 'minuterie', 'timer'])
-const GLUE = new Set(['de', 'pour', 'for', 'of', 'a', 'un'])
+// 'chrono' counts up, so it is a timer only with a unit: 'chrono 5 min', never 'chrono 5'.
+const KEYWORDS = new Set(['minuteur', 'minuterie', 'timer', 'chrono', 'chronometre'])
+// Glue and determiners around the duration and the label, with their accents: 'thé' is no 'the'.
+const EDGE = new Set(
+  ['de', "d'", 'pour', 'for', 'of', 'a', 'an', 'un', 'une', 'le', 'la', 'les', "l'", 'des', 'du', 'the', 'my'].concat(
+    ['mon', 'ma', 'mes', 'ton', 'ta', 'tes'],
+  ),
+)
+// The verbs that start one: 'mets un minuteur de 10 s', 'set a timer for 5 minutes', 'lance 25m'.
+const SET = new RegExp(
+  '^(?:mets|met|mettre|mettez|lance|lancer|lancez|demarre|demarrer|demarrez|programme|programmer|regle|regler|' +
+    'set|start|make|put) ',
+)
 // A question, a conversion, a stopwatch or a cycle: never a timer.
 const QUESTION = /\b(combien|comment|quel|quelle|quels|quelles|pourquoi|how|what|why|convert|convertir)\b|\?/
 const CONVERSION = /\b(en|in|to) [a-z]/
-const NOT_A_TIMER = /\b(chrono|chronometre|stopwatch|pomodoro)\b/
+const NOT_A_TIMER = /\b(stopwatch|pomodoro)\b/
 // A time of day, checked before the accents go: 'à 18h30' is an alarm, 'a' alone is glue.
 const TIME_OF_DAY = /(^|\s)(à|at|until|vers|jusqu['’]à|jusqu['’]a)\s*\d/
 const HOURS_12 = 12 * 3_600_000
@@ -130,10 +183,13 @@ const toMs = (n: string, unit: string) => {
 
 /** A whole line read as a new timer: its length, and its label of at most 3 words. Anything else is no timer. */
 export function parseTimer(line: string): { ms: number; label?: string } | undefined {
-  const typed = line.trim().replace(/\s+/g, ' ')
-  const text = fold(typed)
-  if (QUESTION.test(text) || CONVERSION.test(text) || NOT_A_TIMER.test(text) || TIME_OF_DAY.test(typed.toLowerCase()))
+  const raw = line.trim().replace(/\s+/g, ' ')
+  const folded = fold(raw)
+  if (QUESTION.test(folded) || CONVERSION.test(folded) || NOT_A_TIMER.test(folded) || TIME_OF_DAY.test(raw.toLowerCase()))
     return
+  let typed = normalize(raw).text
+  typed = typed.slice(SET.exec(fold(typed))?.[0].length ?? 0)
+  const text = fold(typed)
   const m = DURATION.exec(text)
   if (!m) return
   const [, h, hu, hm, hs, mn, mu, ms, sn, su, bare] = m
@@ -149,18 +205,25 @@ export function parseTimer(line: string): { ms: number; label?: string } | undef
             ? Number(bare) * 60_000
             : 0
   if (total < 1000 || total > HOURS_12) return
-  // The words around the duration, without the keyword in front and the glue next to it, are its label.
+  // The words around the duration, without the keyword and the glue next to them, are its label.
   const words = (s: string) => s.split(' ').filter(Boolean)
-  const before = words(typed.slice(0, m.index).replace(/(^|\s)d['’]$/i, ''))
+  const before = words(typed.slice(0, m.index).replace(/(^|\s)d'$/i, ''))
   const after = words(typed.slice(m.index + m[0].length))
-  while (before.length && GLUE.has(fold(before.at(-1)!))) before.pop()
-  const keyword = before.length > 0 && KEYWORDS.has(fold(before[0]))
-  if (keyword) before.shift()
-  while (after.length && GLUE.has(fold(after[0]))) after.shift()
+  const trim = (list: string[]) => {
+    while (list.length && EDGE.has(list[0].toLowerCase())) list.shift()
+    while (list.length && EDGE.has(list.at(-1)!.toLowerCase())) list.pop()
+  }
+  trim(before)
+  trim(after)
+  // In front ('minuteur 10'), or behind in English ('10 minute timer').
+  const isKeyword = (w = '') => KEYWORDS.has(fold(w))
+  const keyword = isKeyword(before[0]) ? before.shift() : isKeyword(after[0]) ? after.shift() : undefined
+  trim(before)
+  trim(after)
   const label = [...before, ...after]
   if (label.length > 3 || label.some((w) => /\d/.test(w) || !/\p{L}/u.test(w) || KEYWORDS.has(fold(w)))) return
   // A bare number with words is a name ('gpt 4', 'windows 11') unless a keyword says it is a timer.
-  if (bare !== undefined && label.length && !keyword) return
+  if (bare !== undefined && ((label.length && !keyword) || fold(keyword ?? '').startsWith('chrono'))) return
   return { ms: Math.round(total), label: label.join(' ') || undefined }
 }
 
@@ -200,7 +263,39 @@ function timerAction<A extends App>(line: string, timers: readonly Timer[], now:
 
 // --- Apps ---
 
-// Exact, then prefix, then the start of a word, then the letters in order. 0 is no match.
+/** How names compare: folded, without apostrophes or hyphens, each word without a plural s or x. */
+export function key(name: string): string {
+  return fold(name)
+    .replace(/['’]/g, '')
+    .replace(/-/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => (w.length > 3 ? w.replace(/[sx]$/, '') : w))
+    .join(' ')
+}
+
+// Hand-written aliases, French and English alike: any word of a group finds the app named by another.
+const ALIASES = [
+  ['parametres', 'settings', 'reglages', 'preferences', 'options'],
+  ['explorateur de fichiers', 'file explorer', 'explorateur', 'explorer', 'fichiers', 'mes fichiers', 'files'],
+  ['calculatrice', 'calculator', 'calc'],
+  ['visual studio code', 'code', 'vscode'],
+].map((group) => group.map(key))
+
+// Optimal string alignment: a wrong, missing or extra letter, or two swapped neighbors, is one typo.
+function typos(a: string, b: string): number {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1])
+        d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1)
+    }
+  return d[a.length][b.length]
+}
+
+// Exact, then prefix, then the start of a word, then the letters in order, then a typo or two. 0 is no match.
 function score(query: string, name: string): number {
   if (name === query) return 4
   if (name.startsWith(query)) return 3
@@ -208,22 +303,41 @@ function score(query: string, name: string): number {
   if (query.length < 2) return 0
   let i = 0
   for (const c of name) if (c === query[i]) i++
-  return i === query.length ? 1 : 0
+  if (i === query.length) return 1
+  // Only on a name long enough to tell: one typo from 5 letters, two from 9. Against the name, its start, or a word.
+  const allowed = query.length >= 9 ? 2 : query.length >= 5 ? 1 : 0
+  const near = [name, name.slice(0, query.length), ...name.split(' ')].some((w) => typos(query, w) <= allowed)
+  return allowed && near ? 0.5 : 0
 }
 
 const keys = (app: App) => {
-  const name = fold(app.name)
+  const name = key(app.name)
   return [name, ...(ALIASES.find((group) => group.includes(name))?.filter((k) => k !== name) ?? [])]
 }
 
 /** The best app for a query, by a fixed ranking: on a tie the shorter name wins. Usage never reorders it. */
 export function findApp<A extends App>(query: string, apps: readonly A[]): A | undefined {
-  const q = fold(query.trim())
+  const q = key(query)
+  if (!q) return
   return apps
     .map((app) => ({ app, score: Math.max(...keys(app).map((k) => score(q, k))) }))
     .filter((a) => a.score > 0)
     .toSorted((a, b) => b.score - a.score || a.app.name.length - b.app.name.length)[0]?.app
 }
+
+// --- The time and the date ---
+
+// Whole lines only, so 'quelle heure est-il à Tokyo' stays a question.
+const TIME = new RegExp(
+  "^(?:(?:il est |c'est )?quel(?:le)? heure(?: (?:est(?: | t'| t )il|il est|c'est|est ce))?|l'heure|heure|" +
+    "what time is it|what time it is|what(?:'s| is) the time|whats the time|(?:the |current )?time)$",
+)
+const DATE = new RegExp(
+  "^(?:(?:on est |c'est )?quel jour(?: (?:sommes nous|nous sommes|on est|est on|est il|c'est|est ce))?|" +
+    "(?:on est|nous sommes) le combien|quelle date(?: (?:sommes nous|on est|est on))?|" +
+    "(?:la )?date(?: d'aujourd'hui)?|what day is it|what day is today|" +
+    "what(?:'s| is) (?:the|today's) date(?: today)?|whats the date|(?:the |today's )?date)$",
+)
 
 // --- Assistants ---
 
@@ -243,21 +357,33 @@ function ask<A extends App>(to: Target, question: string, claudeApp: boolean, la
   }
 }
 
-const BY_NAME =
-  /^(?:(?:demander? a |ask )?(claude|chatgpt|gpt|gemini|perplexity|google)|(cherche|recherche|search))[ :,]+(.+)$/
-const VERB = /^(?:ouvre|ouvrir|lance|lancer|open|launch|start) (.+)$/
+// The verbs, as lemmas: each inflection a person types leads to one intent.
+const BY_NAME = new RegExp(
+  '^(?:(?:demande|demander|demandez|pose|poser|ask|tell)(?: (?:la|une|ma|the|a|my) question)?(?: (?:a|to))? )?' +
+    '(claude|chatgpt|gpt|gemini|perplexity|google) (.+)$',
+)
+const SEARCH = /^(?:cherche|chercher|recherche|rechercher|trouve|trouver|search|look up|find)(?: moi)? (.+)$/
+// The first group says no app aloud; 'montre' or 'show' without an app is just a question.
+const VERB = new RegExp(
+  '^(?:(ouvre|ouvres|ouvrez|ouvrir|lance|lancer|lancez|demarre|demarrer|demarrez|open|launch|start)|' +
+    `affiche|afficher|montre|montrer|show|run) ${DET}(.+)$`,
+)
 
 /**
  * What Enter can do with a line, the top guess first, then what Tab reaches: the default assistant, the others
  * in the user's order, then the search engine. An empty line does nothing.
  */
 export function choices<A extends App>(line: string, options: Options<A>): Choice<A>[] {
-  const { lang, claudeApp, timers = [], now = Date.now(), order = ORDER } = options
+  const { lang, claudeApp, timers = [], now = Date.now(), locale, order = ORDER } = options
   const typed = line.normalize('NFC').trim().replace(/\s+/g, ' ')
   if (!typed) return []
-  const text = fold(typed)
+  const read = normalize(typed)
+  const text = fold(read.text)
   const apps = options.apps.filter((app) => !/\b(uninstall|desinstall)/.test(fold(app.name)))
-  const rest = (match: string) => typed.slice(typed.length - match.length)
+  // The end of the line a rule matched, as typed for a question, as read for a label.
+  const rest = (match: string) => typed.slice(read.at[read.text.length - match.length])
+  const tail = (match: string) => read.text.slice(read.text.length - match.length)
+  const open = (app: A): Choice<A> => ({ kind: 'app', app, label: `${WORDS[lang].open} ${app.name}` })
 
   // The top guess, and the question the alternatives pass on: a named assistant's own, or the whole line.
   const [top, question] = ((): [Choice<A>, string] => {
@@ -269,18 +395,27 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
       return [{ kind: 'timer', ms: timer.ms, name: timer.label, label }, typed]
     }
     // An exact name comes before the assistants, so 'Google Chrome' opens Chrome rather than searching 'chrome'.
-    const named = apps.find((app) => keys(app).includes(text))
-    if (named) return [{ kind: 'app', app: named, label: `${WORDS[lang].open} ${named.name}` }, typed]
+    const named = apps.find((app) => keys(app).includes(key(read.text)))
+    if (named) return [open(named), typed]
+    if (TIME.test(text)) {
+      return [{ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) }, typed]
+    }
+    if (DATE.test(text)) {
+      const day = formatLongDate(new Date(now), locale)
+      return [{ kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }, typed]
+    }
     const by = BY_NAME.exec(text)
     if (by) {
-      const to: Target = by[2] || by[1] === 'google' ? 'search' : by[1] === 'gpt' ? 'chatgpt' : (by[1] as Assistant)
-      return [ask(to, rest(by[3]), claudeApp, lang), rest(by[3])]
+      const to: Target = by[1] === 'google' ? 'search' : by[1] === 'gpt' ? 'chatgpt' : (by[1] as Assistant)
+      return [ask(to, rest(by[2]), claudeApp, lang), rest(by[2])]
     }
+    const search = SEARCH.exec(text)
+    if (search) return [ask('search', rest(search[1]), claudeApp, lang), rest(search[1])]
     const verb = VERB.exec(text)
     if (verb) {
-      const app = findApp(verb[1], apps)
-      if (app) return [{ kind: 'app', app, label: `${WORDS[lang].open} ${app.name}` }, typed]
-      return [ask(order[0], typed, claudeApp, lang, WORDS[lang].none(rest(verb[1]))), typed]
+      const app = findApp(verb[2], apps)
+      if (app) return [open(app), typed]
+      if (verb[1]) return [ask(order[0], typed, claudeApp, lang, WORDS[lang].none(tail(verb[2]))), typed]
     }
     return [ask(order[0], typed, claudeApp, lang), typed]
   })()

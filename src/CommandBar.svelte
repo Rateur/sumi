@@ -15,7 +15,7 @@
     search: '#5F6368',
   }
 
-  /** What fills the 16 px icon slot: the app's icon, a monogram, or the timer's amber ring. */
+  /** What fills the 16 px icon slot: the app's icon, a monogram, a clock, or the timer's amber ring. */
   export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon } {
     if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
@@ -161,6 +161,8 @@
       <canvas use:paintIcon={mark.icon}></canvas>
     {:else if mark.letter}
       {mark.letter}
+    {:else if choice.kind === 'clock'}
+      <svg class="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /><path d="M8 5v3.5l2 1.5" /></svg>
     {:else}
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
     {/if}
@@ -274,6 +276,11 @@
     fill: none;
     stroke: #fbbf24;
     stroke-width: 2;
+  }
+
+  .mark svg.clock {
+    stroke: #fff;
+    stroke-linecap: round;
   }
 
   .label {

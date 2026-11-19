@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { choices, findApp, formatDuration, parseTimer, type App, type Timer } from './intent'
+import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice, type Timer } from './intent'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
 const apps: App[] = [...names, 'Calculatrice', 'Microsoft Teams', 'Claude', 'Notes', 'Mail'].map((name) => ({ name }))
@@ -195,6 +195,151 @@ describe('choices', () => {
   })
 })
 
+describe('normalize', () => {
+  it('drops politeness and punctuation, and keeps the letters as typed', () => {
+    expect(normalize('Hey Sumi, peux-tu ouvrir Spotify stp ?').text).toBe('ouvrir Spotify')
+    expect(normalize('Est-ce que tu peux ouvrir Discord, s’il te plaît !').text).toBe('ouvrir Discord')
+    expect(normalize('1:30 ou 1,5h.').text).toBe('1:30 ou 1,5h')
+    expect(normalize('merci').text).toBe('merci')
+  })
+
+  it('maps what it keeps back to the typed line', () => {
+    const typed = 'stp, claude : quoi ?'
+    const { text, at } = normalize(typed)
+    expect(text).toBe('claude quoi')
+    expect(typed.slice(at[text.indexOf('quoi')])).toBe('quoi ?')
+  })
+})
+
+// Real phrasings, typos and missing accents included. Each gives one chip: [line, kind, what it targets].
+describe('natural phrasing', () => {
+  const now = new Date(2026, 10, 19, 11, 27).getTime()
+  const options = { ...fr, now, locale: 'fr-FR' }
+  const target = (c: Choice) =>
+    c.kind === 'app' ? c.app.name : c.kind === 'ask' ? c.to : c.kind === 'timer' ? c.ms : c.kind === 'clock' ? c.what : ''
+  const s = 1000
+  const min = 60_000
+  const table: [string, Choice['kind'], string | number][] = [
+    // The maintainer's four.
+    ['met un minuteur de 10s', 'timer', 10 * s],
+    ["quelle heure est t'il", 'clock', 'time'],
+    ['ouvre discord', 'app', 'Discord'],
+    ['ouvre les parametre', 'app', 'Paramètres'],
+    // Apps, with verbs, determiners, politeness and typos.
+    ['ouvre dicord', 'app', 'Discord'],
+    ['lance spotifi', 'app', 'Spotify'],
+    ['Ouvre Discord !', 'app', 'Discord'],
+    ['ouvrir discord stp', 'app', 'Discord'],
+    ['tu peux ouvrir discord ?', 'app', 'Discord'],
+    ['peux-tu lancer spotify', 'app', 'Spotify'],
+    ['Hey Sumi, ouvre Spotify', 'app', 'Spotify'],
+    ['sumi lance steam', 'app', 'Steam'],
+    ['ouvrez les paramètres', 'app', 'Paramètres'],
+    ['ouvre mes reglages', 'app', 'Paramètres'],
+    ['ouvre les préférences', 'app', 'Paramètres'],
+    ['open settings please', 'app', 'Paramètres'],
+    ['open the options', 'app', 'Paramètres'],
+    ['parametre', 'app', 'Paramètres'],
+    ["ouvre l'explorateur", 'app', 'Explorateur de fichiers'],
+    ['ouvre l’explorateur de fichier', 'app', 'Explorateur de fichiers'],
+    ['ouvre mes fichiers', 'app', 'Explorateur de fichiers'],
+    ['open file explorer', 'app', 'Explorateur de fichiers'],
+    ['files', 'app', 'Explorateur de fichiers'],
+    ['open the calculator', 'app', 'Calculatrice'],
+    ['lance la calculatrice', 'app', 'Calculatrice'],
+    ['calc', 'app', 'Calculatrice'],
+    ['ouvre code', 'app', 'Visual Studio Code'],
+    ['ouvre chorme', 'app', 'Google Chrome'],
+    ['démarre steam', 'app', 'Steam'],
+    ['start teams', 'app', 'Microsoft Teams'],
+    ['launch discrod', 'app', 'Discord'],
+    ['can you open spotify', 'app', 'Spotify'],
+    ["i'd like to open discord", 'app', 'Discord'],
+    ['affiche les notes', 'app', 'Notes'],
+    ['show mail', 'app', 'Mail'],
+    ['run spotify', 'app', 'Spotify'],
+    // Timers.
+    ['mets un minuteur de 10 min', 'timer', 10 * min],
+    ['mettre un minuteur de 5 minutes', 'timer', 5 * min],
+    ['lance un minuteur de 25 min', 'timer', 25 * min],
+    ['un minuteur de 10 min pour les pates', 'timer', 10 * min],
+    ['minuteur 10s', 'timer', 10 * s],
+    ['programme une minuterie de 1h30', 'timer', 90 * min],
+    ['regle un minuteur de 3 min stp', 'timer', 3 * min],
+    ['set a timer for 5 minutes', 'timer', 5 * min],
+    ['start a 5 minute timer', 'timer', 5 * min],
+    ['timer for 20 minutes', 'timer', 20 * min],
+    ['10 min timer', 'timer', 10 * min],
+    ['make a 2 min timer please', 'timer', 2 * min],
+    ['chrono 30 s', 'timer', 30 * s],
+    ['25m', 'timer', 25 * min],
+    // The time and the date.
+    ['quelle heure est-il ?', 'clock', 'time'],
+    ['Quelle heure il est', 'clock', 'time'],
+    ['il est quelle heure', 'clock', 'time'],
+    ["l'heure", 'clock', 'time'],
+    ['heure', 'clock', 'time'],
+    ['what time is it?', 'clock', 'time'],
+    ["what's the time", 'clock', 'time'],
+    ['time', 'clock', 'time'],
+    ['quel jour sommes-nous ?', 'clock', 'date'],
+    ['on est quel jour', 'clock', 'date'],
+    ['quelle date', 'clock', 'date'],
+    ['la date', 'clock', 'date'],
+    ['what day is it', 'clock', 'date'],
+    ["what's the date?", 'clock', 'date'],
+    ['date', 'clock', 'date'],
+    // Assistants and the search engine, by verb.
+    ['demande à claude pourquoi le ciel est bleu', 'ask', 'claude'],
+    ['demander a chatgpt une recette', 'ask', 'chatgpt'],
+    ['pose la question à gemini : quoi de neuf', 'ask', 'gemini'],
+    ['ask perplexity who won', 'ask', 'perplexity'],
+    ['tell claude a joke', 'ask', 'claude'],
+    ['cherche des chaussures', 'ask', 'search'],
+    ['recherche météo lyon', 'ask', 'search'],
+    ['trouve-moi un resto', 'ask', 'search'],
+    ['look up the eiffel tower', 'ask', 'search'],
+    ['google chats', 'ask', 'search'],
+    // Questions that must stay questions.
+    ['combien de temps pour cuire des pates ?', 'ask', 'claude'],
+    ['pourquoi le ciel est bleu', 'ask', 'claude'],
+    ['ouvre-moi ton coeur', 'ask', 'claude'],
+    ['timer', 'ask', 'claude'],
+    ['10 pates', 'ask', 'claude'],
+    ['chrono 5', 'ask', 'claude'],
+    ['lance le chrono', 'ask', 'claude'],
+    ['quelle heure est-il à Tokyo ?', 'ask', 'claude'],
+    ['what time is the match tonight', 'ask', 'claude'],
+    ['show me how to cook rice', 'ask', 'claude'],
+    ['set the volume to 10', 'ask', 'claude'],
+    ['merci', 'ask', 'claude'],
+    ['1:30', 'ask', 'claude'],
+    ['à 18h30', 'ask', 'claude'],
+  ]
+  it.each(table)('%s → %s %s', (line, kind, to) => {
+    const c = choices(line, options)[0]
+    expect(c.kind).toBe(kind)
+    expect(target(c)).toBe(to)
+  })
+
+  it('answers the time and the date on the chip, in the clock locale', () => {
+    const en = { ...options, lang: 'en', locale: 'en-US' } as const
+    expect(choices('quelle heure est-il', options)[0].label).toBe('Il est 11:27')
+    expect(choices('what time is it', en)[0].label).toMatch(/^It's 11:27\sAM$/)
+    expect(choices('quel jour on est', options)[0].label).toBe('Jeudi 19 novembre')
+    expect(choices('date', en)[0].label).toBe('Thursday, November 19')
+  })
+
+  it('keeps the question one Tab away, as typed', () => {
+    expect(choices('quelle heure est-il ?', options)[1]).toMatchObject({ to: 'claude', question: 'quelle heure est-il ?' })
+    expect(choices('stp demande à claude : pourquoi ?', options)[0]).toMatchObject({ question: 'pourquoi ?' })
+  })
+
+  it('names what it could not find as it was read', () => {
+    expect(choices('ouvre zzz stp', options)[0]).toMatchObject({ kind: 'ask', label: 'Aucune app « zzz »' })
+  })
+})
+
 describe('findApp', () => {
   it('ranks exact, prefix, word start, then letters in order, the shorter name first', () => {
     const list = ['Steam', 'Steam VR', 'Microsoft Teams', 'Notepad'].map((name) => ({ name }))
@@ -203,5 +348,15 @@ describe('findApp', () => {
     expect(findApp('teams', list)?.name).toBe('Microsoft Teams')
     expect(findApp('ntpd', list)?.name).toBe('Notepad')
     expect(findApp('x', list)).toBeUndefined()
+  })
+
+  it('reads plurals, accents and typos, typos last', () => {
+    const list = ['Paramètres', 'Spotify', 'Discord', 'Disco Elysium'].map((name) => ({ name }))
+    expect(findApp('parametre', list)?.name).toBe('Paramètres')
+    expect(findApp('spotifi', list)?.name).toBe('Spotify')
+    expect(findApp('disco', list)?.name).toBe('Discord')
+    expect(findApp('dicsord', list)?.name).toBe('Discord')
+    // Too short to tell a typo from another name.
+    expect(findApp('dsic', list)).toBeUndefined()
   })
 })
