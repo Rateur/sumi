@@ -16,12 +16,11 @@
     msUntilNextMinute,
     msUntilNextSecond,
   } from './lib/clock'
-  import { dominant } from './lib/color'
-  import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
-  import { label, lasted, light, quiet, tagged, type Privacy } from './lib/privacy'
+  import { tint } from './lib/color'
+  import { CLOSE, ENTER, EXIT, FULLSCREEN, OPEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
+  import { label, light, quiet, tagged, type Privacy } from './lib/privacy'
   import {
     BUBBLE,
-    CARD,
     GAP,
     TAG,
     TAG_GAP,
@@ -42,10 +41,13 @@
     shown as showing,
     songs,
     update,
+    type Artwork,
     type Player,
     type Players,
+    type Snapshot,
   } from './lib/music'
   import { Spring } from './lib/spring'
+  import PrivacyCard from './PrivacyCard.svelte'
 
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
   const LEAVE = 300
@@ -66,6 +68,7 @@
   let clock = $state<HTMLElement>()
   let art = $state<HTMLElement>()
   let eq = $state<HTMLElement>()
+  // Calls and timers. Only the demo sets them for now.
   let activities = $state<Activity[]>([])
   // Music comes from Rust; `prefer` is the activity picked with a click on the bubble.
   let music = $state<Activity[]>([])
@@ -87,6 +90,8 @@
   let card = $state(false)
   let tagTimer: ReturnType<typeof setTimeout> | undefined
 
+  // The last arrangement, so equals keep their place. Written from the derived as a plain variable: reading it
+  // there doesn't make the derived depend on itself.
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
   const view = $derived(resolveView({ activity: arrangement.island, hovered, expanded, peeking }))
@@ -121,6 +126,8 @@
     }, wait())
     return () => clearTimeout(timer)
   })
+
+  // --- Shape springs ---
 
   // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
   // of the island and `bubble` is its size; `tagShift`, `tagW` and `tagH` do the same for the privacy tag, which
@@ -163,6 +170,7 @@
     const [tw, th] = [tagW.value, tagH.value]
     const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
     const beside = right.x + right.width + TAG_GAP
+    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize.
     anchor = card ? (anchor ?? beside) : undefined
     const flag =
       tw > 0.5
@@ -233,6 +241,7 @@
     delayed = undefined
     const target = sizeOf(to)
     // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
+    // Unlike the drops, it still springs in forced colors: an outline follows it fine.
     if (reduced || (hidden && drop.resting)) {
       width.jump(target.width)
       height.jump(target.height)
@@ -284,7 +293,13 @@
     wake()
   }
 
+  // --- Bubble ---
+
+  // A drop lands at once without motion, in forced colors, where the goo can't show, and off the screen.
+  const instant = () => reduced || forced.current || (hidden && drop.resting)
+
   // The bubble splits off like a drop, joined to the island by a neck until they part.
+  // split and merge mirror emerge and retract below: change them together.
   $effect(() => {
     const has = !!arrangement.bubble
     untrack(() => (has ? split() : merge()))
@@ -292,7 +307,7 @@
 
   function split() {
     if (phase === 'split' || phase === 'shown') return
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -314,7 +329,7 @@
 
   function merge() {
     if (phase === 'none' || phase === 'merge') return
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -326,7 +341,10 @@
     drive(bubble, 20, [0.36, 0], t)
   }
 
+  // --- Privacy tag ---
+
   // The privacy tag splits off whatever is rightmost like a drop, as the bubble does, and sinks back into it.
+  // emerge and retract mirror split and merge above: change them together.
   let tagPhase: 'none' | 'split' | 'shown' | 'merge' = 'none'
   $effect(() => {
     const has = tagged(privacy)
@@ -336,7 +354,7 @@
   function emerge() {
     if (tagPhase === 'split' || tagPhase === 'shown') return
     const w = Math.max(TAG, tagContent)
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       tagShift.jump(0)
       tagW.jump(w)
       tagH.jump(TAG)
@@ -368,7 +386,7 @@
       retracting = setTimeout(() => tagged(privacy) || retract(), 320)
       return
     }
-    if (reduced || forced.current || (hidden && drop.resting)) {
+    if (instant()) {
       tagW.jump(0)
       tagH.jump(0)
       tagPhase = 'none'
@@ -381,6 +399,8 @@
     drive(tagW, 12, [0.36, 0], t)
     drive(tagH, 12, [0.36, 0], t)
   }
+
+  // --- Content transitions ---
 
   // Pieces that stay from one view to the next move from their old box to their new one, in step
   // with the shape, so a change of mind halfway costs nothing.
@@ -498,6 +518,8 @@
     }
   }
 
+  // --- Clicks, cursor, fullscreen and peeks ---
+
   // The Rust side lets clicks through everywhere except over these rounded rectangles, padded by a pixel.
   let sent: (Rect & { radius: number })[] = []
   function report(moving: boolean) {
@@ -574,8 +596,8 @@
     if (done) untrack(alert)
   })
 
-  const newSong = (now?: Activity, was?: Activity) =>
-    now?.kind === 'music' && was?.kind === 'music' && now.id === was.id && now.title !== was.title
+  const newSong = (next?: Activity, prev?: Activity) =>
+    next?.kind === 'music' && prev?.kind === 'music' && next.id === prev.id && next.title !== prev.title
   let song: Activity | undefined
   let aside: Activity | undefined
   $effect(() => {
@@ -589,6 +611,7 @@
   })
 
   // The cursor crosses the island on its way to tabs: it grows only once the cursor rests on it.
+  // point and move share their rest logic with pointTag and moveTag below: change them together.
   let hoverTimer: ReturnType<typeof setTimeout>
   let pointer = false
   let rest: { x: number; y: number } | undefined
@@ -644,6 +667,8 @@
     peekTimer = setTimeout(() => (peeking = undefined), 3000)
   }
 
+  // --- Music ---
+
   // Every player Windows can see. A paused one stays a minute, and one that vanishes for a moment is held.
   let players: Players = nobody()
   let latest: Player[] = []
@@ -680,20 +705,6 @@
     refresh()
   }
 
-  /** The artwork's main colour, read from a 16 px copy, once per picture. */
-  async function tint(url: string): Promise<string | undefined> {
-    try {
-      const image = new Image()
-      image.src = url
-      await image.decode()
-      const context = new OffscreenCanvas(16, 16).getContext('2d')
-      context?.drawImage(image, 0, 0, 16, 16)
-      return context ? dominant(context.getImageData(0, 0, 16, 16).data) : undefined
-    } catch {
-      return undefined
-    }
-  }
-
   $effect(() => {
     if (!tauri) return
     const stops = [
@@ -702,14 +713,16 @@
         latest = payload
         refresh()
       }),
-      listen<{ id: string; url: string | null }>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
+      listen<Artwork>('media://artwork', ({ payload }) => paint(payload.id, payload.url)),
     ]
     // What Rust sent before these listeners existed.
-    invoke<{ players: Player[]; artwork: Record<string, string> }>('media_players').then((snapshot) => {
-      if (!heard) latest = snapshot.players
-      Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
-      refresh()
-    })
+    invoke<Snapshot>('media_players')
+      .then((snapshot) => {
+        if (!heard) latest = snapshot.players
+        Object.entries(snapshot.artwork).forEach(([id, url]) => artwork.has(id) || paint(id, url))
+        refresh()
+      })
+      .catch(console.error)
     return () => {
       stops.forEach((stop) => stop.then((unlisten) => unlisten()))
       clearTimeout(change)
@@ -721,15 +734,19 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
+  // --- Privacy state, tag size and card ---
+
   $effect(() => {
     if (!tauri) return
-    let heard = false
+    let privacyHeard = false
     const stop = listen<Privacy>('privacy://state', ({ payload }) => {
-      heard = true
+      privacyHeard = true
       privacy = payload
     })
     // What Rust found before this listener existed.
-    invoke<Privacy>('privacy_state').then((state) => heard || (privacy = state))
+    invoke<Privacy>('privacy_state')
+      .then((state) => privacyHeard || (privacy = state))
+      .catch(console.error)
     return () => {
       stop.then((unlisten) => unlisten())
     }
@@ -744,24 +761,25 @@
     untrack(() => {
       if (tagPhase !== 'split' && tagPhase !== 'shown') return
       if (w === tagW.target && h === tagH.target) return
-      if (reduced || forced.current || (hidden && drop.resting)) {
+      if (instant()) {
         tagW.jump(w)
         tagH.jump(h)
         return wake()
       }
       const t = performance.now()
       if (h > tagH.target) {
-        drive(tagW, w, [0.46, 0.26], t)
-        drive(tagH, h, [0.52, 0.18], t)
+        drive(tagW, w, OPEN.width, t)
+        drive(tagH, h, OPEN.height, t)
       } else if (h < tagH.target) {
-        drive(tagW, w, [0.4, 0], t)
-        drive(tagH, h, [0.34, 0], t)
+        drive(tagW, w, CLOSE.width, t)
+        drive(tagH, h, CLOSE.height, t)
       } else drive(tagW, w, w > tagW.value ? [0.4, 0.3] : [0.3, 0], t)
       wake()
     })
   })
 
   // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
+  // pointTag and moveTag share their rest logic with point and move above: change them together.
   let tagRest: { x: number; y: number } | undefined
   function pointTag(inside: boolean) {
     onTag = inside
@@ -783,32 +801,7 @@
     card = false
   }
 
-  // The app's own icon, painted from the pixels Rust read.
-  function paintIcon(canvas: HTMLCanvasElement, icon: { side: number; rgba: string }) {
-    const draw = ({ side, rgba }: typeof icon) => {
-      const bytes = Uint8ClampedArray.from(atob(rgba), (c) => c.charCodeAt(0))
-      canvas.width = canvas.height = side
-      canvas.getContext('2d')?.putImageData(new ImageData(bytes, side, side), 0, 0)
-    }
-    draw(icon)
-    return { update: draw }
-  }
-
-  function mute() {
-    if (tauri) invoke('privacy_mute', { muted: !privacy.muted })
-    else privacy = { ...privacy, muted: !privacy.muted }
-  }
-
-  function settings() {
-    if (tauri) invoke('privacy_settings', { camera: light(privacy) === 'camera' })
-    closeCard()
-  }
-
-  // Windows can't turn the camera off for every app the way it mutes the microphone: the app's own window can.
-  async function show(name: string) {
-    closeCard()
-    if (tauri && !(await invoke<boolean>('privacy_show', { name }))) settings()
-  }
+  // --- Bubble swap and seek ---
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
@@ -817,7 +810,7 @@
   }
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
-  let track = $state<HTMLElement>()
+  let bar = $state<HTMLElement>()
   let scrub = $state<{ id: string; ms: number; held: boolean; at: number; from: Player }>()
   const playback = $derived.by(() => {
     const p = parts.player?.player
@@ -849,19 +842,19 @@
   // Where the cursor is on the bar, in ms of the song shown.
   const under = ({ clientX }: PointerEvent) => {
     const end = parts.player?.player?.endMs
-    if (!track || !end) return 0
-    const { left, width } = track.getBoundingClientRect()
+    if (!bar || !end) return 0
+    const { left, width } = bar.getBoundingClientRect()
     return ((clientX - left) / width) * end
   }
 
   // In the panel the browser moves the progress bar on its own, and the times tick once a second while it plays.
-  let bar = $state<HTMLElement>()
+  let played = $state<HTMLElement>()
   let tick = $state(Date.now())
   $effect(() => {
     const p = playback
-    if (!bar || !p || p.endMs <= 0) return
+    if (!played || !p || p.endMs <= 0) return
     const at = position(p, Date.now())
-    const animation = bar.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
+    const animation = played.animate([{ transform: `scaleX(${at / p.endMs})` }, { transform: 'scaleX(1)' }], {
       duration: Math.max(1, (p.endMs - at) / (p.rate > 0 ? p.rate : 1)),
       fill: 'forwards',
     })
@@ -955,12 +948,6 @@
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
     <path class="slash" class:on={crossed} pathLength="1" d="M4 4l16 16" />
-  </svg>
-{/snippet}
-
-{#snippet camera()}
-  <svg viewBox="0 0 24 24" aria-hidden="true">
-    <rect x="3" y="6.5" width="13" height="11" rx="2.5" /><path d="M16 10.5l5-3v9l-5-3" />
   </svg>
 {/snippet}
 
@@ -1083,8 +1070,8 @@
                 if (step && playback.canSeek) hold(position(playback, Date.now()) + step, false)
               }}
             >
-              <span class="bar" bind:this={track}>
-                <span bind:this={bar} style:background={parts.player.color}></span>
+              <span class="bar" bind:this={bar}>
+                <span bind:this={played} style:background={parts.player.color}></span>
               </span>
             </span>
             <span>-{clockTime(playback.endMs - at)}</span>
@@ -1173,8 +1160,6 @@
 
 {#if geometry.tag}
   {@const uses = light(privacy)}
-  {@const many = privacy.apps.length > CARD.rows}
-  {@const rows = privacy.apps.slice(0, many ? CARD.rows - 1 : CARD.rows)}
   <div
     class="island tag"
     role="group"
@@ -1207,62 +1192,7 @@
         {#if uses}<span class="dot" class:mic={uses === 'mic'} class:camera={uses === 'camera'}></span>{/if}
       </span>
     {:else if revealed}
-      {@const size = cardSize(privacy.apps.length)}
-      <span class="card" style:width="{size.width}px" style:height="{size.height}px">
-        {#each rows as app, i (app.name)}
-          <button
-            type="button"
-            class="app"
-            aria-label="Show {app.name}: {[app.mic && 'microphone', app.camera && 'camera']
-              .filter(Boolean)
-              .join(', ')}{lasted(app.sinceMs, now.getTime()) && `, ${lasted(app.sinceMs, now.getTime())}`}"
-            onclick={() => show(app.name)}
-            in:enter|global={{ step: i }}
-            out:exit|global={{ shrinks: true }}
-          >
-            {#if app.icon}
-              <canvas class="icon" use:paintIcon={app.icon} aria-hidden="true"></canvas>
-            {:else}
-              <span class="icon letter" aria-hidden="true">{app.name.slice(0, 1)}</span>
-            {/if}
-            <span class="name">{app.name}</span>
-            <span class="uses">
-              {#if app.mic}<span data-device="mic">{@render microphone(false)}</span>{/if}
-              {#if app.camera}<span data-device="camera">{@render camera()}</span>{/if}
-              <span class="hidden">{[app.mic && 'microphone', app.camera && 'camera'].filter(Boolean).join(', ')}</span>
-            </span>
-            <span class="muted since">{lasted(app.sinceMs, now.getTime())}</span>
-          </button>
-        {/each}
-        {#if many}
-          <span class="app muted more" in:enter|global={{ step: rows.length }} out:exit|global={{ shrinks: true }}>
-            +{privacy.apps.length - rows.length}
-          </span>
-        {/if}
-        <span class="actions" in:enter|global={{ step: rows.length + 1 }} out:exit|global={{ shrinks: true }}>
-          {#if privacy.canMute && (privacy.muted || privacy.apps.some((a) => a.mic))}
-            <button
-              type="button"
-              class:on={privacy.muted}
-              aria-label="Mute the microphone"
-              aria-pressed={privacy.muted}
-              onclick={mute}
-            >
-              {@render microphone(privacy.muted)}
-            </button>
-          {/if}
-          {#each privacy.apps.filter((a) => a.camera).slice(0, 1) as filming (filming.name)}
-            <button type="button" class="filming" aria-label="Show {filming.name}" onclick={() => show(filming.name)}>
-              {@render camera()}
-            </button>
-          {/each}
-          <button type="button" class="settings" aria-label="Privacy settings" onclick={settings}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
-            </svg>
-          </button>
-        </span>
-      </span>
+      <PrivacyCard bind:privacy {now} {enter} {exit} onclose={closeCard} />
     {/if}
   </div>
 {/if}
@@ -1561,8 +1491,7 @@
     border-radius: 50%;
   }
 
-  /* The privacy tag. As a disc, what it holds sits in a row from its left end; as a card, it is laid out at the
-     card's size from the top-left corner, and the shape reveals it as it opens. */
+  /* The privacy tag. As a disc, what it holds sits in a row from its left end. Its card is PrivacyCard.svelte. */
   .tag .disc {
     position: absolute;
     top: 0;
@@ -1584,151 +1513,6 @@
     display: block;
     width: 12px;
     height: 12px;
-  }
-
-  .card {
-    position: absolute;
-    top: 0;
-    left: 0;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    padding: 10px 12px;
-  }
-
-  .app {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 10px;
-    height: 38px;
-    margin: 0 -6px;
-    padding: 0 6px;
-    border: 0;
-    border-radius: 10px;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-size: 13px;
-    cursor: default;
-    transition:
-      background-color 0.2s,
-      scale 0.15s;
-  }
-
-  button.app:hover {
-    background: rgb(255 255 255 / 0.08);
-  }
-
-  button.app:active {
-    scale: 0.97;
-  }
-
-  .icon {
-    flex: none;
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-  }
-
-  .letter {
-    display: grid;
-    place-items: center;
-    background: rgb(255 255 255 / 0.16);
-    font-size: 12px;
-  }
-
-  .app .name {
-    flex: 1;
-    overflow: hidden;
-    text-align: left;
-    text-overflow: ellipsis;
-  }
-
-  .uses {
-    display: flex;
-    gap: 4px;
-  }
-
-  .uses svg {
-    display: block;
-    width: 15px;
-    height: 15px;
-  }
-
-  .uses [data-device='mic'] {
-    color: #fb923c;
-  }
-
-  .uses [data-device='camera'] {
-    color: #4ade80;
-  }
-
-  .hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .since {
-    min-width: 36px;
-    text-align: right;
-  }
-
-  .more {
-    padding-left: 34px;
-  }
-
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 44px;
-    margin-top: auto;
-  }
-
-  .actions button {
-    display: grid;
-    place-items: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    background: rgb(255 255 255 / 0.14);
-    color: #fff;
-    cursor: default;
-    transition:
-      scale 0.15s,
-      background-color 0.25s,
-      color 0.25s;
-  }
-
-  .actions button:active {
-    scale: 0.88;
-  }
-
-  /* On, a button turns white, as Control Center's do. */
-  .actions .on {
-    background: #fff;
-    color: #000;
-  }
-
-  /* The camera can't be cut from here: its button opens the app filming, in its color. */
-  .actions .filming {
-    color: #4ade80;
-  }
-
-  .actions .settings {
-    margin-left: auto;
-  }
-
-  .actions svg {
-    width: 17px;
-    height: 17px;
   }
 
   .tag svg {
@@ -1762,8 +1546,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .slash,
-    .tag .dot,
-    .actions button {
+    .tag .dot {
       transition: none;
     }
 

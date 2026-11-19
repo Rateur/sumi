@@ -16,6 +16,18 @@ export interface Player {
   rate: number
 }
 
+/** What `media_players` returns (src-tauri/src/media.rs): the last word from each player, and their artwork by id. */
+export interface Snapshot {
+  players: Player[]
+  artwork: Record<string, string>
+}
+
+/** The `media://artwork` payload: a player's artwork as a data: URL, or null once it has none. */
+export interface Artwork {
+  id: string
+  url: string | null
+}
+
 /** A paused player keeps its place this long, then the clock comes back. */
 export const PAUSED = 60_000
 /** A player that vanishes stays this long: some drop their session between two songs. */
