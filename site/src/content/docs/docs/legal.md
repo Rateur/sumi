@@ -17,8 +17,6 @@ GitHub Pages, a service of GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Franc
 
 This site sets no cookie and measures no audience. It keeps, in your browser, the language you pick (`sumi-lang`) and, for the current tab only, the state of the docs sidebar (`sl-sidebar-state`), and sends them nowhere.
 
-On the home page, a question you submit in the command bar demo is sent to Wikipedia, run by the Wikimedia Foundation in the United States. See the [privacy page](../privacy/).
-
 Like any host, GitHub logs visitors' IP addresses to keep the service secure: see [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
 
 ## Intellectual property
