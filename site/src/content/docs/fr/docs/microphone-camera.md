@@ -13,7 +13,7 @@ Quand une app utilise votre micro ou votre caméra, un petit disque noir se dét
 
 ## Micro coupé et caméra
 
-- **Le bouton micro** coupe, avec le muet de Windows, le micro par défaut et chaque micro qu'une app utilise. Le réactiver ne rallume que ceux qu'il a coupés. Tant qu'il est coupé, un micro barré reste dans le disque, pour ne jamais l'oublier.
+- **Le bouton micro** coupe, avec le muet de Windows, les micros par défaut et chaque micro qu'une app utilise. Réactiver le micro ne rallume que ceux que Sumi a coupés, ou tous s'ils ont été coupés dans Windows. Tant qu'il est coupé, un micro barré reste dans le disque, pour ne jamais l'oublier.
 - **Le bouton caméra** fait passer au premier plan l'app qui filme, là où se trouve son propre bouton caméra. Windows ne permet pas de couper la caméra de toutes les apps sans droits administrateur.
 - **Le bouton réglages** ouvre la page de confidentialité de Windows pour la caméra ou le micro.
 

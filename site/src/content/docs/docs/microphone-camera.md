@@ -13,7 +13,7 @@ While an app uses your microphone or your camera, a small black disc splits off 
 
 ## Mute and camera
 
-- **The microphone button** mutes, with Windows' own mute, the default microphone and every microphone an app is using. Unmute turns back on only the ones it muted. While it's muted, a crossed microphone stays in the disc, so you never forget it.
+- **The microphone button** mutes, with Windows' own mute, the default microphones and every microphone an app is using. Unmute turns back on only the ones it muted, or all of them if you muted them in Windows. While it's muted, a crossed microphone stays in the disc, so you never forget it.
 - **The camera button** brings the app that's filming forward, where its own camera button is. Windows can't turn the camera off for every app without admin rights.
 - **The settings button** opens Windows' privacy page for the camera or the microphone.
 

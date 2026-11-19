@@ -71,7 +71,8 @@ pub fn privacy_state(devices: tauri::State<'_, Devices>) -> Privacy {
         .unwrap_or_default()
 }
 
-/// Mutes or unmutes, with Windows' own mute, the default microphones and every one an app captures from now.
+/// Mutes or unmutes, with Windows' own mute, the default microphones and every one an app is capturing from at
+/// that moment.
 #[tauri::command]
 pub fn privacy_mute(devices: tauri::State<'_, Devices>, muted: bool) {
     let _ = devices.tx.send(Msg::Mute(muted));
@@ -358,8 +359,8 @@ mod win {
         }
     }
 
-    /// A microphone as mute sees it: whether mute covers it, as a default or one an app captures from now, and
-    /// whether Windows has it muted.
+    /// A microphone as mute sees it: whether mute covers it, as a default or one an app is capturing from at that
+    /// moment, and whether Windows has it muted.
     struct Mic {
         id: String,
         covered: bool,
@@ -376,21 +377,25 @@ mod win {
     /// back only the ones Sumi muted, so one muted in Windows stays muted; when Sumi muted none of them, every
     /// covered one.
     fn pick<'a>(mics: &'a [Mic], muted: bool, ours: &[String]) -> Vec<&'a str> {
-        let ids = |keep: &dyn Fn(&Mic) -> bool| -> Vec<&'a str> {
-            mics.iter()
-                .filter(|m| keep(m))
-                .map(|m| m.id.as_str())
-                .collect()
-        };
         if muted {
-            return ids(&|m| m.covered && !m.muted);
+            return mics
+                .iter()
+                .filter(|m| m.covered && !m.muted)
+                .map(|m| m.id.as_str())
+                .collect();
         }
-        let mine = ids(&|m| m.muted && ours.contains(&m.id));
-        if mine.is_empty() {
-            ids(&|m| m.covered && m.muted)
-        } else {
-            mine
+        let mine: Vec<&str> = mics
+            .iter()
+            .filter(|m| m.muted && ours.contains(&m.id))
+            .map(|m| m.id.as_str())
+            .collect();
+        if !mine.is_empty() {
+            return mine;
         }
+        mics.iter()
+            .filter(|m| m.covered && m.muted)
+            .map(|m| m.id.as_str())
+            .collect()
     }
 
     /// The capture devices being watched, by id: each one's session manager and mute, and the sessions heard from.
@@ -404,8 +409,10 @@ mod win {
         live: Vec<String>,
     }
 
+    /// The device's id, which stays the same across reopens and restarts.
     fn device_id(device: &IMMDevice) -> Option<String> {
         let raw = unsafe { device.GetId() }.ok()?;
+        // SAFETY: GetId returns a NUL-terminated string Sumi owns: read once here, then freed once below.
         let id = unsafe { raw.to_string() }.ok();
         unsafe { CoTaskMemFree(Some(raw.0.cast_const().cast())) };
         id
@@ -494,6 +501,7 @@ mod win {
             pids
         }
 
+        /// Each active microphone, whether mute covers it, and whether it's muted now.
         fn mics(&self) -> Vec<Mic> {
             self.volumes
                 .iter()
@@ -508,17 +516,21 @@ mod win {
         /// `ours` keeps the microphones Sumi muted, across reopens, until it unmutes them.
         fn mute(&self, muted: bool, ours: &mut Vec<String>) {
             let mics = self.mics();
+            let mut failed = Vec::new();
             for id in pick(&mics, muted, ours) {
                 let Some((_, volume)) = self.volumes.iter().find(|(v, _)| v == id) else {
                     continue;
                 };
                 let set = unsafe { volume.SetMute(muted, std::ptr::null()) }.is_ok();
-                if set && muted && !ours.iter().any(|o| o == id) {
+                if !set {
+                    failed.push(id);
+                } else if muted && !ours.iter().any(|o| o == id) {
                     ours.push(id.to_string());
                 }
             }
+            // One that stayed muted is still Sumi's to give back.
             if !muted {
-                ours.clear();
+                ours.retain(|o| failed.contains(&o.as_str()));
             }
         }
 
@@ -586,10 +598,9 @@ mod win {
             while let Some(msg) = next.take() {
                 match msg {
                     Msg::Devices => devices = true,
-                    Msg::Service => {
-                        devices = true;
-                        tries = TRIES;
-                    }
+                    // Not opened again in this pass: the service may still be stopping. The first retry, a second
+                    // later, opens what answers after the stop.
+                    Msg::Service => tries = TRIES,
                     Msg::Camera(pids) => {
                         camera = pids;
                         full = true;
@@ -697,7 +708,7 @@ mod win {
                 last = Some(state);
             }
             next = if tries > 0 {
-                // The service is still stopping: try again shortly, a set number of times.
+                // The audio service isn't back yet: try again in a second, a set number of times.
                 tries -= 1;
                 match rx.recv_timeout(RETRY) {
                     Ok(msg) => Some(msg),
@@ -825,13 +836,11 @@ mod win {
         }
         /// A hidden process keeps helper windows too: an input method's, a toast's frame, a console. Only one that
         /// looks like an app's own window counts, by its size when restored.
-        fn area(hwnd: HWND, class: &str) -> Option<i64> {
-            let style =
-                u32::from_ne_bytes(unsafe { GetWindowLongW(hwnd, GWL_STYLE) }.to_ne_bytes());
-            let extra =
-                u32::from_ne_bytes(unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) }.to_ne_bytes());
+        fn app_window_area(hwnd: HWND, class: &str) -> Option<i64> {
+            let style = unsafe { GetWindowLongW(hwnd, GWL_STYLE) } as u32;
+            let extra = unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) } as u32;
             let mut place = WINDOWPLACEMENT {
-                length: u32::try_from(size_of::<WINDOWPLACEMENT>()).unwrap_or(0),
+                length: size_of::<WINDOWPLACEMENT>() as u32,
                 ..Default::default()
             };
             let window = style & WS_CAPTION == WS_CAPTION
@@ -880,7 +889,7 @@ mod win {
                 search.found.set(hwnd);
                 return 0;
             }
-            if let Some(area) = area(hwnd, &class)
+            if let Some(area) = app_window_area(hwnd, &class)
                 && area > search.area.get()
             {
                 search.found.set(hwnd);
