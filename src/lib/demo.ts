@@ -23,9 +23,43 @@ const playing = (id: string, title: string, artist: string): Player => ({
   rate: 1,
 })
 
-// The site's examples bring their own song: `?title=…&artist=…&art=…&color=…`.
-const params = new URLSearchParams(location.search)
-const own = Object.fromEntries(['title', 'artist', 'art', 'color'].flatMap((k) => (params.has(k) ? [[k, params.get(k)]] : [])))
+// The site's examples bring their own song: `?title=…&artist=…&art=…&color=…`. The page is public, so outside dev
+// only a frame on the site's own pages may set it: a shared link can't dress the island up.
+const framed = (() => {
+  try {
+    return parent !== window && parent.location.origin === location.origin
+  } catch {
+    return false
+  }
+})()
+
+// Only a trusted page (dev, or the site's own frame) may set the song. A second check behind that gate: the cover must
+// come from the site, and the colour must be a colour.
+export function songParams(search: string, origin: string, isColor: (value: string) => boolean, trusted: boolean) {
+  if (!trusted) return {}
+  const params = new URLSearchParams(search)
+  const sameOrigin = (url: string) => {
+    try {
+      return new URL(url, origin).origin === origin
+    } catch {
+      return false
+    }
+  }
+  const allowed: Record<string, (value: string) => boolean> = {
+    title: () => true,
+    artist: () => true,
+    art: sameOrigin,
+    color: isColor,
+  }
+  return Object.fromEntries(
+    Object.entries(allowed).flatMap(([key, ok]) => {
+      const value = params.get(key)
+      return value !== null && ok(value) ? [[key, value]] : []
+    }),
+  )
+}
+
+const own = songParams(location.search, location.origin, (v) => CSS.supports('color', v), import.meta.env.DEV || framed)
 const song = { ...SONGS[0], ...own }
 
 const fakes: Record<string, () => Activity> = {
@@ -109,10 +143,10 @@ export function demo(island: {
     fullscreen: island.fullscreen,
   }
   addEventListener('keydown', ({ key }) => actions[KEYS[key]]?.())
-  // `?show=music&show=video` starts in those states. A page that frames the island drives it by name, and hears
-  // when it can.
+  // In dev, `?show=music&show=video` starts in those states. A page that frames the island drives it by name, and
+  // hears when it can.
   const run = (name: unknown) => typeof name === 'string' && Object.hasOwn(actions, name) && actions[name]()
-  params.getAll('show').forEach(run)
+  if (import.meta.env.DEV) new URLSearchParams(location.search).getAll('show').forEach(run)
   addEventListener('message', ({ origin, data }) => origin === location.origin && run(data))
   if (parent !== window) parent.postMessage('sumi:ready', location.origin)
   Object.assign(window, {
