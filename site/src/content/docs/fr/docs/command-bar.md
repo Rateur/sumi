@@ -7,12 +7,12 @@ Appuyez sur `Win+Alt+S` et l'île devient une barre. Tapez, regardez la pastille
 
 ## Que taper
 
-- **Un minuteur** : `25m`, `90s`, `1h30`, `minuteur 10m` ou `mets un minuteur de 10 min`. La barre se replie en minuteur. Ses commandes complètes, un clic pour le mettre en pause ou l'arrêter, arrivent avec le module minuteur dans la même version.
+- **Un minuteur** : `25m`, `90s`, `1h30`, `minuteur 10m` ou `mets un minuteur d'une demi-heure`. La barre se replie en minuteur. Ses commandes complètes, un clic pour le mettre en pause ou l'arrêter, arrivent avec le module minuteur dans la même version.
 - **Une app** : son nom tel que le menu Démarrer l'affiche, comme `Discord`, ou un verbe et son nom, comme `ouvre disc`, `lance spotify` ou `ouvre les paramètres`. Une faute de frappe ou un accent oublié ne gênent pas.
 - **L'heure ou la date** : `quelle heure est-il` ou `on est quel jour`. La pastille donne la réponse, et Entrée l'affiche dans l'île avec la date.
 - **Une question** : tout le reste va à Claude. Nommez d'abord un assistant pour en choisir un autre : `demande à chatgpt …`, `gemini …`, `perplexity …`, ou `cherche …` pour le moteur de recherche.
 
-Écrivez comme vous parlez : `stp`, `tu peux` ou `hey Sumi` ne changent rien, la ponctuation non plus. `tu peux ouvrir Spotify stp ?` ouvre Spotify.
+Écrivez comme vous parlez : autour d'un verbe, `stp`, `tu peux` ou `hey Sumi` ne changent rien, la ponctuation non plus. `tu peux ouvrir Spotify stp ?` ouvre Spotify. Le nom d'une app seul ne l'ouvre que tel quel, et un verbe à la forme négative, comme `n'ouvre pas Spotify`, est une question.
 
 ## La pastille
 
