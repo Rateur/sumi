@@ -1,13 +1,12 @@
 ---
 title: Command bar
-description: A timer, an app or a question, from one shortcut.
+description: An app, the time or a question, from one shortcut.
 ---
 
 Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the right, then press Enter. Press the shortcut again or Esc to close it. If another app already uses it, the shortcut is `Alt+Shift+S`.
 
 ## What to type
 
-- **A timer**: `25m`, `90s`, `1h30`, `timer 10m` or `set a timer for 10 minutes`. The bar folds into the timer.
 - **An app**: its name as Start shows it, such as `Discord`, or a verb and its name, such as `open disc`, `launch spotify` or `open the settings`. A typo or a missing accent is fine.
 - **The time or the date**: `what time is it` or `what's the date`. The chip gives the answer, and Enter shows it in the island with the date.
 - **A question**: anything else goes to Claude. Name an assistant first to pick another: `ask chatgpt …`, `gemini …`, `perplexity …`, or `search …` for the search engine.
@@ -33,6 +32,7 @@ Sumi sends nothing. The list of apps is read from Start and stays in memory. Wha
 
 ## Limits
 
-- One thing per line: a timer, an app, the time or a question.
+- One thing per line: an app, the time or a question.
+- Timers come later, with their own controls. Until then, `25m` is a question.
 - An app installed in the last few minutes may only show up the next time you open the bar.
 - While the island is hidden in fullscreen, the shortcut does nothing.

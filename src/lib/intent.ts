@@ -1,8 +1,9 @@
 /**
- * What a line typed in the command bar does: a timer, an app, the time or a question. Local rules only, so the same
- * text always gives the same chip, and nothing is sent anywhere while typing. The line is read without politeness
- * or punctuation, then the first rule that matches wins: a timer, an app's exact name or alias, the time or the
- * date, an assistant by name, a search, a verb and an app, then the default target.
+ * What a line typed in the command bar does: an app, the time or a question. Local rules only, so the same text
+ * always gives the same chip, and nothing is sent anywhere while typing. The line is read without politeness or
+ * punctuation, then the first rule that matches wins: an app's exact name or alias, the time or the date, an
+ * assistant by name, a search, a verb and an app, then the default target. Timers come with the timer module and
+ * its panel: until then a timer line is a question, and `parseTimer` is the grammar they will use.
  */
 
 import { formatLongDate, formatTime } from './clock'
@@ -14,21 +15,10 @@ export interface App {
   name: string
 }
 
-/** A running timer, as the bar needs it: `left` is the time left while paused. */
-export interface Timer {
-  id: string
-  endsAt: number
-  label?: string
-  left?: number
-}
-
 export type Assistant = 'claude' | 'chatgpt' | 'gemini' | 'perplexity'
 export type Target = Assistant | 'search'
 
 export type Choice<A extends App = App> = { label: string } & (
-  | { kind: 'timer'; ms: number; name?: string }
-  | { kind: 'add'; id: string; ms: number }
-  | { kind: 'pause' | 'resume' | 'stop'; id: string }
   | { kind: 'app'; app: A }
   // The answer is the label itself: 'Il est 11:27' or 'Jeudi 19 novembre'.
   | { kind: 'clock'; what: 'time' | 'date' }
@@ -41,7 +31,6 @@ export interface Options<A extends App> {
   lang: Lang
   /** Whether Windows knows the `claude:` link, so Claude opens in its app. */
   claudeApp: boolean
-  timers?: readonly Timer[]
   now?: number
   /** The locale of the island's clock; the system's when left out. */
   locale?: string
@@ -69,24 +58,16 @@ const WORDS = {
     ask: 'Demander à',
     web: 'navigateur',
     search: 'Rechercher',
-    timer: 'Minuteur',
     none: (q: string) => `Aucune app « ${q} »`,
     time: (t: string) => `Il est ${t}`,
-    pause: ['Pause', 'Mettre en pause'],
-    resume: ['Reprendre', 'Reprendre'],
-    stop: ['Arrêter', 'Arrêter le minuteur'],
   },
   en: {
     open: 'Open',
     ask: 'Ask',
     web: 'browser',
     search: 'Search',
-    timer: 'Timer',
     none: (q: string) => `No app "${q}"`,
     time: (t: string) => `It's ${t}`,
-    pause: ['Pause', 'Pause the timer'],
-    resume: ['Resume', 'Resume the timer'],
-    stop: ['Stop', 'Stop the timer'],
   },
 } as const
 
@@ -236,31 +217,6 @@ export function formatDuration(ms: number): string {
   return `${sec} s`
 }
 
-/** '+5', 'pause', 'stop pâtes': words that act on a running timer, the one that ends first or the one named. */
-function timerAction<A extends App>(line: string, timers: readonly Timer[], now: number, lang: Lang): Choice<A> | undefined {
-  const text = fold(line)
-  const ends = (t: Timer) => (t.left !== undefined ? now + t.left : t.endsAt)
-  const soonest = (list: readonly Timer[], name?: string) =>
-    name ? list.find((t) => t.label && fold(t.label) === fold(name)) : list.toSorted((a, b) => ends(a) - ends(b))[0]
-  const words = WORDS[lang]
-  const add = new RegExp(String.raw`^\+\s*(${NUM})\s*(${SEC}|${MIN}|${HOUR})?$`).exec(text)
-  if (add) {
-    const ms = toMs(add[1], add[2] ?? 'm')
-    const timer = soonest(timers)
-    if (!timer || ms < 1000 || ms > HOURS_12) return
-    return { kind: 'add', id: timer.id, ms, label: `+${formatDuration(ms)}${timer.label ? ` · ${timer.label}` : ''}` }
-  }
-  const verb = /^(pause|reprendre|resume|stop|annule|annuler|cancel)(?: (.+))?$/.exec(text)
-  if (!verb) return
-  const kind = verb[1] === 'pause' ? 'pause' : verb[1] === 'reprendre' || verb[1] === 'resume' ? 'resume' : 'stop'
-  const name = verb[2] && line.slice(line.length - verb[2].length)
-  const pool = timers.filter((t) => (kind === 'pause' ? t.left === undefined : kind === 'resume' ? t.left !== undefined : true))
-  const timer = soonest(pool, name)
-  if (!timer) return
-  const [verbWord, alone] = words[kind]
-  return { kind, id: timer.id, label: timer.label ? `${verbWord} ${timer.label}` : alone }
-}
-
 // --- Apps ---
 
 /** How names compare: folded, without apostrophes or hyphens, each word without a plural s or x. */
@@ -374,7 +330,7 @@ const VERB = new RegExp(
  * in the user's order, then the search engine. An empty line does nothing.
  */
 export function choices<A extends App>(line: string, options: Options<A>): Choice<A>[] {
-  const { lang, claudeApp, timers = [], now = Date.now(), locale, order = ORDER } = options
+  const { lang, claudeApp, now = Date.now(), locale, order = ORDER } = options
   const typed = line.normalize('NFC').trim().replace(/\s+/g, ' ')
   if (!typed) return []
   const read = normalize(typed)
@@ -387,13 +343,6 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
 
   // The top guess, and the question the alternatives pass on: a named assistant's own, or the whole line.
   const [top, question] = ((): [Choice<A>, string] => {
-    const action = timers.length ? timerAction<A>(typed, timers, now, lang) : undefined
-    if (action) return [action, typed]
-    const timer = parseTimer(typed)
-    if (timer) {
-      const label = `${WORDS[lang].timer} ${formatDuration(timer.ms)}${timer.label ? ` · ${timer.label}` : ''}`
-      return [{ kind: 'timer', ms: timer.ms, name: timer.label, label }, typed]
-    }
     // An exact name comes before the assistants, so 'Google Chrome' opens Chrome rather than searching 'chrome'.
     const named = apps.find((app) => keys(app).includes(key(read.text)))
     if (named) return [open(named), typed]
@@ -415,7 +364,8 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     if (verb) {
       const app = findApp(verb[2], apps)
       if (app) return [open(app), typed]
-      if (verb[1]) return [ask(order[0], typed, claudeApp, lang, WORDS[lang].none(tail(verb[2]))), typed]
+      // 'lance un minuteur de 5 min' is no missing app, just a question until timers come.
+      if (verb[1] && !parseTimer(typed)) return [ask(order[0], typed, claudeApp, lang, WORDS[lang].none(tail(verb[2]))), typed]
     }
     return [ask(order[0], typed, claudeApp, lang), typed]
   })()
