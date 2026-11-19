@@ -49,6 +49,8 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
+- `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
+- `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src/Island.svelte` draws the island and is the only file that talks to Rust.
 - `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy. Each file but `demo.ts` has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
@@ -67,9 +69,17 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `privacy_mute` | page → Rust | `muted: bool` | `boolean` |
 | `privacy_settings` | page → Rust | `camera: bool` | `boolean` |
 | `privacy_show` | page → Rust | `name: String`, returns `bool` | `boolean` |
+| `apps_list` | page → Rust | returns `Vec<App>` (`apps.rs`) | `{ name: string; id: string }[]` |
+| `has_claude` | page → Rust | returns `bool` | `boolean` |
+| `app_icon` | page → Rust | `id: String`, returns `Option<Icon>` (`privacy.rs`) | `{ side, rgba }` or `null` |
+| `app_launch` | page → Rust | `id: String`, returns `bool` | `boolean` |
+| `assistant_open` | page → Rust | `target: Target` (`apps.rs`), `query: String`, returns `bool` | `Target` (`src/lib/intent.ts`), `string` |
+| `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
+| `bar_focus` | page → Rust | `open: bool` | `boolean` |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
 | `island://dismiss` | Rust → page | nothing | nothing |
+| `bar://toggle` | Rust → page | nothing | nothing |
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |

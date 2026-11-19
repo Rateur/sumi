@@ -64,12 +64,16 @@ Known limits: with touch or a pen, the first tap on the island reaches the app u
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl+Alt+Space` | Open the command bar |
-| `Enter` | Send to the selected assistant |
-| `Tab` / `Shift+Tab` | Next / previous assistant |
+| `Win+Alt+S` | Open or close the command bar |
+| `Enter` | Run what the chip shows |
+| `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, `25m`, `90s` or `1h30` starts a timer instead. Every shortcut can be changed in Settings. `Alt+Space` is left alone: Windows and PowerToys Run use it.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, and anything else is a question. The chip says what Enter will do, and Tab turns it to the next target: the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+
+The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
+
+If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are taken, the bar has no shortcut, and nothing pops up to say so. Every shortcut can be changed in Settings. `Ctrl+Alt+S` is left alone, since some keyboards type a letter with AltGr+S, and so is `Ctrl+Shift+S`, Save As. So are `Alt+Space` (Windows and PowerToys Run) and `Ctrl+Alt+Space` (Claude's quick entry).
 
 ## Staying out of the way
 

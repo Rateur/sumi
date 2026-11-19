@@ -52,6 +52,8 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 - `src-tauri/src/fullscreen.rs` masque l'île quand un jeu, une vidéo ou un diaporama occupe l'écran principal.
 - `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
 - `src-tauri/src/privacy.rs` trouve les apps qui utilisent le micro ou la caméra, et coupe le micro.
+- `src-tauri/src/apps.rs` lit les apps du menu Démarrer, ouvre celle choisie dans la barre de commande, et ouvre une question dans un assistant ou le moteur de recherche.
+- `src-tauri/src/bar.rs` enregistre le raccourci de la barre de commande, et donne le focus à la barre puis le rend.
 - `src/Island.svelte` dessine l'île, et c'est le seul fichier qui parle à Rust.
 - `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité. Chaque fichier sauf `demo.ts` a ses tests Vitest à côté (`*.test.ts`).
 - `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
@@ -70,9 +72,17 @@ La page appelle Rust avec `invoke()` et écoute ses événements avec `listen()`
 | `privacy_mute` | page → Rust | `muted: bool` | `boolean` |
 | `privacy_settings` | page → Rust | `camera: bool` | `boolean` |
 | `privacy_show` | page → Rust | `name: String`, renvoie `bool` | `boolean` |
+| `apps_list` | page → Rust | renvoie `Vec<App>` (`apps.rs`) | `{ name: string; id: string }[]` |
+| `has_claude` | page → Rust | renvoie `bool` | `boolean` |
+| `app_icon` | page → Rust | `id: String`, renvoie `Option<Icon>` (`privacy.rs`) | `{ side, rgba }` ou `null` |
+| `app_launch` | page → Rust | `id: String`, renvoie `bool` | `boolean` |
+| `assistant_open` | page → Rust | `target: Target` (`apps.rs`), `query: String`, renvoie `bool` | `Target` (`src/lib/intent.ts`), `string` |
+| `bar_shortcut` | page → Rust | renvoie `Option<&str>` (`bar.rs`) | `string` ou `null` |
+| `bar_focus` | page → Rust | `open: bool` | `boolean` |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>` : le délai de survol en ms, `None` quand le curseur sort | `number` ou `null` |
 | `island://dismiss` | Rust → page | rien | rien |
+| `bar://toggle` | Rust → page | rien | rien |
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, avec `url: Option<String>` | `{ id, url }`, avec `url` une URL `data:` ou `null` |
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
