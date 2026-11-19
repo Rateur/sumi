@@ -23,4 +23,5 @@ The buttons follow what is in use: no mute while only the camera is on.
 
 - An app that captures sound or video outside Windows' audio and camera layers isn't seen.
 - An app's own mute, in Discord or Teams for example, doesn't show: the crossed microphone is Windows' mute only.
+- While an app run as administrator, such as Task Manager, has focus, Windows hides Esc and clicks from Sumi: move the cursor away to close the card.
 - Which apps use the microphone or the camera stays on your PC.
