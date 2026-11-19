@@ -128,6 +128,7 @@ const KEYS: Record<string, string> = {
   l: 'pasta',
   g: 'long',
   z: 'pause',
+  w: 'welcome',
 }
 
 /**
@@ -137,7 +138,8 @@ const KEYS: Record<string, string> = {
  * bubble off, ending it merges it back; a click on the bubble swaps the two), P peek the song, N next song, H hover, E open or close, A alert, F fullscreen,
  * comma press and period cancel the press (E releases it into the panel). B or Ctrl+Alt+Space opens the command
  * bar ('bar'; the Claude app takes Ctrl+Alt+Space when it runs), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
- * nothing: the island only plays its answer.
+ * nothing: the island only plays its answer. W plays the first-launch welcome from the drop ('welcome'), with the
+ * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none.
  */
 export function demo(island: {
   activities: Activity[]
@@ -150,6 +152,8 @@ export function demo(island: {
   alert: () => void
   fullscreen: () => void
   bar: () => void
+  welcome: () => void
+  shortcut: string | undefined
   apps: Listed[]
   claudeApp: boolean
 }) {
@@ -189,6 +193,7 @@ export function demo(island: {
     alert: island.alert,
     fullscreen: island.fullscreen,
     bar: island.bar,
+    welcome: island.welcome,
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
       island.claudeApp = !island.claudeApp
@@ -199,6 +204,7 @@ export function demo(island: {
   if (!isTauri()) {
     island.apps = APPS
     island.claudeApp = true
+    island.shortcut = (new URLSearchParams(location.search).get('shortcut') ?? 'Win+Alt+S') || undefined
   }
   addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {

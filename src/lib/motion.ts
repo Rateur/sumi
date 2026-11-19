@@ -19,13 +19,16 @@ export interface Motion {
 export function motion(from: View, to: View): Motion {
   const [a, b] = [sizeOf(from), sizeOf(to)]
   const grows = b.width * b.height >= a.width * a.height
-  // Back from the panel or the command bar, what was there before comes back without a swell.
-  const back = from.name === 'expanded' || from.name === 'bar' || from.name === 'launch'
+  // Back from the panel, the command bar or the welcome, what was there before comes back without a swell.
+  const back = from.name === 'expanded' || from.name === 'bar' || from.name === 'launch' || from.name === 'welcome'
   const pulse = to.name === 'compact' && !back && !('activity' in from && from.activity?.id === to.activity.id)
+  // The welcome opens and folds as the panel; from its greeting to its shortcut, it only widens.
+  const opens = to.name === 'welcome' && from.name !== 'welcome'
+  const closes = from.name === 'welcome' && to.name !== 'welcome'
   const [width, height]: Axis[] =
-    to.name === 'expanded' || to.name === 'bar'
+    to.name === 'expanded' || to.name === 'bar' || opens
       ? [OPEN.width, OPEN.height]
-      : from.name === 'expanded' || from.name === 'bar'
+      : from.name === 'expanded' || from.name === 'bar' || closes
         ? [CLOSE.width, CLOSE.height]
         : to.name === 'hover'
           ? [[0.4, 0.25], [0.34, 0.15]]
@@ -69,6 +72,12 @@ export const END_PEEK = 6000
 
 /** A finished timer chimes every `every` ms, `times` times, then stays silent. */
 export const CHIME = { every: 10_000, times: 6 } as const
+
+/** The first-launch welcome, in ms from the start of the drop. Without a shortcut it folds at `bare`. */
+export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 2300 } as const
+
+/** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
+export const INK = { r: 15.5, d: 21, goo: 7 } as const
 
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {

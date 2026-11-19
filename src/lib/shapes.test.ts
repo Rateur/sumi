@@ -1,11 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { TIMER, cardSize, layout, radius, resolveView, sizeOf, timerSize, type TimerFit } from './shapes'
+import {
+  TIMER,
+  cardSize,
+  layout,
+  radius,
+  resolveView,
+  sizeOf,
+  timerSize,
+  welcomeWidth,
+  type TimerFit,
+  type Welcome,
+} from './shapes'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
 const timer: Activity = { id: 't', kind: 'timer', endsAt: 0, total: 60_000 }
 const call: Activity = { id: 'c', kind: 'call', mic: true, camera: false }
 const running: TimerFit = { ended: false, long: false, name: 0, digits: 36 }
+const hello: Welcome = { name: 'welcome', step: 'hello', width: 200 }
 
 describe('resolveView', () => {
   const rest = { hovered: false, expanded: false }
@@ -62,6 +74,19 @@ describe('resolveView', () => {
     expect(resolveView({ ...all, clock: true })).toEqual({ name: 'hover' })
   })
 
+  it('shows the welcome under the command bar and over everything else, hover included', () => {
+    const all = { activity: music, hovered: true, expanded: true, peeking: 'm', clock: true, welcome: hello }
+    expect(resolveView({ ...all, bar: true })).toEqual({ name: 'bar' })
+    expect(resolveView(all)).toEqual(hello)
+    expect(resolveView({ ...rest, hovered: true, welcome: hello })).toEqual(hello)
+    expect(resolveView({ ...rest, activity: timer, timer: running, welcome: hello })).toEqual(hello)
+  })
+
+  it('drops the welcome in as the empty island, even with a song playing', () => {
+    expect(resolveView({ ...rest, activity: music, blank: true })).toEqual({ name: 'idle' })
+    expect(resolveView({ ...rest, activity: music, blank: true, welcome: hello })).toEqual(hello)
+  })
+
   it('peeks only the activity that asked for it', () => {
     expect(resolveView({ ...rest, activity: music, peeking: 'm' })).toEqual({ name: 'peek', activity: music })
     expect(resolveView({ ...rest, activity: music, peeking: 't' })).toEqual({ name: 'compact', activity: music })
@@ -76,6 +101,15 @@ describe('sizeOf', () => {
     expect(sizeOf({ name: 'bar' })).toEqual({ width: 480, height: 44 })
     expect(sizeOf({ name: 'launch' })).toEqual({ width: 200, height: 34 })
     expect(radius(44)).toBe(22)
+  })
+
+  it('sizes the welcome around its text, as tall as a peek', () => {
+    expect(welcomeWidth('hello', 95)).toBe(200)
+    expect(welcomeWidth('hello', 150)).toBe(230)
+    expect(welcomeWidth('keys', 276)).toBe(324)
+    // A row not yet in the page measures 0: no 48 px blob, the beat is skipped.
+    expect(welcomeWidth('keys', 0)).toBe(0)
+    expect(sizeOf({ name: 'welcome', step: 'keys', width: 324 })).toEqual({ width: 324, height: 56 })
   })
 
   it('keeps the panel within 560 px', () => {

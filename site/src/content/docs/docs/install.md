@@ -9,6 +9,8 @@ Sumi runs on Windows 10 and 11, 64-bit.
 2. Run it. Windows warns about an unknown publisher: select **More info**, then **Run anyway**.
 3. Open Sumi from the Start menu. The island appears at the top of your main screen.
 
+At first launch, the island says hello and shows the command bar's shortcut, then the time. A click on it skips ahead. The shortcut stays in the tooltip of Sumi's icon in the notification area.
+
 :::note[Why the warning?]
 The installer isn't signed yet. A Microsoft Store version, signed by Microsoft, is on its way: see the [code signing policy](../code-signing/).
 :::

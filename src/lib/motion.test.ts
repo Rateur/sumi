@@ -28,6 +28,15 @@ describe('motion', () => {
     expect(motion({ name: 'launch' }, { name: 'compact', activity: music }).pulse).toBe(false)
   })
 
+  it('opens and folds the welcome as the panel, and only widens it in between', () => {
+    const hello = { name: 'welcome', step: 'hello', width: 200 } as const
+    const keys = { name: 'welcome', step: 'keys', width: 324 } as const
+    expect(motion({ name: 'idle' }, hello)).toMatchObject({ width: OPEN.width, height: OPEN.height })
+    expect(motion(hello, keys)).toMatchObject({ delay: 0, width: [0.44, 0.28], height: [0.3, 0] })
+    expect(motion(keys, { name: 'idle' })).toMatchObject({ delay: 60, width: CLOSE.width, height: CLOSE.height })
+    expect(motion(keys, { name: 'compact', activity: music })).toMatchObject({ width: CLOSE.width, pulse: false })
+  })
+
   it('opens and closes the command bar as the panel', () => {
     expect(motion({ name: 'idle' }, { name: 'bar' })).toMatchObject({ width: OPEN.width, height: OPEN.height })
     expect(motion({ name: 'bar' }, { name: 'idle' })).toMatchObject({ width: CLOSE.width, height: CLOSE.height })
