@@ -1000,11 +1000,20 @@
   oncontextmenu={(event) => event.preventDefault()}
   onpointermove={move}
   onresize={wake}
-  onkeydown={(event) => !tauri && event.key === 'Escape' && (expanded = false)}
+  onkeydown={(event) => {
+    if (tauri || event.key !== 'Escape') return
+    expanded = false
+    closeBar()
+  }}
   onpointerdown={(event) => {
     if (tauri || island.contains(event.target as Node)) return
     expanded = false
     closeBar()
+  }}
+  onmousedown={(event) => {
+    // A click on the chip or around the field must not take the typing away from it.
+    const target = event.target as Node
+    if (barOpen && island.contains(target) && !(target instanceof HTMLInputElement)) event.preventDefault()
   }}
 />
 
