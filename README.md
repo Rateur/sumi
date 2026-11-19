@@ -56,7 +56,7 @@ Sumi collects nothing. Features that need the network will stay off until you tu
 
 ## Contributing
 
-Code lands on the `dev` branch first. Read [the contributing guide](.github/CONTRIBUTING.md) before opening a pull request, and [docs/design.md](docs/design.md) for how the island behaves. Questions and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
+Code lands on the `dev` branch first. Read [the contributing guide](.github/CONTRIBUTING.md) before opening a pull request: it lists what a review checks, from naming to the docs in both languages. [docs/design.md](docs/design.md) covers how the island behaves, and coding agents start with [AGENTS.md](AGENTS.md). Questions and feedback are welcome in [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## License
 
