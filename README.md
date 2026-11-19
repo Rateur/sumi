@@ -11,12 +11,12 @@
   <p><b>English</b> · <a href="README.fr.md">Français</a></p>
 </div>
 
-![The music panel at the top of the screen, with the time in the bubble beside it](.github/assets/hero.webp)
+![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, then the microphone's disc and its card](.github/assets/demo.gif)
 
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.4.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, and shows your music with its controls. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.5.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, and puts a dot beside the island while an app uses your microphone or camera. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
@@ -32,7 +32,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] Spring animations: rest the cursor on the island and it widens, click it and it opens (0.2.0)
 - [x] Hides itself while a game or video is fullscreen (0.3.0)
 - [x] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress; the time moves to a bubble beside it (0.4.0)
-- [ ] An orange or green dot when an app uses your microphone or camera
+- [x] An orange or green dot when an app uses your microphone or camera, with the app and a mute under the cursor (0.5.0)
 - [ ] A command bar (`Ctrl+Alt+Space`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine
 - [ ] Timers: type `25m`
 - [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops

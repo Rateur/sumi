@@ -22,6 +22,9 @@ export interface Rect extends Size {
 export const TOP = 8
 export const BUBBLE = 34
 export const GAP = 8
+/** The privacy tag: a small disc beside everything else, as on the iPhone, holding the microphone or camera dot. */
+export const TAG = 20
+export const TAG_GAP = 6
 
 const SIZES = {
   idle: { width: 132, height: 34 },
@@ -30,6 +33,15 @@ const SIZES = {
 } satisfies Record<string, Size>
 
 const PLAYER: Size = { width: 360, height: 164 }
+
+/** The privacy tag's card: a row per app, up to `rows` (the last one then counts the rest), then its buttons. */
+export const CARD = { width: 248, row: 38, frame: 64, rows: 4 }
+
+/** The card's size for so many apps. With none, only the buttons show, for a muted microphone. */
+export const cardSize = (apps: number): Size => ({
+  width: CARD.width,
+  height: CARD.frame + Math.min(apps, CARD.rows) * CARD.row,
+})
 
 const COMPACT: Record<Activity['kind'], Size> = {
   call: { width: 144, height: 34 },

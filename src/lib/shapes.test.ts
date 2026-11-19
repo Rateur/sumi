@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { layout, radius, resolveView, sizeOf } from './shapes'
+import { cardSize, layout, radius, resolveView, sizeOf } from './shapes'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
 const timer: Activity = { id: 't', kind: 'timer', endsAt: 0 }
@@ -46,6 +46,14 @@ describe('sizeOf', () => {
 
   it('stays compact for a peek the activity has no shape for', () => {
     expect(sizeOf({ name: 'peek', activity: timer })).toEqual(sizeOf({ name: 'compact', activity: timer }))
+  })
+})
+
+describe('cardSize', () => {
+  it('fits a row per app, four at most, under the buttons', () => {
+    expect(cardSize(0)).toEqual({ width: 248, height: 64 })
+    expect(cardSize(2)).toEqual({ width: 248, height: 140 })
+    expect(cardSize(9)).toEqual(cardSize(4))
   })
 })
 

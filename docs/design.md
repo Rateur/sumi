@@ -14,6 +14,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Peek | Music 300 × 56 px*, up to 3 s | Something just happened: new track, charger, low battery. |
 | Expanded | Clock 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
+| Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
@@ -26,7 +27,7 @@ When several things happen at once, the highest one takes the island, the next o
 
 The time is last in line: it has the island when nothing runs, and the bubble when one thing does, so it never leaves the screen. Picked from the bubble, it keeps the island until the music ends.
 
-1. Call, microphone or camera
+1. Call
 2. Timer
 3. Music
 4. Time or weather
@@ -41,6 +42,17 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 - A drag on the bar ends without a seek if the panel closes or another song takes it.
 - A new song swells the island when it is on the island, and the bubble when it is in the bubble.
 - The artwork reaches the island as data, never as a file. Its main color is read from a 16 px copy, and lightened until it shows on black.
+
+## Microphone and camera
+
+- Apple's rule: one dot, green while an app uses a camera, with or without the microphone, orange for the microphone alone. It sits in its own 20 px black disc, 6 px right of the island or the bubble, level with the island's top row. The disc splits off the shape beside it like a drop, as the bubble does from the island, and sinks back into it. The island itself never changes for it, so the music and the time keep their places.
+- The microphone comes from Windows' audio sessions, counting only those that capture right now, since Teams and others keep theirs open after a call. The camera comes from Media Foundation's sensor activity. Both call back when something changes. The registry list behind Windows' privacy page isn't read: recent Windows 11 builds stopped updating it, and a crash leaves stale entries in it for months.
+- A WebView2 process counts as the app that hosts it. Names come from the exe's description, "Discord" or "Google Chrome", and otherwise from its file name.
+- Rest the cursor on the disc, as on the island, and it opens into a card, width first, as the island opens: a row per app with its icon, what it uses and for how long, four at most with the last counting the rest, then the buttons. A click opens it too. It stays where it opened while open, closes 300 ms after the cursor leaves, or on Esc or a click elsewhere, and closes before the disc sinks back into the island.
+- The buttons follow what is in use: mute while an app uses the microphone or it is muted; a camera button while an app films, which brings that app forward, since Windows can't turn the camera off for every app without admin rights; and Windows' privacy settings. A click on an app brings it forward too: its window, or the Store app's frame around it, restored if it was minimized and shown again if it was in the tray. When no window comes forward, Windows' privacy page opens instead.
+- Icons come from the exe, as raw pixels the page paints: no image encoder in the app.
+- Mute is Windows' own mute of the default microphones, for every app. It counts as on only when every default microphone is muted. While it's on, a crossed microphone stays in the disc, even when no app listens.
+- Media Foundation is loaded at run time: Windows N editions ship without it, and Sumi must still start there, with the microphone alone.
 
 ## Input
 

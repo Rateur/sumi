@@ -1,6 +1,7 @@
 mod fullscreen;
 mod island;
 mod media;
+mod privacy;
 
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
@@ -22,6 +23,10 @@ pub fn run() {
             island::set_island_expanded,
             media::media_control,
             media::media_seek,
+            privacy::privacy_state,
+            privacy::privacy_mute,
+            privacy::privacy_settings,
+            privacy::privacy_show,
             media::media_players
         ])
         .setup(|app| {
@@ -58,6 +63,7 @@ pub fn run() {
             fullscreen::watch_foreground();
             island::follow_cursor(app.handle().clone(), window);
             media::watch(app.handle());
+            privacy::watch(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

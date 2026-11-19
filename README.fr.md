@@ -11,12 +11,12 @@
   <p><a href="README.md">English</a> · <b>Français</b></p>
 </div>
 
-![Le panneau musique en haut de l'écran, avec l'heure dans la bulle à côté](.github/assets/hero.webp)
+![Sumi en haut de l'écran : l'heure, la date sous le curseur, une chanson et son lecteur, puis le disque du micro et sa carte](.github/assets/demo.gif)
 
 Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, puis change quand il se passe quelque chose : une chanson démarre, une app allume votre micro, un minuteur se termine. Un clic dessus affiche les commandes.
 
 > [!NOTE]
-> Sumi est en début de développement. La version 0.4.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran et affiche votre musique avec ses commandes. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
+> Sumi est en début de développement. La version 0.5.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran, affiche votre musique avec ses commandes et met un point à côté de l'île quand une app utilise votre micro ou votre caméra. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
 
 ## Télécharger
 
@@ -32,7 +32,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [x] Les animations à ressort : posez le curseur sur l'île et elle s'élargit, cliquez et elle s'ouvre (0.2.0)
 - [x] Elle se masque quand un jeu ou une vidéo est en plein écran (0.3.0)
 - [x] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, précédent, lecture/pause, suivant, progression ; l'heure passe dans une bulle à côté (0.4.0)
-- [ ] Un point orange ou vert quand une app utilise le micro ou la caméra
+- [x] Un point orange ou vert quand une app utilise le micro ou la caméra, avec l'app et un bouton muet sous le curseur (0.5.0)
 - [ ] Une barre de commande (`Ctrl+Alt+Espace`) qui envoie votre question à Claude, ChatGPT, Gemini, Perplexity ou à un moteur de recherche
 - [ ] Des minuteurs : tapez `25m`
 - [ ] La météo d'[Open-Meteo](https://open-meteo.com), et sur portable des alertes de charge et de batterie faible

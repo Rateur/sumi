@@ -4,6 +4,25 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-19
+
+Who uses your microphone or your camera, in a small disc beside the island.
+
+### Added
+
+- While an app uses the microphone or the camera, a small black disc splits off beside the island, with an orange dot for the microphone and a green one for the camera, as on the iPhone. The island and its music never move for it.
+- Rest the cursor on the disc and it opens into a card: each app with its icon, what it uses, and for how long. It closes once the cursor leaves.
+- Mute the microphone for every app from the card. While it's muted, a crossed microphone stays in the disc.
+- Windows can't turn the camera off for every app without admin rights. The card's camera button, or a click on an app, brings that app's window forward, where its own camera button is.
+- The card also opens Windows' privacy settings for the camera or the microphone.
+
+### Known limits
+
+- An app that captures sound or video outside Windows' audio and camera layers isn't seen.
+- The mute is Windows' mute of the default microphone. An app's own mute button, in Discord or Teams for example, doesn't show.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- The installer isn't signed yet: your browser may hold the download, and Windows warns about an unknown publisher.
+
 ## [0.4.0] - 2026-11-17
 
 Your music on the island, from any player, with the time in a bubble beside it.
@@ -77,7 +96,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/Rateur/sumi/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Rateur/sumi/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Rateur/sumi/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Rateur/sumi/compare/v0.1.0...v0.2.0

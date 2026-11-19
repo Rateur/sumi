@@ -1,5 +1,6 @@
 import type { Activity } from './activities'
 import type { Player } from './music'
+import type { Privacy, PrivacyApp } from './privacy'
 
 const SONGS = [
   { title: 'Midnight City', artist: 'M83', color: '#A78BFA' },
@@ -54,6 +55,10 @@ const KEYS: Record<string, string> = {
   e: 'expand',
   a: 'alert',
   f: 'fullscreen',
+  k: 'mic',
+  j: 'camera',
+  u: 'mute',
+  o: 'card',
   ',': 'press',
   '.': 'cancel',
 }
@@ -66,9 +71,11 @@ const KEYS: Record<string, string> = {
  */
 export function demo(island: {
   activities: Activity[]
+  privacy: Privacy
   peek: (id: string) => void
   hover: () => void
   expand: () => void
+  card: () => void
   press: (down: boolean) => void
   alert: () => void
   fullscreen: () => void
@@ -77,7 +84,15 @@ export function demo(island: {
     const others = island.activities.filter((a) => a.id !== fake.id)
     island.activities = others.length < island.activities.length ? others : [...others, fake]
   }
+  const use = (fake: PrivacyApp) => {
+    const { apps } = island.privacy
+    const others = apps.filter((a) => a.name !== fake.name)
+    island.privacy = { ...island.privacy, canMute: true, apps: others.length < apps.length ? others : [...others, fake] }
+  }
   const actions: Record<string, () => void> = {
+    mic: () => use({ name: 'Discord', mic: true, camera: false, sinceMs: Date.now() - 12 * 60_000 }),
+    camera: () => use({ name: 'Microsoft Teams', mic: true, camera: true, sinceMs: Date.now() }),
+    mute: () => (island.privacy = { ...island.privacy, canMute: true, muted: !island.privacy.muted }),
     ...Object.fromEntries(Object.entries(fakes).map(([name, fake]) => [name, () => toggle(fake())])),
     peek: () => island.peek('music'),
     track: () => {
@@ -87,6 +102,7 @@ export function demo(island: {
     },
     hover: island.hover,
     expand: island.expand,
+    card: island.card,
     press: () => island.press(true),
     cancel: () => island.press(false),
     alert: island.alert,

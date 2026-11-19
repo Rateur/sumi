@@ -3,7 +3,7 @@ title: Privacy
 description: Sumi collects nothing.
 ---
 
-Sumi has no account, no telemetry and no analytics. Version 0.4.0 doesn't use the network at all. The music it shows, title, artist and artwork, comes from Windows and stays on your PC.
+Sumi has no account, no telemetry and no analytics. Version 0.5.0 doesn't use the network at all. What it shows comes from Windows and stays on your PC: the music's title, artist and artwork, and which apps use the microphone or the camera.
 
 Features that need the network will stay off until you turn them on:
 

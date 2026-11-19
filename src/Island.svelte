@@ -18,7 +18,22 @@
   } from './lib/clock'
   import { dominant } from './lib/color'
   import { ENTER, EXIT, FULLSCREEN, PRESS, bezier, motion, squash, type Axis } from './lib/motion'
-  import { BUBBLE, GAP, TOP, layout, radius, resolveView, sizeOf, type Rect, type View } from './lib/shapes'
+  import { label, lasted, light, quiet, tagged, type Privacy } from './lib/privacy'
+  import {
+    BUBBLE,
+    CARD,
+    GAP,
+    TAG,
+    TAG_GAP,
+    TOP,
+    cardSize,
+    layout,
+    radius,
+    resolveView,
+    sizeOf,
+    type Rect,
+    type View,
+  } from './lib/shapes'
   import {
     clockTime,
     nextChange,
@@ -64,6 +79,13 @@
   let now = $state(new Date())
   // Windows' default. Rust sends the user's own each time the cursor arrives.
   let hoverTime = 400
+  // Who uses the microphone or the camera, from Rust. The tag beside the island opens into a card of its own, so
+  // the island and its music never move: `onTag` is the cursor on the tag right away, `card` the card open once
+  // the cursor rests there.
+  let privacy = $state<Privacy>(quiet())
+  let onTag = false
+  let card = $state(false)
+  let tagTimer: ReturnType<typeof setTimeout> | undefined
 
   let shown: Arrangement | undefined
   const arrangement = $derived.by(() => (shown = arrange([...activities, ...music], shown, prefer)))
@@ -101,14 +123,18 @@
   })
 
   // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
-  // of the island, `bubble` is its size and `drop` lifts everything off the screen in fullscreen.
+  // of the island and `bubble` is its size; `tagShift`, `tagW` and `tagH` do the same for the privacy tag, which
+  // also opens into a card; `drop` lifts everything off the screen in fullscreen.
   const start = untrack(() => size)
   const width = new Spring(start.width)
   const height = new Spring(start.height)
   const drop = new Spring(0)
   const travel = new Spring(0)
   const bubble = new Spring(0)
-  const springs = [width, height, drop, travel, bubble]
+  const tagShift = new Spring(0)
+  const tagW = new Spring(0)
+  const tagH = new Spring(0)
+  const springs = [width, height, drop, travel, bubble, tagShift, tagW, tagH]
 
   let goo = $state(false)
   let sigma = $state(0)
@@ -116,6 +142,8 @@
   let phase: 'none' | 'split' | 'shown' | 'merge' = 'none'
   let delayed: ReturnType<typeof setTimeout> | undefined
   let reveal = 0
+  // Where the open card's left edge stays while it is open.
+  let anchor: number | undefined
   let geometry = $state.raw(shape())
   let raf = 0
 
@@ -129,7 +157,23 @@
       drop: drop.value,
     })
     const clip = { width: Math.min(w, width.value), height: Math.min(h, height.value) }
-    return { fill, dot, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
+    // The privacy tag sits beside whichever edge is farther right, level with the top row. While it is smaller than
+    // a disc it grows from the disc's center; past that, from its top-left corner, into the card.
+    const right = dot && dot.x + dot.width > fill.x + fill.width ? dot : fill
+    const [tw, th] = [tagW.value, tagH.value]
+    const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
+    const beside = right.x + right.width + TAG_GAP
+    anchor = card ? (anchor ?? beside) : undefined
+    const flag =
+      tw > 0.5
+        ? {
+            x: (anchor ?? beside) + tagShift.value + inset,
+            y: TOP + drop.value + (BUBBLE - TAG) / 2 + inset,
+            width: tw,
+            height: th,
+          }
+        : undefined
+    return { fill, dot, tag: flag, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
   }
 
   // Frames run only while something moves: at rest there is no loop, no IPC and no filter.
@@ -157,6 +201,15 @@
       phase = 'none'
       bubble.jump(0)
       pulse(120, 0, t)
+      fade(0, 120, t)
+    }
+    if (tagPhase === 'split' && near(tagShift) && near(tagW)) {
+      tagPhase = 'shown'
+      fade(0, 120, t)
+    } else if (tagPhase === 'merge' && near(tagShift) && near(tagW)) {
+      tagPhase = 'none'
+      tagW.jump(0)
+      tagH.jump(0)
       fade(0, 120, t)
     }
     if (!hidden && !revealed && drop.value >= reveal) revealed = true
@@ -271,6 +324,62 @@
     fade(GOO, 80, t)
     drive(travel, -TRAVEL, [0.36, 0], t)
     drive(bubble, 20, [0.36, 0], t)
+  }
+
+  // The privacy tag splits off whatever is rightmost like a drop, as the bubble does, and sinks back into it.
+  let tagPhase: 'none' | 'split' | 'shown' | 'merge' = 'none'
+  $effect(() => {
+    const has = tagged(privacy)
+    untrack(() => (has ? emerge() : retract()))
+  })
+
+  function emerge() {
+    if (tagPhase === 'split' || tagPhase === 'shown') return
+    const w = Math.max(TAG, tagContent)
+    if (reduced || forced.current || (hidden && drop.resting)) {
+      tagShift.jump(0)
+      tagW.jump(w)
+      tagH.jump(TAG)
+      tagPhase = 'shown'
+      return wake()
+    }
+    const t = performance.now()
+    if (tagPhase === 'none') {
+      tagShift.jump(-(TAG_GAP + TAG))
+      tagW.jump(12)
+      tagH.jump(12)
+    }
+    tagPhase = 'split'
+    ramp = undefined
+    goo = true
+    sigma = GOO
+    tagShift.to(0, 0.5, 0.3, t)
+    tagW.to(w, 0.4, 0.25, t)
+    tagH.to(TAG, 0.4, 0.25, t)
+    wake()
+  }
+
+  let retracting: ReturnType<typeof setTimeout> | undefined
+  function retract() {
+    if (tagPhase === 'none' || tagPhase === 'merge') return
+    if (card || tagH.value > TAG + 0.5) {
+      closeCard()
+      clearTimeout(retracting)
+      retracting = setTimeout(() => tagged(privacy) || retract(), 320)
+      return
+    }
+    if (reduced || forced.current || (hidden && drop.resting)) {
+      tagW.jump(0)
+      tagH.jump(0)
+      tagPhase = 'none'
+      return wake()
+    }
+    const t = performance.now()
+    tagPhase = 'merge'
+    fade(GOO, 80, t)
+    drive(tagShift, -(TAG_GAP + TAG), [0.36, 0], t)
+    drive(tagW, 12, [0.36, 0], t)
+    drive(tagH, 12, [0.36, 0], t)
   }
 
   // Pieces that stay from one view to the next move from their old box to their new one, in step
@@ -393,7 +502,8 @@
   let sent: (Rect & { radius: number })[] = []
   function report(moving: boolean) {
     if (!tauri) return
-    const rects = hidden && drop.resting ? [] : [geometry.fill, geometry.dot].filter((r) => r !== undefined)
+    const rects =
+      hidden && drop.resting ? [] : [geometry.fill, geometry.dot, geometry.tag].filter((r) => r !== undefined)
     const padded = rects.map(({ x, y, width, height }) => ({
       x: x - 1,
       y: y - 1,
@@ -437,6 +547,7 @@
     if (on) {
       // It comes back compact: no panel, no hover, no press, no peek.
       clearTimeout(hoverTimer)
+      closeCard()
       clearTimeout(peekTimer)
       press(false)
       pointer = false
@@ -486,7 +597,7 @@
     rest = undefined
     clearTimeout(hoverTimer)
     if (!inside) press(false)
-    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside), inside ? hoverTime : LEAVE)
+    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
   }
 
   // A cursor still moving on the island starts the wait over from where it is.
@@ -504,8 +615,13 @@
       listen<number | null>('island://pointer', ({ payload }) => {
         if (payload !== null) hoverTime = payload
         point(payload !== null)
+        // Once the window lets the cursor through, the tag never hears it leave.
+        if (payload === null) pointTag(false)
       }),
-      listen('island://dismiss', () => (expanded = false)),
+      listen('island://dismiss', () => {
+        expanded = false
+        closeCard()
+      }),
       listen<Presence>('island://presence', ({ payload }) => {
         presence = payload
         fullscreen(payload === 'hidden')
@@ -515,7 +631,8 @@
   })
 
   $effect(() => {
-    if (tauri) invoke('set_island_expanded', { expanded })
+    // Esc and a click elsewhere close the tag's card too.
+    if (tauri) invoke('set_island_expanded', { expanded: expanded || card })
   })
 
   let peekTimer: ReturnType<typeof setTimeout>
@@ -604,6 +721,95 @@
     if (tauri && id) invoke('media_control', { id, action })
   }
 
+  $effect(() => {
+    if (!tauri) return
+    let heard = false
+    const stop = listen<Privacy>('privacy://state', ({ payload }) => {
+      heard = true
+      privacy = payload
+    })
+    // What Rust found before this listener existed.
+    invoke<Privacy>('privacy_state').then((state) => heard || (privacy = state))
+    return () => {
+      stop.then((unlisten) => unlisten())
+    }
+  })
+
+  // The tag fits what it holds: a disc around the dot and the crossed microphone, or the card. The card opens as
+  // the island does, width first, and closes height first, without a bounce.
+  let tagContent = $state(0)
+  const tagSize = $derived(card ? cardSize(privacy.apps.length) : { width: Math.max(TAG, tagContent), height: TAG })
+  $effect(() => {
+    const { width: w, height: h } = tagSize
+    untrack(() => {
+      if (tagPhase !== 'split' && tagPhase !== 'shown') return
+      if (w === tagW.target && h === tagH.target) return
+      if (reduced || forced.current || (hidden && drop.resting)) {
+        tagW.jump(w)
+        tagH.jump(h)
+        return wake()
+      }
+      const t = performance.now()
+      if (h > tagH.target) {
+        drive(tagW, w, [0.46, 0.26], t)
+        drive(tagH, h, [0.52, 0.18], t)
+      } else if (h < tagH.target) {
+        drive(tagW, w, [0.4, 0], t)
+        drive(tagH, h, [0.34, 0], t)
+      } else drive(tagW, w, w > tagW.value ? [0.4, 0.3] : [0.3, 0], t)
+      wake()
+    })
+  })
+
+  // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
+  let tagRest: { x: number; y: number } | undefined
+  function pointTag(inside: boolean) {
+    onTag = inside
+    tagRest = undefined
+    clearTimeout(tagTimer)
+    tagTimer = setTimeout(() => (card = inside && tagged(privacy)), inside ? hoverTime : LEAVE)
+  }
+
+  function moveTag({ clientX: x, clientY: y }: PointerEvent) {
+    if (!onTag || card) return
+    if (tagRest && Math.abs(x - tagRest.x) <= REST && Math.abs(y - tagRest.y) <= REST) return
+    if (tagRest) pointTag(true)
+    tagRest = { x, y }
+  }
+
+  function closeCard() {
+    onTag = false
+    clearTimeout(tagTimer)
+    card = false
+  }
+
+  // The app's own icon, painted from the pixels Rust read.
+  function paintIcon(canvas: HTMLCanvasElement, icon: { side: number; rgba: string }) {
+    const draw = ({ side, rgba }: typeof icon) => {
+      const bytes = Uint8ClampedArray.from(atob(rgba), (c) => c.charCodeAt(0))
+      canvas.width = canvas.height = side
+      canvas.getContext('2d')?.putImageData(new ImageData(bytes, side, side), 0, 0)
+    }
+    draw(icon)
+    return { update: draw }
+  }
+
+  function mute() {
+    if (tauri) invoke('privacy_mute', { muted: !privacy.muted })
+    else privacy = { ...privacy, muted: !privacy.muted }
+  }
+
+  function settings() {
+    if (tauri) invoke('privacy_settings', { camera: light(privacy) === 'camera' })
+    closeCard()
+  }
+
+  // Windows can't turn the camera off for every app the way it mutes the microphone: the app's own window can.
+  async function show(name: string) {
+    closeCard()
+    if (tauri && !(await invoke<boolean>('privacy_show', { name }))) settings()
+  }
+
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
   function swap() {
     const picked = arrangement.bubble
@@ -688,9 +894,16 @@
         set activities(next) {
           activities = next
         },
+        get privacy() {
+          return privacy
+        },
+        set privacy(next) {
+          privacy = next
+        },
         peek,
         hover: () => (hovered = !hovered),
         expand: () => (expanded ? (expanded = false) : open()),
+        card: () => (card ? closeCard() : (card = tagged(privacy))),
         press,
         alert,
         fullscreen: () => fullscreen(!hidden),
@@ -735,6 +948,19 @@
         d="M12.5 6.2v11.6a.8.8 0 0 0 1.25.66L21 13.32a.8.8 0 0 0 0-1.32l-7.25-5.46a.8.8 0 0 0-1.25.66Zm-10 0v11.6a.8.8 0 0 0 1.25.66L11 13.32a.8.8 0 0 0 0-1.32L3.75 6.54a.8.8 0 0 0-1.25.66Z"
       />
     {/if}
+  </svg>
+{/snippet}
+
+{#snippet microphone(crossed: boolean)}
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" />
+    <path class="slash" class:on={crossed} pathLength="1" d="M4 4l16 16" />
+  </svg>
+{/snippet}
+
+{#snippet camera()}
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <rect x="3" y="6.5" width="13" height="11" rx="2.5" /><path d="M16 10.5l5-3v9l-5-3" />
   </svg>
 {/snippet}
 
@@ -785,6 +1011,9 @@
   <div class="fill" style={place(geometry.fill)}></div>
   {#if geometry.dot}
     <div class="fill" style={place(geometry.dot)}></div>
+  {/if}
+  {#if geometry.tag}
+    <div class="fill" style={place(geometry.tag)}></div>
   {/if}
 </div>
 
@@ -940,6 +1169,102 @@
       {/key}
     {/if}
   </button>
+{/if}
+
+{#if geometry.tag}
+  {@const uses = light(privacy)}
+  {@const many = privacy.apps.length > CARD.rows}
+  {@const rows = privacy.apps.slice(0, many ? CARD.rows - 1 : CARD.rows)}
+  <div
+    class="island tag"
+    role="group"
+    aria-label="Microphone and camera"
+    style={place(geometry.tag)}
+    onpointerenter={() => pointTag(true)}
+    onpointermove={moveTag}
+    onpointerleave={() => pointTag(false)}
+  >
+    {#if !card}
+      <button
+        type="button"
+        class="opener"
+        aria-expanded="false"
+        aria-label={[
+          label(privacy) && `${label(privacy)}: ${uses === 'camera' ? 'camera' : 'microphone'} in use`,
+          privacy.muted && privacy.canMute && 'microphone muted',
+        ]
+          .filter(Boolean)
+          .join(', ')}
+        onclick={() => {
+          clearTimeout(tagTimer)
+          card = true
+        }}
+      ></button>
+    {/if}
+    {#if revealed && !card}
+      <span class="disc" bind:clientWidth={tagContent} in:enter|global out:exit|global={{ shrinks: false }}>
+        {#if privacy.muted && privacy.canMute}<span class="crossed">{@render microphone(true)}</span>{/if}
+        {#if uses}<span class="dot" class:mic={uses === 'mic'} class:camera={uses === 'camera'}></span>{/if}
+      </span>
+    {:else if revealed}
+      {@const size = cardSize(privacy.apps.length)}
+      <span class="card" style:width="{size.width}px" style:height="{size.height}px">
+        {#each rows as app, i (app.name)}
+          <button
+            type="button"
+            class="app"
+            aria-label="Show {app.name}: {[app.mic && 'microphone', app.camera && 'camera']
+              .filter(Boolean)
+              .join(', ')}{lasted(app.sinceMs, now.getTime()) && `, ${lasted(app.sinceMs, now.getTime())}`}"
+            onclick={() => show(app.name)}
+            in:enter|global={{ step: i }}
+            out:exit|global={{ shrinks: true }}
+          >
+            {#if app.icon}
+              <canvas class="icon" use:paintIcon={app.icon} aria-hidden="true"></canvas>
+            {:else}
+              <span class="icon letter" aria-hidden="true">{app.name.slice(0, 1)}</span>
+            {/if}
+            <span class="name">{app.name}</span>
+            <span class="uses">
+              {#if app.mic}<span data-device="mic">{@render microphone(false)}</span>{/if}
+              {#if app.camera}<span data-device="camera">{@render camera()}</span>{/if}
+              <span class="hidden">{[app.mic && 'microphone', app.camera && 'camera'].filter(Boolean).join(', ')}</span>
+            </span>
+            <span class="muted since">{lasted(app.sinceMs, now.getTime())}</span>
+          </button>
+        {/each}
+        {#if many}
+          <span class="app muted more" in:enter|global={{ step: rows.length }} out:exit|global={{ shrinks: true }}>
+            +{privacy.apps.length - rows.length}
+          </span>
+        {/if}
+        <span class="actions" in:enter|global={{ step: rows.length + 1 }} out:exit|global={{ shrinks: true }}>
+          {#if privacy.canMute && (privacy.muted || privacy.apps.some((a) => a.mic))}
+            <button
+              type="button"
+              class:on={privacy.muted}
+              aria-label="Mute the microphone"
+              aria-pressed={privacy.muted}
+              onclick={mute}
+            >
+              {@render microphone(privacy.muted)}
+            </button>
+          {/if}
+          {#each privacy.apps.filter((a) => a.camera).slice(0, 1) as filming (filming.name)}
+            <button type="button" class="filming" aria-label="Show {filming.name}" onclick={() => show(filming.name)}>
+              {@render camera()}
+            </button>
+          {/each}
+          <button type="button" class="settings" aria-label="Privacy settings" onclick={settings}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
+            </svg>
+          </button>
+        </span>
+      </span>
+    {/if}
+  </div>
 {/if}
 
 <style>
@@ -1234,6 +1559,217 @@
 
   .bubble .art {
     border-radius: 50%;
+  }
+
+  /* The privacy tag. As a disc, what it holds sits in a row from its left end; as a card, it is laid out at the
+     card's size from the top-left corner, and the shape reveals it as it opens. */
+  .tag .disc {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 20px;
+    padding: 0 6px;
+  }
+
+  .tag .dot {
+    width: 8px;
+    height: 8px;
+    transition: background-color 0.3s;
+  }
+
+  .tag .crossed svg {
+    display: block;
+    width: 12px;
+    height: 12px;
+  }
+
+  .card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: 10px 12px;
+  }
+
+  .app {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 10px;
+    height: 38px;
+    margin: 0 -6px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 10px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    cursor: default;
+    transition:
+      background-color 0.2s,
+      scale 0.15s;
+  }
+
+  button.app:hover {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  button.app:active {
+    scale: 0.97;
+  }
+
+  .icon {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+  }
+
+  .letter {
+    display: grid;
+    place-items: center;
+    background: rgb(255 255 255 / 0.16);
+    font-size: 12px;
+  }
+
+  .app .name {
+    flex: 1;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+  }
+
+  .uses {
+    display: flex;
+    gap: 4px;
+  }
+
+  .uses svg {
+    display: block;
+    width: 15px;
+    height: 15px;
+  }
+
+  .uses [data-device='mic'] {
+    color: #fb923c;
+  }
+
+  .uses [data-device='camera'] {
+    color: #4ade80;
+  }
+
+  .hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .since {
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .more {
+    padding-left: 34px;
+  }
+
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    margin-top: auto;
+  }
+
+  .actions button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 0.14);
+    color: #fff;
+    cursor: default;
+    transition:
+      scale 0.15s,
+      background-color 0.25s,
+      color 0.25s;
+  }
+
+  .actions button:active {
+    scale: 0.88;
+  }
+
+  /* On, a button turns white, as Control Center's do. */
+  .actions .on {
+    background: #fff;
+    color: #000;
+  }
+
+  /* The camera can't be cut from here: its button opens the app filming, in its color. */
+  .actions .filming {
+    color: #4ade80;
+  }
+
+  .actions .settings {
+    margin-left: auto;
+  }
+
+  .actions svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .tag svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* The slash draws itself across the microphone, and wipes back off. */
+  .slash {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    transition: stroke-dashoffset 0.28s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .slash.on {
+    stroke-dashoffset: 0;
+  }
+
+  .crossed .slash {
+    animation: draw 0.32s 0.12s cubic-bezier(0.2, 0, 0, 1) backwards;
+  }
+
+  @keyframes draw {
+    from {
+      stroke-dashoffset: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slash,
+    .tag .dot,
+    .actions button {
+      transition: none;
+    }
+
+    .crossed .slash {
+      animation: none;
+    }
   }
 
   .countdown {
