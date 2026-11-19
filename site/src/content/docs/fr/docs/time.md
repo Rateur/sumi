@@ -19,3 +19,5 @@ Un onglet, une sélection de texte ou une fenêtre que vous faites glisser en ha
 
 - Écran principal uniquement. Le choix de l'écran arrivera avec les réglages, avant la 1.0.
 - Le format suit la langue d'affichage de Windows, pas encore le format d'heure réglé dans Windows.
+- Au toucher ou au stylet, le premier appui sur l'île atteint l'app en dessous ; le second l'ouvre.
+- Quand une app lancée en administrateur, comme le Gestionnaire des tâches, a le focus, Windows cache Échap et les clics à Sumi : changez d'app pour refermer le panneau.
