@@ -50,6 +50,46 @@ export const installed = [
   'PowerPoint',
 ]
 
+/**
+ * A fuller Start list, about 200 names: the ones above, Windows' own apps as a French Windows names them (with
+ * Character Map in English too), and popular apps. Written by hand from public names, never read from a PC. Many
+ * sit close to common words: 'Lenovo Service Bridge', 'Table des caractères', 'LEGO® Worlds', 'Signal', 'Cursor'.
+ */
+export const common = [
+  ...installed,
+  ...['Microsoft Edge', 'Terminal', 'Windows PowerShell', 'Windows PowerShell ISE', 'Gestionnaire des tâches'],
+  ...['Panneau de configuration', 'Table des caractères', 'Character Map', "Outil Capture d'écran", 'Loupe'],
+  ...['Clavier visuel', 'Narrateur', 'Lecteur multimédia', 'Pense-bêtes', 'Météo', 'Actualités', 'Cartes'],
+  ...['Magnétophone', 'Xbox', 'Game Bar', 'Conseils', "Obtenir de l'aide", 'Copilot', 'OneDrive', 'OneNote'],
+  ...['Paint', 'Paint 3D', 'Films et TV', 'Mobile connecté', 'Hub de commentaires', 'Assistance rapide'],
+  ...['Dev Home', 'Microsoft Clipchamp', 'Microsoft To Do', 'Famille Microsoft', 'Caméra', 'Contacts', 'Courrier'],
+  ...['Éditeur du Registre', "Observateur d'événements", 'Moniteur de ressources', 'Informations système'],
+  ...["Gestion de l'ordinateur", 'Services', 'Nettoyage de disque', 'Défragmenter et optimiser les lecteurs'],
+  ...['Connexion Bureau à distance', 'Exécuter', 'Configuration du système', 'Sauvegarde Windows'],
+  ...['Diagnostic de mémoire Windows', 'Planificateur de tâches', 'Moniteur de performances', 'Outils Windows'],
+  ...['Windows Media Player Legacy', 'Microsoft 365 (Office)', 'Power Automate', 'Microsoft Defender'],
+  ...['Windows App', 'Microsoft Solitaire Collection', 'Microsoft Journal', 'Mozilla Thunderbird', 'Opera GX Browser'],
+  ...['Opera', 'Brave', 'Vivaldi', 'Tor Browser', 'Notepad++', 'Sublime Text', 'Visual Studio 2022', 'Android Studio'],
+  ...['IntelliJ IDEA Community Edition', 'PyCharm Community Edition', 'Git Bash', 'Git GUI', 'GitHub Desktop'],
+  ...['Docker Desktop', 'Postman', 'Node.js', 'Python 3.13 (64-bit)', 'IDLE (Python 3.13 64-bit)', 'WinSCP'],
+  ...['PuTTY', 'FileZilla', 'WinRAR', '7-Zip File Manager', 'Audacity', 'GIMP 2.10.38', 'Krita', 'Inkscape'],
+  ...['Blender', 'Adobe Acrobat', 'Adobe Creative Cloud', 'DaVinci Resolve', 'HandBrake', 'CapCut', 'Canva'],
+  ...['Figma', 'Telegram', 'Signal', 'Messenger', 'Skype', 'Notion', 'Evernote', 'Todoist', '1Password'],
+  ...['Bitwarden', 'Dropbox', 'Google Drive', 'iCloud', 'Proton VPN', 'NordVPN', 'Malwarebytes', 'Calibre'],
+  ...['Avast Free Antivirus', 'CCleaner', 'EA', 'Ubisoft Connect', 'GOG GALAXY', 'Minecraft Launcher'],
+  ...['Roblox Player', 'Roblox Studio', 'LEGO® Worlds', 'Rocket League', 'NVIDIA app', 'Realtek Audio Console'],
+  ...['AMD Software: Adrenalin Edition', 'Logitech G HUB', 'Razer Synapse', 'iCUE', 'SteelSeries GG'],
+  ...['MSI Afterburner', 'HWiNFO64', 'CPU-Z', 'CrystalDiskInfo', 'Lenovo Vantage', 'Lenovo Service Bridge'],
+  ...['Dell SupportAssist', 'HP Smart', 'MyASUS', 'Armoury Crate', 'LibreOffice', 'LibreOffice Calc'],
+  ...['LibreOffice Writer', 'LibreOffice Impress', 'LibreOffice Draw', 'LibreOffice Base', 'LibreOffice Math'],
+  ...['Access', 'Publisher', 'Deezer', 'Apple Music', 'iTunes', 'Amazon Music', 'Prime Video', 'Disney+'],
+  ...['Plex', 'Kodi', 'TeamViewer', 'AnyDesk', 'Parsec', 'Google Earth Pro', 'Kindle', 'ChatGPT', 'Ollama'],
+  ...['LM Studio', 'Cursor', 'Warp', 'PowerToys (Preview)', 'Everything', 'ShareX', 'Greenshot', 'Rainmeter'],
+  ...['WinDirStat', 'Rufus', 'balenaEtcher', 'Oracle VirtualBox', 'VMware Workstation Pro', 'Ubuntu'],
+  ...['Arduino IDE', 'RStudio', 'Anaconda Navigator', 'Jupyter Notebook', 'Zotero', 'Microsoft Whiteboard'],
+  ...['Power BI Desktop', 'Instagram', 'TikTok', 'Twitch', 'Unity Hub'],
+]
+
 export type Row = [line: string, lang: 'fr' | 'en' | 'mix', kind: Choice['kind'], target?: string | number]
 
 const s = 1000

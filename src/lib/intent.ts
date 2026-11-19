@@ -509,7 +509,8 @@ function timerAction<A extends App>(line: string, timers: readonly Timer[], now:
 
 /**
  * How names compare: folded, punctuation dropped as the line drops it ('Battle.net' is 'battle net'), without
- * apostrophes or hyphens, each word without a plural s or x unless kept.
+ * apostrophes or hyphens, each word without a plural s, or the x of -aux, -eux and -oux, unless kept. 'Plex' keeps
+ * its x, so 'ple' on its way to 'please' is no Plex.
  */
 export function key(name: string, plural = false): string {
   return fold(name)
@@ -518,7 +519,7 @@ export function key(name: string, plural = false): string {
     .replace(/-/g, ' ')
     .split(/\s+/)
     .filter(Boolean)
-    .map((w) => (w.length > 3 && !plural ? w.replace(/[sx]$/, '') : w))
+    .map((w) => (w.length > 3 && !plural ? w.replace(/s$|(?<=[aeo]u)x$/, '') : w))
     .join(' ')
 }
 
@@ -588,15 +589,22 @@ function typos(a: string, b: string, max: number): number {
 }
 
 // Letters in order, the way people shorten a name: from the start of a word, then dropping only vowels ('ntpd')
-// or jumping to the next word ('vsc'). So 'porte' never finds 'exPlORaTEur', nor 'timer' 'TIME doctoR'.
+// or jumping to the next word ('vsc'), never over a whole one. So 'porte' never finds 'exPlORaTEur', 'timer' 'TIME
+// doctoR', nor 'ame' 'AMd software adrenalin Edition'.
 function shortens(query: string, name: string): boolean {
   let i = 0
   let consonant = true // skipped since the last letter kept: the first one starts a word
+  let kept = false // a letter kept in this word
   for (let j = 0; j < name.length; j++) {
     const c = name[j]
+    if (c === ' ') {
+      if (i && !kept) return false
+      kept = false
+    }
     if (c === query[i] && (j === 0 || name[j - 1] === ' ' || !consonant)) {
       if (++i === query.length) return true
       consonant = false
+      kept = true
     } else if (!'aeiouy '.includes(c)) consonant = true
   }
   return false
@@ -749,6 +757,8 @@ export function findApp<A extends App>(query: string, apps: readonly A[], tied?:
   const near = new Map<Entry<A>, number>()
   const has = letters(q)
   const check = (e: Entry<A>, w: string, bits = letters(w)) => {
+    // A typo keeps the first letter, or swaps it with the second: 'fridge' is no Bridge.
+    if (w[0] !== q[0] && (w[0] !== q[1] || w[1] !== q[0])) return
     const max = allows(w)
     // Most names lack too many of the letters to be worth the table.
     let t = max && ones(has & ~bits) <= max && ones(bits & ~has) <= max ? typos(q, w, max) : Infinity
@@ -914,6 +924,12 @@ function wordOf<A extends App>(index: Index<A>, text: string): A | undefined {
   return hits.length === 1 ? hits[0].app : undefined
 }
 
+// The one app called this in capitals: 'obs' for OBS Studio.
+function capitals<A extends App>(index: Index<A>, w: string): A | undefined {
+  const hits = (index.byInitial.get(w[0]) ?? []).filter((e) => e.called.includes(w))
+  return hits.length === 1 ? hits[0].app : undefined
+}
+
 /**
  * What Enter can do with a line, the top guess first, then what Tab reaches: the apps that tied, the default
  * assistant, the others in the user's order, then the search engine. An empty line does nothing.
@@ -971,12 +987,16 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     if (verb) {
       const system = SYSTEM.exec(verb[3])
       const fuzzy = verb[1] && !verb[4]
+      // After a determiner, 3 letters are a word on its way unless an app is called that: 'open the cal' and 'start
+      // the car' open nothing, 'launch the obs app' opens OBS Studio.
+      const brief = verb[2] && verb[3].length < 4
       // The whole line first, so 'open control p' may still become Control Panel. Before a tail, an exact name only,
       // as 'maintenant' typed whole asks for one: the chip never shows an app the finished line won't open.
       const held = tail && !verb[4] ? armed(VERB.exec(cut)) : undefined
       const app =
         (system && exactly(index, system[1])) ||
-        (fuzzy ? findApp(verb[3], options.apps, tied) : exactly(index, verb[3])) ||
+        (fuzzy && !brief ? findApp(verb[3], options.apps, tied) : exactly(index, verb[3])) ||
+        (fuzzy && brief && capitals(index, verb[3])) ||
         (held && exactly(index, held[3]))
       if (app) return [open(app), typed]
       // Named as typed. 'lance un minuteur' is no missing app, just a question.

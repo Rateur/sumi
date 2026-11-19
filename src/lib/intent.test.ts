@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice, type Timer } from './intent'
-import { corpus, installed, type Row } from './intent.corpus'
+import { common, corpus, installed, type Row } from './intent.corpus'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
 // Word and Time Doctor sit one typo from 'world' and 'timer': they must not catch them.
@@ -525,6 +525,27 @@ describe('corpus', () => {
     expect(c.kind).toBe(kind)
     expect(target(c)).toBe(to)
   })
+
+  // About 200 Start names, Windows' own and popular apps: questions stay questions on a fuller list too. A few rows
+  // read differently there on purpose, as an app missing above is installed or a second one ties.
+  it.each(corpus)('%s (%s) on a common Start list', (line, _, kind, to = 'claude') => {
+    const repinned: Record<string, [Choice['kind'], string]> = {
+      'ouvre paint': ['app', 'Paint'],
+      'open paint': ['app', 'Paint'],
+      // Visual Studio 2022 ties with Visual Studio Code.
+      'open visual studio': ['ask', 'claude'],
+    }
+    const c = choices(line, { ...options, apps: common.map((name) => ({ name })) })[0]
+    expect([c.kind, target(c)]).toEqual(repinned[line] ?? [kind, to])
+  })
+
+  // Each alone, as on a PC where no other app ties with it: 'start the car' is no Table des caractères.
+  it.each(['open the fridge', 'start the car', 'ouvre world', 'open world', 'ouvre la cal', 'open the cal'])(
+    '%s stays a question with any one common app',
+    (line) => {
+      for (const name of common) expect(choices(line, { ...options, apps: [{ name }] })[0].kind, name).toBe('ask')
+    },
+  )
 
   it('gives the same chip twice, from the same list or a copy', () => {
     for (const [line] of corpus) {
