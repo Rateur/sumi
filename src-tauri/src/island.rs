@@ -173,14 +173,33 @@ fn screen() -> (i32, i32) {
     (0, 0)
 }
 
-/// Whether the poll moves the window this tick. Right after the island comes back, only once the primary screen
-/// has its size from before the hide: a game's resolution can come back a moment after the game leaves the front.
-/// Otherwise on a new window width, which a new scale brings, and once a second.
-pub fn places(settling: bool, screen_back: bool, width_changed: bool, second: bool) -> bool {
-    if settling {
-        screen_back
-    } else {
-        width_changed || second
+/// The wait, after the island comes back, for the primary screen's size from before the hide: a game's resolution
+/// can come back a moment after the game leaves the front.
+struct Settle {
+    /// Ticks left to wait.
+    left: u32,
+    /// The primary screen's size to come back to.
+    before: (i32, i32),
+}
+
+impl Settle {
+    /// One tick while the island shows, with the screen's size `now`: whether the poll moves the window. While
+    /// waiting, only once the screen is back. Otherwise on a new window width, which a new scale brings, and once a
+    /// second. The size to come back to is taken only when the presence check ran, and never while waiting: a game
+    /// that changes the resolution after it comes to the front stays unseen until the next check.
+    fn step(&mut self, now: (i32, i32), checked: bool, width_changed: bool, second: bool) -> bool {
+        if self.left == 0 {
+            if checked {
+                self.before = now;
+            }
+            return width_changed || second;
+        }
+        if now == self.before {
+            self.left = 0;
+            return true;
+        }
+        self.left -= 1;
+        false
     }
 }
 
@@ -238,9 +257,10 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
         let hwnd = 0;
         let mut width = 0;
         let mut scale = 1.0;
-        // Ticks left, after the island comes back, to wait for the primary screen's size from before the hide.
-        let mut settle = 0u32;
-        let mut screen_before = screen();
+        let mut settle = Settle {
+            left: 0,
+            before: screen(),
+        };
         let mut over = None;
         let mut before = None;
         let mut tick: u32 = 0;
@@ -258,7 +278,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
             }
             let second = tick.is_multiple_of(30);
             // F11 and in-page fullscreen keep the same window in front: the once-a-second check catches them.
-            if fullscreen::switched() || second {
+            let checked = fullscreen::switched() || second;
+            if checked {
                 let (next, now) = fullscreen::check(hwnd, trigger);
                 trigger = next;
                 if now != presence {
@@ -275,7 +296,7 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                         } else if hide_at.take().is_none() {
                             // Back after the window hid, rather than before. Placed below, once the screen is back.
                             let _ = fullscreen::set_visible(&window, true);
-                            settle = 30;
+                            settle.left = 30;
                         }
                     }
                     let _ = app.emit("island://presence", now);
@@ -297,19 +318,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                 // Read the scale every second too if that shows.
                 scale = window.scale_factor().unwrap_or(scale);
             }
-            let now_screen = screen();
-            let screen_back = now_screen == screen_before;
-            if places(settle > 0, screen_back, width_changed, second) {
+            if settle.step(screen(), checked, width_changed, second) {
                 let _ = place(&window);
-            }
-            // Once the wait is over, the screen's size now is the one to come back to.
-            settle = if screen_back {
-                0
-            } else {
-                settle.saturating_sub(1)
-            };
-            if settle == 0 {
-                screen_before = now_screen;
             }
             let (x, y) = (f64::from(x) / scale, f64::from(y) / scale);
             let inside = app
@@ -424,17 +434,48 @@ mod tests {
         assert!(!takes_cursor(true, false, false));
     }
 
+    const NATIVE: (i32, i32) = (1920, 1080);
+    const GAME: (i32, i32) = (1280, 720);
+
     #[test]
     fn coming_back_waits_for_the_screen_size_from_before_the_hide() {
-        assert!(!places(true, false, true, true));
-        assert!(places(true, true, false, false));
+        let mut settle = Settle {
+            left: 2,
+            before: NATIVE,
+        };
+        // Still the game's resolution, even on a check and a new width: no move, and the size to wait for stays.
+        assert!(!settle.step(GAME, true, true, true));
+        assert_eq!((settle.left, settle.before), (1, NATIVE));
+        // The screen is back: the window moves and the wait ends.
+        assert!(settle.step(NATIVE, false, false, false));
+        assert_eq!(settle.left, 0);
+    }
+
+    #[test]
+    fn a_screen_that_doesnt_come_back_ends_the_wait() {
+        let mut settle = Settle {
+            left: 1,
+            before: NATIVE,
+        };
+        assert!(!settle.step(GAME, false, false, false));
+        assert_eq!(settle.left, 0);
+        // The next check takes the new size, and the once-a-second move runs.
+        assert!(settle.step(GAME, true, false, true));
+        assert_eq!(settle.before, GAME);
     }
 
     #[test]
     fn otherwise_places_on_a_new_width_and_once_a_second() {
-        assert!(places(false, false, true, false));
-        assert!(places(false, true, false, true));
-        assert!(!places(false, true, false, false));
+        let mut settle = Settle {
+            left: 0,
+            before: NATIVE,
+        };
+        assert!(settle.step(NATIVE, false, true, false));
+        assert!(settle.step(NATIVE, true, false, true));
+        assert!(!settle.step(NATIVE, false, false, false));
+        // A game that changes the resolution between two checks doesn't change the size to come back to.
+        assert!(!settle.step(GAME, false, false, false));
+        assert_eq!(settle.before, NATIVE);
     }
 
     #[test]
