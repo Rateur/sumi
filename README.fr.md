@@ -22,7 +22,7 @@ Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, pu
 
 [**Télécharger Sumi pour Windows**](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe) (10 et 11, 64 bits), ou choisissez une version sur la [page des releases](https://github.com/Rateur/sumi/releases).
 
-L'installateur n'est pas encore signé. Votre navigateur peut le retenir comme peu téléchargé : conservez-le depuis sa liste de téléchargements. Windows signale ensuite un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. La signature arrive : voir la [politique de signature du code](https://rateur.github.io/sumi/fr/docs/code-signing/). Pour quitter Sumi, passez par son icône dans la zone de notification.
+L'installateur n'est pas encore signé. Votre navigateur peut le retenir comme peu téléchargé : conservez-le depuis sa liste de téléchargements. Windows signale ensuite un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Une version Microsoft Store, signée par Microsoft, arrive : voir la [politique de signature du code](https://rateur.github.io/sumi/fr/docs/code-signing/). Pour quitter Sumi, passez par son icône dans la zone de notification.
 
 ## Feuille de route
 

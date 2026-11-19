@@ -10,7 +10,7 @@ Sumi fonctionne sur Windows 10 et 11, 64 bits.
 3. Ouvrez Sumi depuis le menu Démarrer. L'île apparaît en haut de votre écran principal.
 
 :::note[Pourquoi cet avertissement ?]
-L'installateur n'est pas encore signé. Sumi a demandé une signature gratuite à SignPath Foundation : voir la [politique de signature du code](../code-signing/).
+L'installateur n'est pas encore signé. Une version Microsoft Store, signée par Microsoft, arrive : voir la [politique de signature du code](../code-signing/).
 :::
 
 ## Quitter
