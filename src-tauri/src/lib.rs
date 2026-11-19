@@ -1,8 +1,11 @@
 //! Sumi's Windows side. `island` polls the cursor on a thread of its own and emits island://pointer,
 //! island://presence and island://dismiss; `fullscreen` hooks the foreground window on the main thread and only feeds
 //! that poll. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
-//! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again.
+//! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads
+//! Start's list once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows.
 
+mod apps;
+mod bar;
 mod fullscreen;
 mod island;
 mod media;
@@ -23,9 +26,18 @@ pub fn run() {
         // media::watch and privacy::watch manage their own state.
         .manage(island::IslandRects::default())
         .manage(island::IslandExpanded::default())
+        .manage(apps::Apps::default())
+        .manage(bar::Bar::default())
         .invoke_handler(tauri::generate_handler![
             island::set_island_rects,
             island::set_island_expanded,
+            apps::apps_list,
+            apps::has_claude,
+            apps::app_icon,
+            apps::app_launch,
+            apps::assistant_open,
+            bar::bar_shortcut,
+            bar::bar_focus,
             media::media_control,
             media::media_seek,
             media::media_players,
@@ -69,6 +81,8 @@ pub fn run() {
             island::follow_cursor(app.handle().clone(), window);
             media::watch(app.handle());
             privacy::watch(app.handle());
+            apps::watch(app.handle());
+            bar::register(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
