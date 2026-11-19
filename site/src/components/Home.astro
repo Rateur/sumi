@@ -23,9 +23,10 @@ const repo = 'https://github.com/Rateur/sumi';
 const mark =
 	'M292 330H732A80 80 0 0 1 732 490H566C540 490 522.5 525.3 553.1 551A64 64 0 1 1 470.9 551C501.5 525.3 484 490 458 490H292A80 80 0 0 1 292 330Z';
 const og = new URL(`${base}og.png`, Astro.site).href;
-// The app's own island, built by `npm run showcase`, with a made-up song. The tint is what the app reads from the cover.
+// The app's own island, built by `npm run showcase`, in the page's language, with a made-up song. The tint is what the
+// app reads from the cover.
 const song = new URLSearchParams({ title: 'West Lake', artist: 'Ink & Gold', art: cover.src, color: '#c6ab95' });
-const island = `${base}island/index.html`;
+const island = `${base}island/index.html?lang=${lang}`;
 ---
 
 <!doctype html>
@@ -186,7 +187,7 @@ const island = `${base}island/index.html`;
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(GAP + BUBBLE) / 2}px`}>
-							<iframe src={`${island}?${song}`} data-start="music" title="" tabindex="-1" loading="lazy"></iframe>
+							<iframe src={`${island}&${song}`} data-start="music" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[3].title}</strong><span>{t.roadmap[3].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice, type Timer } from './intent'
+import { choices, findApp, formatDuration, langOf, normalize, parseTimer, type App, type Choice, type Timer } from './intent'
 import { common, corpus, installed, type Row } from './intent.corpus'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
@@ -10,6 +10,24 @@ const fr = { apps, lang: 'fr', claudeApp: true } as const
 const en = { ...fr, lang: 'en', claudeApp: false } as const
 const top = (line: string, options: Parameters<typeof choices>[1] = fr) => choices(line, options)[0]
 const labels = (line: string, options: Parameters<typeof choices>[1] = fr) => choices(line, options).map((c) => c.label)
+
+describe('langOf', () => {
+  it("follows the browser's language", () => {
+    expect(langOf('', 'fr-CA')).toBe('fr')
+    expect(langOf('', 'en-GB')).toBe('en')
+    expect(langOf('', 'de-DE')).toBe('en')
+  })
+
+  it("takes the page's language over the browser's", () => {
+    expect(langOf('?lang=fr', 'en-US')).toBe('fr')
+    expect(langOf('?lang=en&title=x', 'fr-FR')).toBe('en')
+  })
+
+  it('ignores a language it has no words for', () => {
+    expect(langOf('?lang=de', 'fr-FR')).toBe('fr')
+    expect(langOf('?lang=FR', 'en-US')).toBe('en')
+  })
+})
 
 describe('parseTimer', () => {
   const minutes = (n: number) => n * 60_000

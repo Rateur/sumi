@@ -11,6 +11,13 @@ import { formatLongDate, formatTime } from './clock'
 
 export type Lang = 'fr' | 'en'
 
+/** The island's language: the browser's, unless the page says `?lang=fr` or `?lang=en`, as the site's frames do. */
+export function langOf(search: string, language: string): Lang {
+  const asked = new URLSearchParams(search).get('lang')
+  if (asked === 'fr' || asked === 'en') return asked
+  return language.toLowerCase().startsWith('fr') ? 'fr' : 'en'
+}
+
 /** An entry from Start's list. The bar hands back the caller's own object, so it may carry more. */
 export interface App {
   name: string

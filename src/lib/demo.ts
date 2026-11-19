@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core'
 import type { Listed } from '../CommandBar.svelte'
+import { langOf } from './intent'
 import type { Activity } from './activities'
 import type { Player } from './music'
 import type { Privacy, PrivacyApp } from './privacy'
@@ -66,7 +67,7 @@ const own = songParams(location.search, location.origin, (v) => CSS.supports('co
 const song = { ...SONGS[0], ...own }
 
 // The command bar's stand-ins for Start's list: twelve apps, each with its monogram's color.
-const fr = navigator.language.toLowerCase().startsWith('fr')
+const fr = langOf(location.search, navigator.language) === 'fr'
 const APPS: Listed[] = [
   { name: 'Discord', color: '#5865F2' },
   { name: 'Spotify', color: '#1DB954' },
@@ -147,7 +148,8 @@ const KEYS: Record<string, string> = {
  * bar ('bar'; the Claude app takes Ctrl+Alt+Space when it runs), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
  * nothing: the island only plays its answer. A framing page types in the bar with `type:<text>`, presses Enter with
  * 'enter' and ends the timers with 'clear'. W plays the first-launch welcome from the drop ('welcome'), with the
- * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none.
+ * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none. `?lang=fr` or `?lang=en`
+ * sets the island's language, as the site's pages do for their frames.
  */
 export function demo(island: {
   activities: Activity[]
