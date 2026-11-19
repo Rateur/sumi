@@ -13,16 +13,18 @@ While an app uses your microphone or your camera, a small black disc splits off 
 
 ## Mute and camera
 
-- **The microphone button** mutes the microphone for every app, as Windows' own mute does. While it's muted, a crossed microphone stays in the disc, so you never forget it.
+- **The microphone button** mutes, with Windows' own mute, the default microphones and every microphone an app is using. Unmute turns back on only the ones it muted, or all of them if you muted them in Windows. While it's muted, a crossed microphone stays in the disc, so you never forget it.
 - **The camera button** brings the app that's filming forward, where its own camera button is. Windows can't turn the camera off for every app without admin rights.
 - **The settings button** opens Windows' privacy page for the camera or the microphone.
 
-The buttons follow what is in use: no mute while only the camera is on.
+The buttons follow what is in use: no mute while only the camera is on, unless the microphone is muted.
 
 ## Limits
 
 - An app that captures sound or video outside Windows' audio and camera layers isn't seen.
+- A microphone an app starts using after you muted isn't muted: the crossed microphone goes, and a click on mute takes it too.
 - An app's own mute, in Discord or Teams for example, doesn't show: the crossed microphone is Windows' mute only.
 - With touch or a pen, the first tap on the disc reaches the app underneath; the second opens the card.
 - While an app run as administrator, such as Task Manager, has focus, Windows hides Esc and clicks from Sumi: move the cursor away to close the card.
+- After Windows' audio service restarts, the disc and mute may stop working until you restart Sumi.
 - Which apps use the microphone or the camera stays on your PC.
