@@ -1,12 +1,13 @@
-//! Decides when the island hides: a borderless window over the whole primary screen, exclusive Direct3D or a
-//! presentation. A hook hears each change of app instead of polling; a check once a second still catches F11.
+//! Decides when the island hides or goes quiet. It hides for a borderless window over the whole primary screen,
+//! exclusive Direct3D or a presentation. A hook hears each change of app instead of polling; a check once a second
+//! still catches F11.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::Serialize;
 use tauri::WebviewWindow;
 
-/// How much of the island shows.
+/// How much of the island shows. Mirrored in `src/lib/activities.ts`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Presence {

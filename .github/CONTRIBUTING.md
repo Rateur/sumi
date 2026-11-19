@@ -50,7 +50,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
 - `src/Island.svelte` draws the island and is the only file that talks to Rust.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy. Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy. Each file but `demo.ts` has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
