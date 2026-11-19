@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { choices, findApp, formatDuration, normalize, parseTimer, type App, type Choice, type Timer } from './intent'
+import { corpus, installed, type Row } from './intent.corpus'
 
 const names = ['Discord', 'Spotify', 'Steam', 'Visual Studio Code', 'Google Chrome', 'Paramètres', 'Explorateur de fichiers']
 // Word and Time Doctor sit one typo from 'world' and 'timer': they must not catch them.
@@ -309,136 +310,9 @@ describe('normalize', () => {
   })
 })
 
-// Real phrasings, typos and missing accents included. Each gives one chip: [line, kind, what it targets].
 describe('natural phrasing', () => {
   const now = new Date(2026, 10, 19, 11, 27).getTime()
   const options = { ...fr, now, locale: 'fr-FR' }
-  const target = (c: Choice) =>
-    c.kind === 'app' ? c.app.name : c.kind === 'ask' ? c.to : c.kind === 'timer' ? c.ms : c.kind === 'clock' ? c.what : ''
-  const s = 1000
-  const min = 60_000
-  const table: [string, Choice['kind'], string | number][] = [
-    // The maintainer's four.
-    ['met un minuteur de 10s', 'timer', 10 * s],
-    ["quelle heure est t'il", 'clock', 'time'],
-    ['ouvre discord', 'app', 'Discord'],
-    ['ouvre les parametre', 'app', 'Paramètres'],
-    // Apps, with verbs, determiners, politeness and typos.
-    ['ouvre dicord', 'app', 'Discord'],
-    ['lance spotifi', 'app', 'Spotify'],
-    ['Ouvre Discord !', 'app', 'Discord'],
-    ['ouvrir discord stp', 'app', 'Discord'],
-    ['tu peux ouvrir discord ?', 'app', 'Discord'],
-    ['peux-tu lancer spotify', 'app', 'Spotify'],
-    ['Hey Sumi, ouvre Spotify', 'app', 'Spotify'],
-    ['sumi lance steam', 'app', 'Steam'],
-    ['ouvrez les paramètres', 'app', 'Paramètres'],
-    ['ouvre mes reglages', 'app', 'Paramètres'],
-    ['ouvre les préférences', 'app', 'Paramètres'],
-    ['open settings please', 'app', 'Paramètres'],
-    ['open the options', 'app', 'Paramètres'],
-    ['parametre', 'app', 'Paramètres'],
-    ["ouvre l'explorateur", 'app', 'Explorateur de fichiers'],
-    ['ouvre l’explorateur de fichier', 'app', 'Explorateur de fichiers'],
-    ['ouvre mes fichiers', 'app', 'Explorateur de fichiers'],
-    ['open file explorer', 'app', 'Explorateur de fichiers'],
-    ['files', 'app', 'Explorateur de fichiers'],
-    ['open the calculator', 'app', 'Calculatrice'],
-    ['lance la calculatrice', 'app', 'Calculatrice'],
-    ['calc', 'app', 'Calculatrice'],
-    ['ouvre code', 'app', 'Visual Studio Code'],
-    ['ouvre chorme', 'app', 'Google Chrome'],
-    ['démarre steam', 'app', 'Steam'],
-    ['start teams', 'app', 'Microsoft Teams'],
-    ['launch discrod', 'app', 'Discord'],
-    ['can you open spotify', 'app', 'Spotify'],
-    ["i'd like to open discord", 'app', 'Discord'],
-    ['affiche les notes', 'app', 'Notes'],
-    ['show mail', 'app', 'Mail'],
-    ['run spotify', 'app', 'Spotify'],
-    ['ouvre teans', 'app', 'Microsoft Teams'],
-    ['ouvre word', 'app', 'Word'],
-    ['ouvre parametr', 'app', 'Paramètres'],
-    ['ouvre prmtr', 'app', 'Paramètres'],
-    ['ouvre vsc', 'app', 'Visual Studio Code'],
-    ['open time doc', 'app', 'Time Doctor'],
-    // Timers.
-    ['mets un minuteur de 10 min', 'timer', 10 * min],
-    ['mettre un minuteur de 5 minutes', 'timer', 5 * min],
-    ['lance un minuteur de 25 min', 'timer', 25 * min],
-    ['un minuteur de 10 min pour les pates', 'timer', 10 * min],
-    ['un minuteur de 10 min pour les pâtes', 'timer', 10 * min],
-    ['minuteur 10s', 'timer', 10 * s],
-    ['programme une minuterie de 1h30', 'timer', 90 * min],
-    ['regle un minuteur de 3 min stp', 'timer', 3 * min],
-    ['set a timer for 5 minutes', 'timer', 5 * min],
-    ['start a 5 minute timer', 'timer', 5 * min],
-    ['timer for 20 minutes', 'timer', 20 * min],
-    ['10 min timer', 'timer', 10 * min],
-    ['make a 2 min timer please', 'timer', 2 * min],
-    ['chrono 30 s', 'timer', 30 * s],
-    ['25m', 'timer', 25 * min],
-    // The time and the date.
-    ['quelle heure est-il ?', 'clock', 'time'],
-    ['Quelle heure il est', 'clock', 'time'],
-    ['il est quelle heure', 'clock', 'time'],
-    ["l'heure", 'clock', 'time'],
-    ['heure', 'clock', 'time'],
-    ['what time is it?', 'clock', 'time'],
-    ["what's the time", 'clock', 'time'],
-    ['time', 'clock', 'time'],
-    ['quel jour sommes-nous ?', 'clock', 'date'],
-    ['on est quel jour', 'clock', 'date'],
-    ['quelle date', 'clock', 'date'],
-    ['la date', 'clock', 'date'],
-    ['what day is it', 'clock', 'date'],
-    ["what's the date?", 'clock', 'date'],
-    ['date', 'clock', 'date'],
-    // Assistants and the search engine, by verb.
-    ['demande à claude pourquoi le ciel est bleu', 'ask', 'claude'],
-    ['demander a chatgpt une recette', 'ask', 'chatgpt'],
-    ['pose la question à gemini : quoi de neuf', 'ask', 'gemini'],
-    ['ask perplexity who won', 'ask', 'perplexity'],
-    ['tell claude a joke', 'ask', 'claude'],
-    ['cherche des chaussures', 'ask', 'search'],
-    ['recherche météo lyon', 'ask', 'search'],
-    ['trouve-moi un resto', 'ask', 'search'],
-    ['look up the eiffel tower', 'ask', 'search'],
-    ['google chats', 'ask', 'search'],
-    // Questions that must stay questions.
-    ['combien de temps pour cuire des pates ?', 'ask', 'claude'],
-    ['pourquoi le ciel est bleu', 'ask', 'claude'],
-    ['ouvre-moi ton coeur', 'ask', 'claude'],
-    ['timer', 'ask', 'claude'],
-    ['10 pates', 'ask', 'claude'],
-    ['chrono 5', 'ask', 'claude'],
-    ['lance le chrono', 'ask', 'claude'],
-    ['quelle heure est-il à Tokyo ?', 'ask', 'claude'],
-    ['what time is the match tonight', 'ask', 'claude'],
-    ['show me how to cook rice', 'ask', 'claude'],
-    ['set the volume to 10', 'ask', 'claude'],
-    ['merci', 'ask', 'claude'],
-    ['1:30', 'ask', 'claude'],
-    ['à 18h30', 'ask', 'claude'],
-    // One typo from a short word of a name, or its letters scattered inside a long one.
-    ['start a timer', 'ask', 'claude'],
-    ['ouvre world', 'ask', 'claude'],
-    ['ouvre la porte', 'ask', 'claude'],
-    ['ouvre la fenetre', 'ask', 'claude'],
-    ['ouvre la ame', 'ask', 'claude'],
-    ['open the door', 'ask', 'claude'],
-    ['ouvre mes', 'ask', 'claude'],
-    ['lance le pr', 'ask', 'claude'],
-    ['show the ti', 'ask', 'claude'],
-    ['start a ti', 'ask', 'claude'],
-    ['mets un minuteur de 2 he', 'timer', 120 * min],
-  ]
-  it.each(table)('%s → %s %s', (line, kind, to) => {
-    const c = choices(line, options)[0]
-    expect(c.kind).toBe(kind)
-    expect(target(c)).toBe(to)
-  })
-
   it('answers the time and the date on the chip, in the clock locale', () => {
     const en = { ...options, lang: 'en', locale: 'en-US' } as const
     expect(choices('quelle heure est-il', options)[0].label).toBe('Il est 11:27')
@@ -499,5 +373,51 @@ describe('findApp', () => {
     expect(findApp('discord', list)?.name).toBe('Discord')
     expect(findApp('discord', [...list, { name: 'Discord' }])?.name).toBe('Discord')
     expect(findApp('spotify', [{ name: 'Spotify' }])?.name).toBe('Spotify')
+  })
+})
+
+// The corpus in intent.corpus.ts: each line gives its one chip, the same one every time.
+describe('corpus', () => {
+  const now = new Date(2026, 10, 19, 11, 27).getTime()
+  const options = { apps: installed.map((name) => ({ name })), lang: 'fr', claudeApp: true, now, locale: 'fr-FR' } as const
+  const options2 = { ...options, apps: [...options.apps] }
+  const target = (c: Choice) =>
+    c.kind === 'app' ? c.app.name : c.kind === 'ask' ? c.to : c.kind === 'timer' ? c.ms : c.kind === 'clock' ? c.what : ''
+  const read = (line: string) => choices(line, options)[0]
+
+  it('is mostly questions, French and English alike', () => {
+    const count = (test: (row: Row) => boolean) => corpus.filter(test).length
+    expect(corpus.length).toBeGreaterThanOrEqual(400)
+    expect(count(([, , kind]) => kind === 'ask') * 2).toBeGreaterThanOrEqual(corpus.length)
+    expect(count(([, lang]) => lang === 'fr')).toBe(count(([, lang]) => lang === 'en'))
+    expect(new Set(corpus.map(([line]) => line)).size).toBe(corpus.length)
+  })
+
+  it.each(corpus)('%s (%s) → %s %s', (line, _, kind, to = 'claude') => {
+    const c = read(line)
+    expect(c.kind).toBe(kind)
+    expect(target(c)).toBe(to)
+  })
+
+  it('gives the same chip twice, from the same list or a copy', () => {
+    for (const [line] of corpus) {
+      expect(choices(line, options)).toEqual(choices(line, options))
+      expect(choices(line, options2)).toEqual(choices(line, options))
+    }
+  })
+
+  // While a command is typed, each prefix of 3 letters or more shows its chip or a question: never another app, nor
+  // a timer of another length once the right one has shown. The time may show, as it runs nothing: 'time' is on
+  // the way to 'timer'.
+  it.each(corpus.filter(([, , kind]) => kind !== 'ask'))('stays put while %s is typed', (line, _, kind, to) => {
+    let shown = false
+    for (let n = 3; n <= line.length; n++) {
+      const c = read(line.slice(0, n))
+      if (c.kind === 'ask' || (c.kind === 'clock' && kind !== 'clock')) continue
+      const where = `${line.slice(0, n)} → ${c.kind} ${target(c)}`
+      expect(c.kind, where).toBe(kind)
+      if (kind === 'timer' && !shown) shown = target(c) === to
+      else expect(target(c), where).toBe(to)
+    }
   })
 })
