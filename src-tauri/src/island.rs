@@ -1,3 +1,6 @@
+//! The island's window: kept at the top center of the primary screen, letting clicks through everywhere but the
+//! shapes the page draws, and closing the open panel on Esc, a click elsewhere or a change of app.
+
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -11,7 +14,8 @@ use crate::fullscreen::{self, Presence};
 /// island slides up (`FULLSCREEN` in src/lib/motion.ts): about 550 ms in all.
 const HIDE_AFTER: u32 = 20;
 
-/// Bounds in CSS pixels, relative to the window: the island, and the bubble when there is one.
+/// Bounds in CSS pixels, relative to the window: the island, and the bubble and the privacy tag when they show.
+/// Mirrored in `src/lib/shapes.ts`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Deserialize)]
 pub struct Rect {
     pub x: f64,

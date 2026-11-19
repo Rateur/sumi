@@ -48,7 +48,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
   <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white">
 </p>
 
-Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec Windows : il place la fenêtre, laisse passer les clics, et lira bientôt l'état des médias, du micro et de la batterie. Une interface en [Svelte 5](https://svelte.dev) et TypeScript dessine l'île dans WebView2, le moteur de navigateur déjà intégré à Windows : Sumi n'embarque donc pas son propre navigateur, et l'installateur reste léger.
+Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec Windows : il place la fenêtre, laisse passer les clics, lit l'état des médias, du micro et de la caméra, et lira bientôt celui de la batterie. Une interface en [Svelte 5](https://svelte.dev) et TypeScript dessine l'île dans WebView2, le moteur de navigateur déjà intégré à Windows : Sumi n'embarque donc pas son propre navigateur, et l'installateur reste léger.
 
 ## Confidentialité
 
