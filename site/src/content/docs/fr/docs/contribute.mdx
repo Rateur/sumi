@@ -103,12 +103,14 @@ Sur votre première pull request, la CI démarre une fois que je l'ai approuvée
 - L'interface fonctionne avec les animations réduites et garde un contraste AA.
 - Elle se lit comme le code autour, pour que la personne suivante, ou une IA, puisse la reprendre. Rust : `snake_case` pour les fonctions et les modules, `CamelCase` pour les types. TypeScript : `camelCase`. Composants Svelte : `PascalCase.svelte`. Les commentaires sont courts et disent pourquoi, pas quoi.
 - Elle ne laisse pas de dette : ni code mort ni `TODO`. Une limite connue a son commentaire `// shortcut: <la limite>, <quand la lever>`.
-- Le Rust `unsafe` reste petit, et chaque bloc dit pourquoi il est sûr dans un commentaire `// SAFETY:`.
-- Ses mots sont simples et courts, en anglais comme en français : commentaires, docs, README, messages de commit et description de la PR.
+- Un nouveau fichier, une nouvelle commande ou un nouvel événement a sa ligne dans [Organisation du code](#organisation-du-code), et un nouveau fichier Rust commence par un commentaire `//!` qui dit ce qu'il fait.
+- Rust : `unsafe` reste petit, et chaque bloc dit pourquoi il est sûr dans un commentaire `// SAFETY:`. `windows` sert à COM et WinRT, `windows-sys` aux simples appels Win32.
+- Une modification visible met à jour sa page dans la doc du site, et le README quand ce que l'on peut faire change, en anglais et en français. Si vous n'écrivez pas le français, dites-le et je l'ajoute.
+- Ses mots sont simples et courts : commentaires, messages de commit, description de la PR, et docs et README dans les deux langues.
 
 ## Outils d'IA
 
-Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture.
+Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture. Les agents de code trouvent leurs règles dans [AGENTS.md](https://github.com/Rateur/sumi/blob/dev/AGENTS.md) (en anglais).
 
 ## Traductions
 

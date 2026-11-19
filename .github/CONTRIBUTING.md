@@ -100,12 +100,14 @@ On your first pull request, CI starts once I approve it. Leave **Allow edits by 
 - The UI works with reduced motion and keeps AA contrast.
 - It reads like the code around it, so the next person, or an AI, can pick it up. Rust: `snake_case` for functions and modules, `CamelCase` for types. TypeScript: `camelCase`. Svelte components: `PascalCase.svelte`. Comments are short and say why, not what.
 - It leaves no debt behind: no dead code and no `TODO`. A known limit gets a `// shortcut: <the limit>, <when to upgrade>` comment.
-- `unsafe` Rust stays small, and each block says why it's sound in a `// SAFETY:` comment.
-- Its words are plain and short, in English and in French: code comments, docs, the README, commit messages and the PR description.
+- A new file, command or event gets its line in [How the code is laid out](#how-the-code-is-laid-out), and a new Rust file opens with a `//!` comment that says what it does.
+- Rust: `unsafe` stays small, and each block says why it's sound in a `// SAFETY:` comment. `windows` is for COM and WinRT, `windows-sys` for plain Win32 calls.
+- A change users can see updates its page in the site's docs, and the README when what users can do changes, in English and French. If you don't write French, say so and I'll add it.
+- Its words are plain and short: code comments, commit messages, the PR description, and the docs and README in both languages.
 
 ## AI tools
 
-Use them if they help. You answer for every line: you ran it on Windows, you understand it and you can explain it in review. Pull requests and issues that look generated and untested are closed without review.
+Use them if they help. You answer for every line: you ran it on Windows, you understand it and you can explain it in review. Pull requests and issues that look generated and untested are closed without review. Coding agents get their rules from [AGENTS.md](https://github.com/Rateur/sumi/blob/dev/AGENTS.md).
 
 ## Translations
 

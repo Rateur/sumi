@@ -18,6 +18,8 @@ Never:
 - Add a dependency, a Tauri capability or a network request without an issue that agreed on it.
 - Log or write to a file anything the island shows.
 - Leave anything running at rest: no timer or animation while nothing changes.
+- Leave dead code, a `TODO`, or an `unsafe` block without a `// SAFETY:` comment.
+- Add a file, a command or an event without its line in [How the code is laid out](.github/CONTRIBUTING.md#how-the-code-is-laid-out), in both languages.
 - Change a value in `docs/design.md` without the maintainer's OK.
 - Change one language alone: `README.md` and `README.fr.md`, the site's English and French pages, and `.github/CONTRIBUTING.md` and `site/src/content/docs/fr/docs/contribute.mdx` change together.
 - Push to `main`.
