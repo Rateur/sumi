@@ -106,7 +106,11 @@ pub fn run() {
             window.set_ignore_cursor_events(true)?;
             // Decided before the window shows: a game already fullscreen keeps it hidden, and the page reads it at
             // once to choose between the drop and the welcome. Shown first all the same, so Tauri knows it visible.
-            let (trigger, presence) = fullscreen::check(&window, None);
+            #[cfg(windows)]
+            let own = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
+            #[cfg(not(windows))]
+            let own = 0;
+            let (trigger, presence) = fullscreen::check(own, None);
             app.manage(island::IslandPresence(Mutex::new(presence)));
             window.show()?;
             if presence == fullscreen::Presence::Hidden {
