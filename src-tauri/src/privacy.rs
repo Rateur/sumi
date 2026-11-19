@@ -45,11 +45,13 @@ enum Msg {
     Sessions,
     /// A capture device came, went or became the default.
     Devices,
+    /// Windows' audio service stopped, and every callback Sumi had given it went with it.
+    Service,
     /// The processes streaming from a camera now.
     Camera(Vec<u32>),
     /// A mute set from the page.
     Mute(bool),
-    /// The microphone's mute changed, from Sumi or elsewhere.
+    /// A microphone's mute or level changed, from Sumi or elsewhere.
     Volume,
 }
 
@@ -69,7 +71,7 @@ pub fn privacy_state(devices: tauri::State<'_, Devices>) -> Privacy {
         .unwrap_or_default()
 }
 
-/// Mutes or unmutes the default microphone, for every app, as Windows' own mute does.
+/// Mutes or unmutes, with Windows' own mute, the default microphones and every one an app captures from now.
 #[tauri::command]
 pub fn privacy_mute(devices: tauri::State<'_, Devices>, muted: bool) {
     let _ = devices.tx.send(Msg::Mute(muted));
@@ -164,7 +166,7 @@ fn run(app: &AppHandle, tx: &Sender<Msg>, rx: &Receiver<Msg>) {
 #[cfg(windows)]
 mod win {
     use std::collections::HashMap;
-    use std::sync::mpsc::{Receiver, Sender};
+    use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use tauri::{AppHandle, Emitter, Manager};
@@ -174,11 +176,11 @@ mod win {
     };
     use windows::Win32::Media::Audio::{
         AUDIO_VOLUME_NOTIFICATION_DATA, AudioSessionDisconnectReason, AudioSessionState,
-        AudioSessionStateActive, DEVICE_STATE, DEVICE_STATE_ACTIVE, EDataFlow, ERole,
-        IAudioSessionControl, IAudioSessionControl2, IAudioSessionEvents, IAudioSessionEvents_Impl,
-        IAudioSessionManager2, IAudioSessionNotification, IAudioSessionNotification_Impl,
-        IMMDeviceEnumerator, IMMNotificationClient, IMMNotificationClient_Impl, MMDeviceEnumerator,
-        eCapture, eCommunications, eConsole,
+        AudioSessionStateActive, DEVICE_STATE, DEVICE_STATE_ACTIVE, DisconnectReasonServerShutdown,
+        EDataFlow, ERole, IAudioSessionControl, IAudioSessionControl2, IAudioSessionEvents,
+        IAudioSessionEvents_Impl, IAudioSessionManager2, IAudioSessionNotification,
+        IAudioSessionNotification_Impl, IMMDevice, IMMDeviceEnumerator, IMMNotificationClient,
+        IMMNotificationClient_Impl, MMDeviceEnumerator, eCapture, eCommunications, eConsole,
     };
     use windows::Win32::Media::MediaFoundation::{
         IMFSensorActivitiesReport, IMFSensorActivitiesReportCallback,
@@ -208,6 +210,10 @@ mod win {
 
     /// Several callbacks come in a row when an app opens the microphone: one wait gathers them into one message.
     const BURST: Duration = Duration::from_millis(150);
+    /// After Windows' audio service stops, the microphones are opened again every second until it is back, for 30
+    /// seconds at most, so nothing keeps running if it never comes back.
+    const RETRY: Duration = Duration::from_secs(1);
+    const TRIES: u32 = 30;
 
     /// A running process: its parent and its exe's file name.
     struct Process {
@@ -280,9 +286,13 @@ mod win {
         }
         fn OnSessionDisconnected(
             &self,
-            _: AudioSessionDisconnectReason,
+            reason: AudioSessionDisconnectReason,
         ) -> windows::core::Result<()> {
-            self.send(Msg::Sessions)
+            self.send(if reason == DisconnectReasonServerShutdown {
+                Msg::Service
+            } else {
+                Msg::Sessions
+            })
         }
     }
 
@@ -348,19 +358,66 @@ mod win {
         }
     }
 
-    /// The capture devices being watched: each one's session manager, and the sessions heard from.
+    /// A microphone as mute sees it: whether mute covers it, as a default or one an app captures from now, and
+    /// whether Windows has it muted.
+    struct Mic {
+        id: String,
+        covered: bool,
+        muted: bool,
+    }
+
+    /// Mute counts as on only when every microphone it covers is muted: a live headset beside a muted laptop mic
+    /// still hears.
+    fn all_muted(mics: &[Mic]) -> bool {
+        mics.iter().any(|m| m.covered) && mics.iter().filter(|m| m.covered).all(|m| m.muted)
+    }
+
+    /// The microphones a click sets. Mute takes each covered one that still hears, never an idle one. Unmute gives
+    /// back only the ones Sumi muted, so one muted in Windows stays muted; when Sumi muted none of them, every
+    /// covered one.
+    fn pick<'a>(mics: &'a [Mic], muted: bool, ours: &[String]) -> Vec<&'a str> {
+        let ids = |keep: &dyn Fn(&Mic) -> bool| -> Vec<&'a str> {
+            mics.iter()
+                .filter(|m| keep(m))
+                .map(|m| m.id.as_str())
+                .collect()
+        };
+        if muted {
+            return ids(&|m| m.covered && !m.muted);
+        }
+        let mine = ids(&|m| m.muted && ours.contains(&m.id));
+        if mine.is_empty() {
+            ids(&|m| m.covered && m.muted)
+        } else {
+            mine
+        }
+    }
+
+    /// The capture devices being watched, by id: each one's session manager and mute, and the sessions heard from.
     #[derive(Default)]
     struct Capture {
-        managers: Vec<IAudioSessionManager2>,
+        managers: Vec<(String, IAudioSessionManager2)>,
+        volumes: Vec<(String, IAudioEndpointVolume)>,
         sessions: Vec<IAudioSessionControl>,
-        defaults: Vec<IAudioEndpointVolume>,
+        defaults: Vec<String>,
+        /// The ones an app captures from, as of the last listen.
+        live: Vec<String>,
+    }
+
+    fn device_id(device: &IMMDevice) -> Option<String> {
+        let raw = unsafe { device.GetId() }.ok()?;
+        let id = unsafe { raw.to_string() }.ok();
+        unsafe { CoTaskMemFree(Some(raw.0.cast_const().cast())) };
+        id
     }
 
     impl Capture {
-        /// Every active microphone, with a callback for new sessions on it, and the default ones' mute.
+        /// Every active microphone, with a callback for new sessions on it and one for its mute, and which are the
+        /// defaults.
         fn open(enumerator: &IMMDeviceEnumerator, ping: &ComObject<Ping>) -> Self {
             let mut capture = Self::default();
             let notification: IAudioSessionNotification = ping.to_interface();
+            let callback: IAudioEndpointVolumeCallback = ping.to_interface();
             if let Ok(devices) =
                 unsafe { enumerator.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE) }
             {
@@ -368,53 +425,47 @@ mod win {
                     let Ok(device) = (unsafe { devices.Item(i) }) else {
                         continue;
                     };
-                    let Ok(manager) =
-                        (unsafe { device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None) })
-                    else {
+                    let Some(id) = device_id(&device) else {
                         continue;
                     };
-                    // Windows only sends session news once the sessions have been listed.
-                    let _ = unsafe { manager.GetSessionEnumerator() };
-                    if unsafe { manager.RegisterSessionNotification(&notification) }.is_ok() {
-                        capture.managers.push(manager);
+                    if let Ok(manager) =
+                        unsafe { device.Activate::<IAudioSessionManager2>(CLSCTX_ALL, None) }
+                    {
+                        // Windows only sends session news once the sessions have been listed.
+                        let _ = unsafe { manager.GetSessionEnumerator() };
+                        if unsafe { manager.RegisterSessionNotification(&notification) }.is_ok() {
+                            capture.managers.push((id.clone(), manager));
+                        }
+                    }
+                    if let Ok(volume) =
+                        unsafe { device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) }
+                    {
+                        let _ = unsafe { volume.RegisterControlChangeNotify(&callback) };
+                        capture.volumes.push((id, volume));
                     }
                 }
             }
-            let callback: IAudioEndpointVolumeCallback = ping.to_interface();
-            let mut ids: Vec<String> = Vec::new();
             for role in [eConsole, eCommunications] {
-                let Ok(device) = (unsafe { enumerator.GetDefaultAudioEndpoint(eCapture, role) })
-                else {
-                    continue;
-                };
-                let Ok(raw) = (unsafe { device.GetId() }) else {
-                    continue;
-                };
-                let id = unsafe { raw.to_string() }.unwrap_or_default();
-                unsafe { CoTaskMemFree(Some(raw.0.cast_const().cast())) };
-                if ids.contains(&id) {
-                    continue;
+                if let Some(id) = unsafe { enumerator.GetDefaultAudioEndpoint(eCapture, role) }
+                    .ok()
+                    .and_then(|d| device_id(&d))
+                {
+                    capture.defaults.push(id);
                 }
-                let Ok(volume) =
-                    (unsafe { device.Activate::<IAudioEndpointVolume>(CLSCTX_ALL, None) })
-                else {
-                    continue;
-                };
-                let _ = unsafe { volume.RegisterControlChangeNotify(&callback) };
-                ids.push(id);
-                capture.defaults.push(volume);
             }
             capture
         }
 
-        /// Who captures sound now. Sessions are listed again, each with a callback for when it starts or stops.
+        /// Who captures sound now, and from which microphones. Sessions are listed again, each with a callback for
+        /// when it starts or stops.
         fn listen(&mut self, ping: &ComObject<Ping>) -> Vec<u32> {
             let events: IAudioSessionEvents = ping.to_interface();
             for session in self.sessions.drain(..) {
                 let _ = unsafe { session.UnregisterAudioSessionNotification(&events) };
             }
+            self.live.clear();
             let mut pids = Vec::new();
-            for manager in &self.managers {
+            for (id, manager) in &self.managers {
                 let Ok(list) = (unsafe { manager.GetSessionEnumerator() }) else {
                     continue;
                 };
@@ -434,24 +485,40 @@ mod win {
                     let system = unsafe { control.IsSystemSoundsSession() } == S_OK;
                     if active && !system {
                         pids.extend(unsafe { control.GetProcessId() });
+                        if !self.live.contains(id) {
+                            self.live.push(id.clone());
+                        }
                     }
                 }
             }
             pids
         }
 
-        /// Muted only when every default microphone is: a live headset beside a muted laptop mic still hears.
-        fn muted(&self) -> bool {
-            !self.defaults.is_empty()
-                && self
-                    .defaults
-                    .iter()
-                    .all(|v| unsafe { v.GetMute() }.is_ok_and(BOOL::as_bool))
+        fn mics(&self) -> Vec<Mic> {
+            self.volumes
+                .iter()
+                .map(|(id, volume)| Mic {
+                    id: id.clone(),
+                    covered: self.defaults.contains(id) || self.live.contains(id),
+                    muted: unsafe { volume.GetMute() }.is_ok_and(BOOL::as_bool),
+                })
+                .collect()
         }
 
-        fn mute(&self, muted: bool) {
-            for volume in &self.defaults {
-                let _ = unsafe { volume.SetMute(muted, std::ptr::null()) };
+        /// `ours` keeps the microphones Sumi muted, across reopens, until it unmutes them.
+        fn mute(&self, muted: bool, ours: &mut Vec<String>) {
+            let mics = self.mics();
+            for id in pick(&mics, muted, ours) {
+                let Some((_, volume)) = self.volumes.iter().find(|(v, _)| v == id) else {
+                    continue;
+                };
+                let set = unsafe { volume.SetMute(muted, std::ptr::null()) }.is_ok();
+                if set && muted && !ours.iter().any(|o| o == id) {
+                    ours.push(id.to_string());
+                }
+            }
+            if !muted {
+                ours.clear();
             }
         }
 
@@ -461,14 +528,25 @@ mod win {
                 let _ = unsafe { session.UnregisterAudioSessionNotification(&events) };
             }
             let notification: IAudioSessionNotification = ping.to_interface();
-            for manager in self.managers.drain(..) {
+            for (_, manager) in self.managers.drain(..) {
                 let _ = unsafe { manager.UnregisterSessionNotification(&notification) };
             }
             let callback: IAudioEndpointVolumeCallback = ping.to_interface();
-            for volume in self.defaults.drain(..) {
+            for (_, volume) in self.volumes.drain(..) {
                 let _ = unsafe { volume.UnregisterControlChangeNotify(&callback) };
             }
         }
+    }
+
+    /// Windows' list of audio devices, with a callback for when a microphone comes, goes or becomes the default.
+    fn audio_devices(client: &IMMNotificationClient) -> windows::core::Result<IMMDeviceEnumerator> {
+        let enumerator: IMMDeviceEnumerator =
+            unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }?;
+        // Without it, a microphone plugged in later goes unseen until Sumi restarts.
+        if let Err(e) = unsafe { enumerator.RegisterEndpointNotificationCallback(client) } {
+            log::warn!("privacy: no device notifications: {e}");
+        }
+        Ok(enumerator)
     }
 
     // shortcut: a capture driver that hangs inside one of Windows' calls holds this thread, and the dot waits with it;
@@ -478,18 +556,13 @@ mod win {
             log::warn!("privacy: COM didn't start: {e}");
             return;
         }
-        let Ok(enumerator) = (unsafe {
-            CoCreateInstance::<_, IMMDeviceEnumerator>(&MMDeviceEnumerator, None, CLSCTX_ALL)
-        })
-        .inspect_err(|e| log::warn!("privacy: no audio device enumerator: {e}")) else {
-            return;
-        };
         let ping = ComObject::new(Ping(tx.clone()));
         let client: IMMNotificationClient = ping.to_interface();
-        // Without it, a microphone plugged in later goes unseen until Sumi restarts.
-        if let Err(e) = unsafe { enumerator.RegisterEndpointNotificationCallback(&client) } {
-            log::warn!("privacy: no device notifications: {e}");
-        }
+        let Ok(mut enumerator) = audio_devices(&client)
+            .inspect_err(|e| log::warn!("privacy: no audio device enumerator: {e}"))
+        else {
+            return;
+        };
         // The camera half: kept alive as long as the loop. Without Media Foundation, only the microphone shows.
         let _monitor =
             camera_monitor(tx).inspect_err(|e| log::warn!("privacy: no camera monitor: {e}"));
@@ -501,92 +574,141 @@ mod win {
         // The name read for each pid. A pid Windows has since given to another exe gets a new name.
         let mut names: HashMap<u32, Named> = HashMap::new();
         let mut icons: HashMap<String, Option<Icon>> = HashMap::new();
+        // The microphones Sumi muted, so unmute gives back only those.
+        let mut ours: Vec<String> = Vec::new();
+        // Tries left to open the microphones again after the audio service stopped.
+        let mut tries = 0;
         // The state sent last, so an unchanged one isn't sent again.
         let mut last: Option<Privacy> = None;
         let mut next = Some(Msg::Sessions);
         loop {
-            let mut devices = false;
+            let (mut devices, mut full, mut answer) = (false, false, false);
             while let Some(msg) = next.take() {
                 match msg {
                     Msg::Devices => devices = true,
-                    Msg::Camera(pids) => camera = pids,
-                    Msg::Mute(muted) => capture.mute(muted),
-                    Msg::Sessions | Msg::Volume => {}
+                    Msg::Service => {
+                        devices = true;
+                        tries = TRIES;
+                    }
+                    Msg::Camera(pids) => {
+                        camera = pids;
+                        full = true;
+                    }
+                    // The page flips its button at once: the real state goes back even when unchanged.
+                    Msg::Mute(muted) => {
+                        capture.mute(muted, &mut ours);
+                        answer = true;
+                    }
+                    Msg::Sessions => full = true,
+                    // It comes for every level change too, from a call app's gain control: only the mute is read.
+                    Msg::Volume => {}
                 }
                 next = rx.recv_timeout(BURST).ok();
             }
             if devices {
                 capture.close(&ping);
+                // The audio service took the device callback with it if its device half restarted too.
+                if tries > 0
+                    && let Ok(fresh) = audio_devices(&client)
+                {
+                    let _ = unsafe { enumerator.UnregisterEndpointNotificationCallback(&client) };
+                    enumerator = fresh;
+                }
                 capture = Capture::open(&enumerator, &ping);
+                if !capture.managers.is_empty() {
+                    tries = 0;
+                }
+                full = true;
             }
 
-            let mic = capture.listen(&ping);
-            let processes = processes();
-            // Which path each name came from, for its icon, and which processes.
-            let mut paths: HashMap<String, String> = HashMap::new();
-            let mut hosts: HashMap<String, Vec<u32>> = HashMap::new();
-            let mut name = |pid: u32| -> Option<String> {
-                if pid == own || pid == 0 {
-                    return None;
-                }
-                let host = host(pid, &processes);
-                let exe = processes
-                    .get(&host)
-                    .map(|p| p.exe.clone())
-                    .unwrap_or_default();
-                let (name, path) = match names.get(&host) {
-                    Some(known) if known.exe == exe => (known.name.clone(), known.path.clone()),
-                    _ => {
-                        let path = image_path(host);
-                        let name = app_name(host, path.clone(), &processes)?;
-                        let named = Named {
-                            exe,
-                            name: name.clone(),
-                            path: path.clone(),
+            let apps = match &last {
+                Some(last) if !full => last.apps.clone(),
+                _ => {
+                    let mic = capture.listen(&ping);
+                    let processes = processes();
+                    // Which path each name came from, for its icon, and which processes.
+                    let mut paths: HashMap<String, String> = HashMap::new();
+                    let mut hosts: HashMap<String, Vec<u32>> = HashMap::new();
+                    let mut name = |pid: u32| -> Option<String> {
+                        if pid == own || pid == 0 {
+                            return None;
+                        }
+                        let host = host(pid, &processes);
+                        let exe = processes
+                            .get(&host)
+                            .map(|p| p.exe.clone())
+                            .unwrap_or_default();
+                        let (name, path) = match names.get(&host) {
+                            Some(known) if known.exe == exe => {
+                                (known.name.clone(), known.path.clone())
+                            }
+                            _ => {
+                                let path = image_path(host);
+                                let name = app_name(host, path.clone(), &processes)?;
+                                let named = Named {
+                                    exe,
+                                    name: name.clone(),
+                                    path: path.clone(),
+                                };
+                                names.insert(host, named);
+                                (name, path)
+                            }
                         };
-                        names.insert(host, named);
-                        (name, path)
+                        if let Some(path) = path {
+                            paths.entry(name.clone()).or_insert(path);
+                        }
+                        hosts.entry(name.clone()).or_default().push(host);
+                        Some(name)
+                    };
+                    let mic: Vec<String> = mic.into_iter().filter_map(&mut name).collect();
+                    let camera_names: Vec<String> =
+                        camera.iter().copied().filter_map(&mut name).collect();
+                    names.retain(|pid, _| processes.contains_key(pid));
+                    let mut apps = gather(&mic, &camera_names, &mut since, unix_ms());
+                    if let Ok(mut owners) = app.state::<Devices>().owners.lock() {
+                        *owners = hosts
+                            .into_iter()
+                            .map(|(name, pids)| (name, roots(&pids, &processes)))
+                            .collect();
                     }
-                };
-                if let Some(path) = path {
-                    paths.entry(name.clone()).or_insert(path);
+                    for app in &mut apps {
+                        if let Some(path) = paths.get(&app.name) {
+                            app.icon = icons
+                                .entry(path.clone())
+                                .or_insert_with(|| icon(path))
+                                .clone();
+                        }
+                    }
+                    apps
                 }
-                hosts.entry(name.clone()).or_default().push(host);
-                Some(name)
             };
-            let mic: Vec<String> = mic.into_iter().filter_map(&mut name).collect();
-            let camera_names: Vec<String> = camera.iter().copied().filter_map(&mut name).collect();
-            names.retain(|pid, _| processes.contains_key(pid));
-            let mut apps = gather(&mic, &camera_names, &mut since, unix_ms());
-            if let Ok(mut owners) = app.state::<Devices>().owners.lock() {
-                *owners = hosts
-                    .into_iter()
-                    .map(|(name, pids)| (name, roots(&pids, &processes)))
-                    .collect();
-            }
-            for app in &mut apps {
-                if let Some(path) = paths.get(&app.name) {
-                    app.icon = icons
-                        .entry(path.clone())
-                        .or_insert_with(|| icon(path))
-                        .clone();
-                }
-            }
+            let mics = capture.mics();
             let state = Privacy {
                 apps,
-                muted: capture.muted(),
-                can_mute: !capture.defaults.is_empty(),
+                muted: all_muted(&mics),
+                can_mute: mics.iter().any(|m| m.covered),
             };
-            if last.as_ref() != Some(&state) {
-                let _ = app.emit("privacy://state", &state);
+            if answer || last.as_ref() != Some(&state) {
+                // The snapshot first: a page that asks for it between the two still gets this state.
                 if let Ok(mut snapshot) = app.state::<Devices>().snapshot.lock() {
                     snapshot.clone_from(&state);
                 }
+                let _ = app.emit("privacy://state", &state);
                 last = Some(state);
             }
-            next = match rx.recv() {
-                Ok(msg) => Some(msg),
-                Err(_) => return,
+            next = if tries > 0 {
+                // The service is still stopping: try again shortly, a set number of times.
+                tries -= 1;
+                match rx.recv_timeout(RETRY) {
+                    Ok(msg) => Some(msg),
+                    Err(RecvTimeoutError::Timeout) => Some(Msg::Devices),
+                    Err(RecvTimeoutError::Disconnected) => return,
+                }
+            } else {
+                match rx.recv() {
+                    Ok(msg) => Some(msg),
+                    Err(_) => return,
+                }
             };
         }
     }
@@ -674,36 +796,69 @@ mod win {
     /// Brings forward the frontmost window of these processes. A Store app's window belongs to ApplicationFrameHost,
     /// with the app's own window inside it.
     pub(super) fn show(pids: &[u32]) -> bool {
+        use std::cell::Cell;
         use windows_sys::Win32::Foundation::{HWND, LPARAM};
         use windows_sys::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
         use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            EnumChildWindows, EnumWindows, GW_OWNER, GetClassNameW, GetForegroundWindow, GetWindow,
+            EnumChildWindows, EnumWindows, GW_OWNER, GWL_EXSTYLE, GWL_STYLE, GetClassNameW,
+            GetForegroundWindow, GetWindow, GetWindowLongW, GetWindowPlacement,
             GetWindowTextLengthW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, MSG,
             PM_NOREMOVE, PeekMessageW, SW_RESTORE, SW_SHOW, SetForegroundWindow, ShowWindowAsync,
+            WINDOWPLACEMENT, WS_CAPTION, WS_CHILD, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
         };
 
         struct Search {
             pids: Vec<u32>,
-            found: HWND,
             /// The second pass also takes a window hidden in the tray or cloaked on another virtual desktop.
             hidden: bool,
+            found: Cell<HWND>,
+            /// The found window's area, on the second pass, which keeps the largest.
+            area: Cell<i64>,
+            /// Whether a Store frame holds one of the app's windows.
+            hit: Cell<bool>,
         }
         fn owned(hwnd: HWND, pids: &[u32]) -> bool {
             let mut pid = 0;
             unsafe { GetWindowThreadProcessId(hwnd, &mut pid) };
             pids.contains(&pid)
         }
+        /// A hidden process keeps helper windows too: an input method's, a toast's frame, a console. Only one that
+        /// looks like an app's own window counts, by its size when restored.
+        fn area(hwnd: HWND, class: &str) -> Option<i64> {
+            let style =
+                u32::from_ne_bytes(unsafe { GetWindowLongW(hwnd, GWL_STYLE) }.to_ne_bytes());
+            let extra =
+                u32::from_ne_bytes(unsafe { GetWindowLongW(hwnd, GWL_EXSTYLE) }.to_ne_bytes());
+            let mut place = WINDOWPLACEMENT {
+                length: u32::try_from(size_of::<WINDOWPLACEMENT>()).unwrap_or(0),
+                ..Default::default()
+            };
+            let window = style & WS_CAPTION == WS_CAPTION
+                && style & WS_CHILD == 0
+                && extra & (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) == 0
+                && class != "ConsoleWindowClass"
+                && unsafe { GetWindowPlacement(hwnd, &mut place) } != 0;
+            let r = place.rcNormalPosition;
+            let (width, height) = (r.right - r.left, r.bottom - r.top);
+            (window && width >= 200 && height >= 150).then(|| i64::from(width) * i64::from(height))
+        }
         unsafe extern "system" fn child(hwnd: HWND, search: LPARAM) -> i32 {
             // SAFETY: show() passes a pointer to its own Search, alive for the whole EnumWindows call, and only
-            // shared references to it exist while children are listed.
+            // shared references to it exist: what changes sits in Cells.
             let search = unsafe { &*(search as *const Search) };
-            i32::from(!owned(hwnd, &search.pids))
+            let hit = owned(hwnd, &search.pids);
+            if hit {
+                search.hit.set(true);
+            }
+            i32::from(!hit)
         }
         unsafe extern "system" fn each(hwnd: HWND, lparam: LPARAM) -> i32 {
-            // SAFETY: as in child. Only shared references are taken, even across EnumChildWindows, and `found` is
-            // written once, through the pointer, after the last of them.
+            // SAFETY: as in child.
             let search = unsafe { &*(lparam as *const Search) };
+            let mut class = [0u16; 32];
+            let len = unsafe { GetClassNameW(hwnd, class.as_mut_ptr(), 32) };
+            let class = String::from_utf16_lossy(&class[..usize::try_from(len).unwrap_or(0)]);
             let found = unsafe {
                 let mut cloaked = 0u32;
                 let _ =
@@ -711,32 +866,43 @@ mod win {
                 (search.hidden || (IsWindowVisible(hwnd) != 0 && cloaked == 0))
                     && GetWindow(hwnd, GW_OWNER).is_null()
                     && GetWindowTextLengthW(hwnd) > 0
-            } && {
-                let mut class = [0u16; 32];
-                let len = unsafe { GetClassNameW(hwnd, class.as_mut_ptr(), 32) };
-                let frame = String::from_utf16_lossy(&class[..usize::try_from(len).unwrap_or(0)])
-                    == "ApplicationFrameWindow";
-                owned(hwnd, &search.pids)
-                    || (frame && unsafe { EnumChildWindows(hwnd, Some(child), lparam) } == 0)
-            };
-            if found {
-                unsafe { (*(lparam as *mut Search)).found = hwnd };
+            } && (owned(hwnd, &search.pids)
+                || (class == "ApplicationFrameWindow" && {
+                    // EnumChildWindows' own answer means nothing: the callback says what it found.
+                    search.hit.set(false);
+                    unsafe { EnumChildWindows(hwnd, Some(child), lparam) };
+                    search.hit.get()
+                }));
+            if !found {
+                return 1;
             }
-            i32::from(!found)
+            if !search.hidden {
+                search.found.set(hwnd);
+                return 0;
+            }
+            if let Some(area) = area(hwnd, &class)
+                && area > search.area.get()
+            {
+                search.found.set(hwnd);
+                search.area.set(area);
+            }
+            1
         }
 
         let mut search = Search {
             pids: pids.to_vec(),
-            found: std::ptr::null_mut(),
             hidden: false,
+            found: Cell::new(std::ptr::null_mut()),
+            area: Cell::new(0),
+            hit: Cell::new(false),
         };
-        unsafe { EnumWindows(Some(each), (&raw mut search) as LPARAM) };
+        unsafe { EnumWindows(Some(each), (&raw const search) as LPARAM) };
         // A call app minimized to the tray hides its window: shown again, it comes back.
-        if search.found.is_null() {
+        if search.found.get().is_null() {
             search.hidden = true;
-            unsafe { EnumWindows(Some(each), (&raw mut search) as LPARAM) };
+            unsafe { EnumWindows(Some(each), (&raw const search) as LPARAM) };
         }
-        let hwnd = search.found;
+        let hwnd = search.found.get();
         if hwnd.is_null() {
             return false;
         }
@@ -996,7 +1162,7 @@ mod win {
     mod tests {
         use std::collections::HashMap;
 
-        use super::{Process, app_name, host, roots};
+        use super::{Mic, Process, all_muted, app_name, host, pick, roots};
 
         fn table(list: &[(u32, u32, &str)]) -> HashMap<u32, Process> {
             list.iter()
@@ -1005,6 +1171,53 @@ mod win {
                     (pid, Process { parent, exe })
                 })
                 .collect()
+        }
+
+        fn mics(list: &[(&str, bool, bool)]) -> Vec<Mic> {
+            list.iter()
+                .map(|&(id, covered, muted)| Mic {
+                    id: id.to_string(),
+                    covered,
+                    muted,
+                })
+                .collect()
+        }
+
+        #[test]
+        fn mute_counts_only_when_every_covered_microphone_is_muted() {
+            // The laptop mic is the default and muted; a headset an app captures from still hears.
+            assert!(!all_muted(&mics(&[
+                ("laptop", true, true),
+                ("headset", true, false)
+            ])));
+            // An idle microphone left on doesn't count.
+            assert!(all_muted(&mics(&[
+                ("laptop", true, true),
+                ("idle", false, false)
+            ])));
+            assert!(!all_muted(&mics(&[("idle", false, true)])));
+        }
+
+        #[test]
+        fn mute_takes_the_covered_microphones_that_hear_and_never_an_idle_one() {
+            let list = mics(&[
+                ("laptop", true, false),
+                ("headset", true, true),
+                ("idle", false, false),
+            ]);
+            assert_eq!(pick(&list, true, &[]), ["laptop"]);
+        }
+
+        #[test]
+        fn unmute_gives_back_only_what_sumi_muted() {
+            // The headset was muted in Windows before Sumi muted the laptop mic.
+            let list = mics(&[("laptop", true, true), ("headset", true, true)]);
+            assert_eq!(pick(&list, false, &["laptop".to_string()]), ["laptop"]);
+            // Muted elsewhere only: unmute takes every covered one.
+            assert_eq!(pick(&list, false, &[]), ["laptop", "headset"]);
+            // One Sumi muted, now idle, comes back too.
+            let list = mics(&[("laptop", true, true), ("usb", false, true)]);
+            assert_eq!(pick(&list, false, &["usb".to_string()]), ["usb"]);
         }
 
         #[test]
