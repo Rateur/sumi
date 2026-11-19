@@ -24,8 +24,9 @@ tauri-plugin-global-shortcut = "2.4.1"
 tauri-plugin-log = "2"
 
 [target.'cfg(windows)'.dependencies]
-# windows is for COM and WinRT (media, privacy, apps), windows-sys for plain Win32 calls. base64, windows and windows-sys
-# already come with Tauri: Sumi only turns on the parts it reads.
+# windows is for COM, WinRT (media, privacy, apps) and a Win32 call that takes or returns a windows type in that code
+# (HANDLE, PCWSTR, PWSTR); windows-sys for every other Win32 call, even in the same file.
+# base64, windows and windows-sys already come with Tauri: Sumi only turns on the parts it reads.
 base64 = "0.23"
 windows = { version = "0.62", features = [
   "Media_Control",
