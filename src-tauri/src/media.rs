@@ -431,19 +431,13 @@ mod win {
         let can = info.Controls().ok()?;
         let line = w.session.GetTimelineProperties().ok()?;
         let ms = |ticks: i64| ticks / 10_000;
-        let playing = info.PlaybackStatus().ok()? == Status::Playing;
         Some(Player {
             id: w.id.clone(),
             title: w.title.clone(),
             artist: w.artist.clone(),
-            playing,
-            // The button sends pause while playing and play otherwise: it is enabled when that one action is.
-            can_play_pause: if playing {
-                can.IsPauseEnabled()
-            } else {
-                can.IsPlayEnabled()
-            }
-            .unwrap_or(false),
+            playing: info.PlaybackStatus().ok()? == Status::Playing,
+            can_play_pause: can.IsPlayEnabled().unwrap_or(false)
+                || can.IsPauseEnabled().unwrap_or(false),
             can_next: can.IsNextEnabled().unwrap_or(false),
             can_previous: can.IsPreviousEnabled().unwrap_or(false),
             can_seek: can.IsPlaybackPositionEnabled().unwrap_or(false),
