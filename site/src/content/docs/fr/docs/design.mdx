@@ -1,0 +1,156 @@
+---
+title: Fonctionnement de l'île
+description: Chaque état de l'île, qui la prend, les raccourcis, les mouvements et les couleurs.
+editUrl: https://github.com/Rateur/sumi/edit/dev/site/src/content/docs/fr/docs/design.mdx
+---
+
+{/* Version française de docs/design.md : à mettre à jour en même temps que lui. */}
+
+L'apparence et le comportement de l'île. Si le code et cette page ne disent pas la même chose, l'un des deux a un bug.
+
+Cette page décrit l'île de la 1.0. Ce que fait déjà chaque version est dans le [journal des modifications](https://github.com/Rateur/sumi/blob/main/CHANGELOG.md).
+
+## États
+
+| État | Taille | Quand |
+|---|---|---|
+| Au repos | 132 × 34 px | Rien ne se passe. Affiche l'heure, ou la météo si elle est choisie. |
+| Survol | 152 × 36 px | Le curseur s'est posé un instant sur l'île. Ajoute la date, ou le nom d'un minuteur. |
+| Compacte | Appel 144, minuteur 112 (128 à partir d'une heure), musique 200 × 34 px* | Une activité est en cours : son contenu se place à gauche et à droite. |
+| Coup d'œil | Musique 300 × 56 px*, 3 s au plus ; minuteur fini 300 × 56 px*, 6 s | Il vient de se passer quelque chose : un minuteur a fini, le chargeur est branché, la batterie est faible. Un nouveau morceau fait plutôt gonfler l'île, voir [Musique](#musique). |
+| Pastille de fin | Minuteur 150 × 34 px* au moins | Un minuteur a fini et attend un OK. |
+| Ouverte | Horloge et minuteur 280 × 120 px*, musique 360 × 164 px*, panneaux jusqu'à 560 px de large | Un clic. Se referme avec Échap ou un clic ailleurs. La musique affiche la pochette, le titre et l'artiste, la progression, et précédent, lecture ou pause, et suivant. |
+| Bulle | Cercle de 34 px | Une deuxième activité, ou l'heure, à 8 px à droite de l'île. Un clic la fait passer sur l'île. |
+| Disque de confidentialité | Cercle de 20 px, carte de 248 px de large | Une app utilise le micro ou la caméra, ou le micro est coupé. À 6 px à droite de tout le reste ; s'ouvre en carte sous le curseur. |
+| Masquée | — | Un jeu, une vidéo ou un diaporama occupe tout l'écran principal. Revient compacte. |
+| Bienvenue | Salutation max(200, texte + 80) × 56 px, ligne du raccourci texte + 48 × 56 px | Une fois, au premier lancement. |
+
+L'île se place à 8 px du bord supérieur, centrée sur l'écran choisi. Les tailles sont données à l'échelle 100 % et suivent celle de l'affichage.
+
+\* Provisoire, pas encore vérifié sur les maquettes Figma.
+
+## Qui a l'île
+
+Quand plusieurs choses arrivent en même temps, la plus haute dans la liste prend l'île, la suivante la bulle, et les autres attendent. À rang égal, ce qui est déjà affiché garde sa place. Un clic sur la bulle l'échange avec l'île, sauf quand l'île affiche un appel.
+
+L'heure passe en dernier : elle a l'île quand rien ne tourne, et la bulle quand une seule chose tourne. Choisie depuis la bulle, elle garde l'île jusqu'à la fin de la musique. Sinon, elle attend tant que deux choses ou plus tournent, et revient quand il n'en reste qu'une ; avec un appel sur l'île, l'heure s'affiche quand même.
+
+1. Appel
+2. Minuteur fini
+3. Minuteur : celui qui tourne et finit le premier
+4. Musique
+5. Les autres minuteurs, en cours ou en pause, celui qui finit le plus tôt d'abord
+6. Heure ou météo
+
+Ce qui a été choisi depuis la bulle passe juste après un minuteur fini. Les minuteurs sont classés par leur fin, pas par ce qui est affiché : l'île garde toujours le prochain qui va sonner.
+
+## Musique
+
+- Tout lecteur que voient les contrôles multimédias de Windows : Spotify, les navigateurs, VLC et les autres. Deux lecteurs à la fois prennent l'île et la bulle.
+- Un lecteur s'affiche dès qu'il joue. En pause, il reste une minute, puis l'heure revient ; relancer la lecture le ramène. Un lecteur qui disparaît un instant entre deux morceaux est gardé 2,5 s, pour que l'île ne clignote pas.
+- Un nouveau morceau fait gonfler l'île, sauf si Windows indique que vous êtes occupé. Le titre et l'artiste sont dans le panneau.
+- La barre de progression et les temps sont calculés à partir de la dernière position donnée par Windows : rien n'est envoyé pendant qu'un morceau joue. Un flux en direct sans durée n'a pas de barre.
+- La barre se fait glisser, dans les lecteurs qui le permettent. Elle s'épaissit sous le curseur, comme sur iPhone, et reste là où on la lâche jusqu'à ce que le lecteur réponde, 3 s au plus. Un glissement commencé sur l'île garde le curseur jusqu'à ce que le bouton soit relâché, même au-delà du bord de l'île.
+- Un glissement sur la barre s'annule si le panneau se ferme ou si un autre morceau prend sa place.
+- Un nouveau morceau fait gonfler l'île quand la musique est sur l'île, et la bulle quand elle est dans la bulle.
+- La pochette arrive dans l'île sous forme de données, jamais de fichier. Sa couleur dominante est lue sur une copie de 16 px, puis éclaircie jusqu'à ressortir sur le noir.
+
+## Minuteurs
+
+- On les tape dans la barre de commande : `25m`, `1h30`, `10 min pâtes`. Chacun compte à rebours jusqu'à son heure de fin sur l'horloge, et le reste est recalculé à chaque seconde affichée : ni la veille ni le changement d'heure ne le décalent.
+- Compacte : un anneau ambre de 14 px se vide à gauche, et les chiffres se placent à droite, en m:ss sous une heure, en h:mm:ss au-delà. Pas de nom, sauf si le curseur s'y pose.
+- Un clic ouvre le panneau : le nom, ou « Minuteur », les chiffres, l'heure de fin au format de l'horloge, et deux boutons ronds, pause ou reprendre et annuler. « +1 » à côté du nom indique qu'un autre minuteur tourne.
+- En pause, l'anneau et les chiffres se figent à mi-intensité, sans clignoter, et le minuteur passe après la musique : une pause oubliée ne reprend jamais l'île.
+- Plusieurs minuteurs : l'île montre celui qui finit le premier, les autres attendent sans cesser de compter. Sans nom, ils sont numérotés : « Minuteur 2 ».
+- À la fin, l'île gonfle et reste 6 s en coup d'œil : l'anneau plein, le nom ou « Fini », le temps écoulé depuis la fin qui avance (« +0:12 »), un +1 min discret et un OK blanc. Elle se replie ensuite en pastille de fin, avec l'anneau, le nom et « +3:10 », dont les boutons apparaissent sous le curseur.
+- Un clic sur la pastille de fin, ou sur OK, la fait disparaître, tout comme `stop` dans la barre. Échap et un clic ailleurs, non : vous ne l'avez peut-être pas encore vue. +1 min relance une minute sous le même nom. Il n'y a pas de bouton Répéter.
+- Un carillon court et doux, produit par l'app, toutes les 10 s pendant une minute, puis le silence, au volume de Windows. Activé par défaut ; les réglages, dans la 0.9, permettront de le couper. La démo dans le navigateur reste muette.
+- Quand Windows indique que vous êtes occupé, un minuteur fini s'affiche et sonne quand même : c'est une alarme que vous avez mise. En plein écran, seul le carillon sonne ; quand l'app quitte le plein écran, l'île redescend, gonfle une fois et montre la fin.
+- Les minuteurs n'existent qu'en mémoire : quitter Sumi ou redémarrer Windows les efface. Rien de ce que l'île affiche n'est écrit sur le disque.
+
+## Micro et caméra
+
+- La règle d'Apple : un seul point, vert quand une app utilise une caméra, avec ou sans le micro, orange pour le micro seul. Il a son propre disque noir de 20 px, à 6 px à droite de l'île ou de la bulle, à hauteur de la ligne du haut de l'île. Le disque se détache de la forme voisine comme une goutte, comme la bulle se détache de l'île, et s'y fond à nouveau. L'île elle-même ne change jamais pour lui : la musique et l'heure gardent leur place.
+- Le micro vient des sessions audio de Windows, en ne comptant que celles qui captent en ce moment, car Teams et d'autres gardent la leur ouverte après un appel. La caméra vient de l'activité des capteurs de Media Foundation. Les deux signalent chaque changement. La liste du registre derrière la page de confidentialité de Windows n'est pas lue : les versions récentes de Windows 11 ne la mettent plus à jour, et un plantage y laisse des entrées périmées pendant des mois.
+- Un processus WebView2 compte comme l'app qui l'héberge. Les noms viennent de la description de l'exe, « Discord » ou « Google Chrome », sinon de son nom de fichier.
+- Posez le curseur sur le disque, comme sur l'île, et il s'ouvre en carte, la largeur d'abord, comme l'île : une ligne par app avec son icône, ce qu'elle utilise et depuis quand, quatre au plus, la dernière résumant le reste, puis les boutons. Un clic l'ouvre aussi. Ouverte, la carte reste où elle s'est ouverte, se referme 300 ms après le départ du curseur, ou avec Échap ou un clic ailleurs, et se referme avant que le disque ne rentre dans l'île.
+- Les boutons suivent ce qui est utilisé : couper le micro, quand une app l'utilise ou qu'il est coupé ; un bouton caméra quand une app filme, qui fait passer cette app au premier plan, car Windows ne peut pas couper la caméra de toutes les apps sans droits administrateur ; et les réglages de confidentialité de Windows. Un clic sur une app la fait aussi passer au premier plan, même réduite ou cachée dans la zone de notification : sa fenêtre, ou pour une app du Store, le cadre qui l'entoure. Quand aucune fenêtre ne vient au premier plan, la page de confidentialité de Windows s'ouvre à la place.
+- Les icônes viennent de l'exe, en pixels bruts que la page dessine : pas d'encodeur d'images dans l'app.
+- Le muet est celui de Windows, sur les micros par défaut, pour toutes les apps. Il ne compte comme activé que si tous les micros par défaut sont coupés. Tant qu'il l'est, un micro barré reste dans le disque, même si aucune app n'écoute.
+- Media Foundation est chargé à l'exécution : les éditions N de Windows en sont privées, et Sumi doit quand même y démarrer, avec le micro seul.
+
+## Interactions
+
+Les clics hors de l'île atteignent la fenêtre en dessous. L'île ne prend jamais le focus, sauf quand la barre de commande est ouverte : un jeu ou un appel le garde.
+
+Sans le focus, l'île ne reçoit jamais Échap ni un clic ailleurs. Quand elle est ouverte, elle les guette à la place et se referme, et ils atteignent quand même l'app à laquelle ils étaient destinés. Changer d'app la referme aussi. Un minuteur fini résiste aux deux.
+
+Limites connues : au toucher ou au stylet, le premier appui sur l'île atteint l'app en dessous et le second l'ouvre. Quand une app lancée en administrateur, comme le Gestionnaire des tâches, a le focus, Windows cache Échap et les clics à Sumi : seul un changement d'app referme le panneau.
+
+| Raccourci | Action |
+|---|---|
+| `Win+Alt+S` | Ouvrir ou fermer la barre de commande |
+| `Entrée` | Lancer ce que montre la pastille |
+| `Tab` / `Maj+Tab` | Cible suivante / précédente |
+| `Échap` | Fermer |
+
+Dans la barre de commande, `25m`, `90s` ou `1h30` est un minuteur, le nom d'une app l'ouvre, `quelle heure est-il` affiche l'heure, et tout le reste est une question. La ligne est lue sans la ponctuation, les formules de politesse ne comptent qu'autour d'un verbe, et un verbe compte pareil sous toutes ses formes (`ouvre`, `ouvrir`, `lance`, `open`). Un mot seul de quatre lettres ou plus ouvre l'app dont le nom, ou un mot de ce nom, commence ainsi, s'il n'y en a qu'une : `disc` ouvre Discord, mais jamais tant que le mot peut encore devenir un mot de la barre ou une question. Dans le doute, la ligne est une question : des apps à égalité ou un verbe à la forme négative n'ouvrent rien. La pastille dit ce que fera Entrée, et Tab la fait passer à la cible suivante : les apps à égalité, l'assistant par défaut, les autres assistants, puis le moteur de recherche. Sur une ligne vide, Entrée ne fait rien.
+
+Le raccourci fait passer la barre au premier plan, avec le focus. Échap rend le focus à la fenêtre où vous étiez ; un clic ailleurs ou un changement d'app referme aussi la barre. Avant qu'une app ou un site s'ouvre, la barre lâche le focus, pour que ce qui s'ouvre passe au premier plan. Tant que l'île est masquée en plein écran, le raccourci ne fait rien.
+
+Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux sont pris, la barre n'a pas de raccourci, et rien ne le signale. Les réglages, dans la 0.9, permettront de le changer. Sumi laisse de côté `Ctrl+Alt+S`, car certains claviers tapent une lettre avec AltGr+S, `Ctrl+Maj+S`, Enregistrer sous, `Alt+Espace` (Windows et PowerToys Run) et `Ctrl+Alt+Espace` (la saisie rapide de Claude).
+
+## Se faire oublier
+
+- Seule la forme dessinée réagit à la souris. Le reste de la fenêtre, et les 8 px au-dessus de l'île, appartiennent à l'app en dessous.
+- Un glissement commencé ailleurs, comme un onglet, une sélection de texte ou une fenêtre, passe par-dessus l'île. Elle se réveille une fois tous les boutons relâchés.
+- Elle ne s'agrandit que si le curseur s'y pose pendant le délai de survol de Windows, et rapetisse 300 ms après son départ. Un clic l'ouvre aussitôt.
+- Elle passe au-dessus des fenêtres une seule fois, sans jamais être remontée ensuite : les menus, les info-bulles, Démarrer et Alt+Tab peuvent la couvrir. La déplacer ne prend jamais le focus.
+- Elle se masque quand une fenêtre occupe tout l'écran principal, ou quand Windows signale un jeu en plein écran ou une présentation : elle remonte hors de l'écran, puis sa fenêtre se masque, et rien ne reste au-dessus du jeu. Un clic sur un autre écran la garde masquée. Elle revient sans prendre le focus.
+- Quand Windows indique que vous êtes occupé, par exemple avec une app en plein écran sur un autre écran, ce qui change s'affiche sur place, sans coup d'œil, et un nouveau morceau ne fait pas gonfler l'île. Un appel s'affiche quand même en coup d'œil.
+- Elle se place sous le haut de la zone de travail : une barre des tâches en haut la fait descendre. Elle vérifie une fois par seconde.
+- Un Sumi figé ne laisse jamais de copie « Ne répond pas » en haut de l'écran.
+
+## Mouvements
+
+- **Les formes sont des ressorts, jamais des fondus.** La largeur et la hauteur ont chacune leur ressort : à l'ouverture, la largeur part en premier ; à la fermeture, la hauteur. En grandissant, la forme dépasse un peu sa taille ; en rétrécissant, jamais. Une forme en mouvement s'étire avec sa vitesse, de 4 % au plus.
+- **Le contenu sort d'un flou** un instant après le départ de la forme, élément par élément, et repart plus vite qu'il n'est venu, sans flou : un flou qui grandit bloque le GPU. Un élément qui reste, comme l'heure, la pochette ou l'égaliseur, glisse vers sa nouvelle place au lieu de disparaître en fondu. Seuls les chiffres qui changent défilent.
+- **Appuyez** et l'île cède un peu ; relâchez et elle s'ouvre avec cet élan. Une nouvelle activité, un changement de morceau ou un minuteur fini la font gonfler un instant.
+- **La bulle** se détache comme une goutte, reliée à l'île jusqu'à ce qu'elles se séparent, et s'y fond de la même façon.
+- **En plein écran**, le contenu s'en va et l'île remonte hors de l'écran. Elle redescend quand le jeu ou la vidéo se termine.
+- **À chaque démarrage**, l'île descend du haut de l'écran de la même façon (depuis −66 px, un ressort de 0,5 s avec un rebond de 0,2), à la première image après le chargement des polices, et son contenu arrive aux 60 % de la descente. Elle ne descend pas tant que quelque chose est en plein écran : elle arrive avec la descente du retour.
+- **Avec les effets d'animation coupés** dans Windows, les formes changent d'un coup et le contenu passe en fondu enchaîné. Ni flou, ni étirement, ni défilement, ni enfoncement, ni fusion des formes.
+- **Au repos, rien ne tourne** : aucune image d'animation, aucun filtre, aucun message à Rust. L'horloge se réveille une fois par minute, un minuteur une fois par seconde quand l'île l'affiche, et sinon seulement pour sa fin et ses carillons, et l'égaliseur ne bouge que si la musique joue et que l'île est visible.
+- **Le premier survol est aussi fluide que les suivants** : une copie cachée de chaque taille de texte est mise en page au lancement, pour que les polices soient prêtes avant d'être utiles.
+- **Le site bouge de la même façon.** Ses îles utilisent des courbes CSS calculées à la construction du site à partir des ressorts et des durées de l'app (`src/lib/curves.ts`) : changer l'un change l'autre.
+
+## Bienvenue
+
+Une fois, au premier lancement après l'installation ou après une mise à jour depuis la 0.5, l'île dit bonjour et montre le raccourci de la barre de commande. Rien n'attend de clic et rien ne prend le focus. Les temps sont en ms depuis le début de la descente :
+
+| ms | Étape |
+|---|---|
+| 0 | L'île vide descend. |
+| 140 | Une perle d'encre, la goutte du logo, se détache du bas de la pilule depuis l'intérieur, comme la bulle (fusion σ 7). Elle reste suspendue environ 0,6 s, avec un rayon de 15,5 px et son centre à 21 px sous la pilule. |
+| 700 | La perle remonte pendant que l'île s'ouvre, comme le panneau, sur « Bonjour » ou « Hello » : Segoe UI Variable Display, 600, 24 px. |
+| 1700 | L'île s'élargit jusqu'au raccourci : « Barre de commande » ou « Command bar » (14 px, 500, blanc à 60 %), puis des touches plates (13 px, 600, 26 px de haut, rayon 7, blanc à 12 % avec un contour blanc à 16 %). Les touches sont celles que Sumi a enregistrées ; sur un clavier français, Shift devient « Maj ». |
+| 4900 | L'île se replie, comme le panneau se referme, sur l'heure, ou sur la musique ou le minuteur déjà là. Au repos vers 5,6 s. |
+
+Sans raccourci, l'étape du raccourci saute, et l'île se replie à 2300. L'accueil compte comme vu une fois le raccourci affiché pendant une seconde, ou après un clic sur l'île, qui la replie aussitôt. Il ne se joue que si l'île est affichée : en plein écran ou quand Windows indique que vous êtes occupé, il attend, et si cela arrive en cours de route, il s'arrête et se rejoue plus tard. Un curseur posé dessus garde le raccourci jusqu'à 300 ms après son départ ; le raccourci de la barre y met fin et ouvre la barre ; une nouvelle activité y met fin et prend l'île, tout comme un minuteur qui finit. Un lecteur d'écran l'annonce une fois, avec le vrai raccourci. Le raccourci reste aussi dans l'info-bulle de l'icône de Sumi, dans la zone de notification.
+
+Avec les effets d'animation coupés, l'île apparaît en fondu à sa place, déjà en forme de logo, et chaque étape suivante efface le contenu en fondu dans l'ancienne forme, change la forme, puis fait apparaître le nouveau contenu en fondu. Avec un thème de contraste, il n'y a pas de perle.
+
+## Apparence
+
+- L'île est d'un noir pur (`#000`), entièrement arrondie. Les panneaux ont un rayon de 24 à 32 px.
+- La police est Segoe UI Variable, avec Inter en secours. Les heures et les minuteurs utilisent des chiffres tabulaires.
+- La musique teinte l'égaliseur et la barre de progression de la couleur dominante de la pochette. L'île elle-même reste noire : le texte garde un contraste AA quelle que soit la pochette.
+- Couleurs fixes : micro `#FB923C`, caméra `#4ADE80`, minuteur `#FBBF24`, batterie faible `#F87171`.
+- Un thème clair (île blanche, texte noir) est disponible dans les réglages.
+- Avec un thème de contraste activé dans Windows, l'île est cernée aux couleurs du thème. Les points micro et caméra, la pochette et l'égaliseur gardent les leurs.
+
+## Pourquoi ces choix
+
+- **Un clic pour ouvrir, pas le survol.** En haut d'un écran Windows, le curseur traverse l'île pour rejoindre les onglets du navigateur et les barres de titre. Le survol ne donne qu'un indice.
+- **Petite au repos, masquée en plein écran.** Sous Windows, on reproche aux apps d'île de cacher le contenu et d'occuper le processeur au repos. L'objectif : presque 0 % de processeur quand rien ne se passe.
+- **Compacte, ouverte et bulle** reprennent le modèle que l'on connaît déjà sur les téléphones. Les noms, les dessins et le code sont à nous.

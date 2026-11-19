@@ -88,6 +88,7 @@ const island = `${base}island/index.html`;
 					</div>
 				</div>
 				<div class="menu-foot" style="--i: 4">
+					<a class="menu-docs" href={`${prefix}docs/`}>{t.allDocs} <span aria-hidden="true">→</span></a>
 					<a class="menu-lang" href={otherHome} data-lang={lang === 'fr' ? 'en' : 'fr'} lang={lang === 'fr' ? 'en' : 'fr'}>{t.otherLang}</a>
 					<span class="menu-version">v{version}</span>
 				</div>
@@ -271,7 +272,7 @@ const island = `${base}island/index.html`;
 				<ul class="end-links" data-reveal style="--d: 2">
 					<li><a href={repo}>{t.github}</a></li>
 					<li><a href={`${repo}/discussions`}>{t.discussions}</a></li>
-					<li><a href={`${prefix}docs/install/`}>{t.docs}</a></li>
+					<li><a href={`${prefix}docs/`}>{t.docs}</a></li>
 					<li><a href={otherHome} data-lang={lang === 'fr' ? 'en' : 'fr'} lang={lang === 'fr' ? 'en' : 'fr'}>{t.otherLang}</a></li>
 				</ul>
 			</div>
@@ -293,7 +294,10 @@ const island = `${base}island/index.html`;
 			// The island is sized from its content, never from a guessed number.
 			const fit = () => {
 				const open = nav.classList.contains('open');
-				nav.style.width = `${open ? Math.min(560, innerWidth - 32) : bar.scrollWidth}px`;
+				const width = open ? Math.min(560, innerWidth - 32) : bar.scrollWidth;
+				nav.style.width = `${width}px`;
+				// The menu takes its final width at once, so its height is measured there, not at the width the island grows from.
+				if (open) menu.style.width = `${width}px`;
 				nav.style.height = `${bar.offsetHeight + (open ? menu.scrollHeight : 0)}px`;
 			};
 			let closing = 0;
@@ -770,18 +774,27 @@ const island = `${base}island/index.html`;
 	}
 	.menu-foot {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
-		justify-content: space-between;
+		gap: 8px;
 		margin-top: 18px;
 	}
-	.menu-foot .menu-lang {
+	.menu-foot a {
 		margin: 0;
 		padding: 7px 14px;
 		border-radius: 999px;
 		background: rgb(255 255 255 / 0.08);
 		font-size: 14px;
 	}
+	/* The one light pill in the dark menu, as Download is in the bar: the way into every page of the docs. */
+	.menu-foot .menu-docs,
+	.menu-foot .menu-docs:hover {
+		background: var(--paper);
+		color: var(--ink);
+		font-weight: 600;
+	}
 	.menu-version {
+		margin-left: auto;
 		color: #a8a397;
 		font-size: 14px;
 	}

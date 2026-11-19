@@ -10,8 +10,6 @@ export default defineConfig({
 	scopedStyleStrategy: 'where',
 	// The home page reads the app version from the repository's package.json.
 	vite: { server: { fs: { allow: ['..'] } } },
-	// The docs have no index of their own; trimming a docs URL lands on the first page.
-	redirects: { '/docs': '/sumi/docs/install/', '/fr/docs': '/sumi/fr/docs/install/' },
 	integrations: [
 		starlight({
 			title: 'Sumi',
@@ -38,6 +36,7 @@ export default defineConfig({
 				'./src/styles/theme.css',
 			],
 			sidebar: [
+				{ slug: 'docs', label: 'Overview', translations: { fr: 'Vue d’ensemble' } },
 				{
 					label: 'Start here',
 					translations: { fr: 'Pour commencer' },
