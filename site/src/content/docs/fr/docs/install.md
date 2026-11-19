@@ -9,6 +9,8 @@ Sumi fonctionne sur Windows 10 et 11, 64 bits.
 2. Lancez-le. Windows signale un éditeur inconnu : sélectionnez **Informations complémentaires**, puis **Exécuter quand même**.
 3. Ouvrez Sumi depuis le menu Démarrer. L'île apparaît en haut de votre écran principal.
 
+Au premier lancement, l'île dit bonjour et montre le raccourci de la barre de commande, puis l'heure. Un clic dessus passe directement à l'heure. Le raccourci reste dans l'info-bulle de l'icône Sumi, dans la zone de notification.
+
 :::note[Pourquoi cet avertissement ?]
 L'installateur n'est pas encore signé. Une version Microsoft Store, signée par Microsoft, arrive : voir la [politique de signature du code](../code-signing/).
 :::

@@ -17,6 +17,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
+| Welcome | Greeting max(200, text + 80) × 56 px, shortcut row text + 48 × 56 px | Once, at the first launch. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
 
@@ -111,10 +112,27 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - **Press** and the island gives a little; release and it opens with that speed. A new activity, a song change or a finished timer swell it for a moment.
 - **The bubble** splits off like a drop, joined to the island until they part, and merges back the same way.
 - **In fullscreen** the content leaves and the island slides up off the screen. It drops back down when the game or video ends.
+- **Every start** the island drops in from above the screen the same way (from −66 px, a 0.5 s spring with 0.2 bounce), on the first frame after the fonts are ready, and its content comes in 60 % of the way down. It doesn't drop while something is fullscreen: it comes back with the return drop.
 - **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
 - **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
+
+## Welcome
+
+Once, at the first launch after install or after an upgrade from 0.5, the island says hello and shows the command bar's shortcut. Nothing waits for a click and nothing takes focus. Times are in ms from the start of the drop:
+
+| ms | Beat |
+|---|---|
+| 0 | The empty island drops in. |
+| 140 | An ink bead, the logo's drop, splits off the pill's bottom from inside, as the bubble does (goo σ 7). It hangs with a 15.5 px radius, its centre 21 px under the pill, for about 0.6 s. |
+| 700 | The bead is drawn back up while the island opens, as the panel does, to "Bonjour" or "Hello": Segoe UI Variable Display, 600, 24 px. |
+| 1700 | The island widens to the shortcut: "Barre de commande" or "Command bar" (14 px, 500, 60 % white), then flat keycaps (13 px, 600, 26 px tall, radius 7, 12 % white with a 16 % white line). The keys are the ones Sumi registered; on a French keyboard Shift is "Maj". |
+| 4900 | The island folds, as the panel closes, to the time, or to the music or the timer already there. At rest by about 5.6 s. |
+
+Without a shortcut there is no shortcut beat, and it folds at 2300. It counts as seen once the shortcut has shown for a second, or after a click on the island, which folds at once. It plays only while the island is shown: in fullscreen or while Windows says you're busy, it waits, and it stops and plays again later if that happens midway. A cursor resting on it holds the shortcut until 300 ms after it leaves; the bar's shortcut ends it and opens the bar; a new activity ends it and takes the island, and so does a timer that ends. A screen reader hears it once, with the real shortcut. The shortcut also stays in the tray icon's tooltip.
+
+With reduced motion, the island fades in where it is, already the logo, and each later beat fades the content out in the old shape, changes the shape, and fades the new content in. In a contrast theme there is no bead.
 
 ## Look
 

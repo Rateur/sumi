@@ -3,7 +3,7 @@
 //! that poll. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
 //! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads
 //! Start's list once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers`
-//! only answers the page: it plays the timers' chime.
+//! and `welcome` only answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
 
 mod apps;
 mod bar;
@@ -12,6 +12,9 @@ mod island;
 mod media;
 mod privacy;
 mod timers;
+mod welcome;
+
+use std::sync::Mutex;
 
 use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
@@ -47,6 +50,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             island::set_island_rects,
             island::set_island_expanded,
+            island::island_presence,
             apps::apps_list,
             apps::has_claude,
             apps::app_icon,
@@ -61,7 +65,9 @@ pub fn run() {
             privacy::privacy_mute,
             privacy::privacy_settings,
             privacy::privacy_show,
-            timers::timer_chime
+            timers::timer_chime,
+            welcome::welcome_pending,
+            welcome::welcome_done
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -72,10 +78,16 @@ pub fn run() {
                 )?;
             }
 
+            bar::register(app.handle());
+            // Where the shortcut can still be found once the welcome has gone by. Given to the builder, which
+            // applies it again when Explorer restarts, rather than set later, which fails while the taskbar isn't up.
+            let tip = bar::bar_shortcut(app.state())
+                .map_or("Sumi".into(), |keys| format!("Sumi · {keys}"));
+
             // The island has no title bar and no taskbar button: the tray icon is how you quit.
             let quit = MenuItem::with_id(app, "quit", "Quit Sumi", true, None::<&str>)?;
             let mut tray = TrayIconBuilder::new()
-                .tooltip("Sumi")
+                .tooltip(tip)
                 .menu(&Menu::with_items(app, &[&quit])?)
                 .on_menu_event(|app, event| {
                     if event.id() == "quit" {
@@ -92,14 +104,20 @@ pub fn run() {
                 .ok_or("the island window is missing from tauri.conf.json")?;
             island::place(&window)?;
             window.set_ignore_cursor_events(true)?;
+            // Decided before the window shows: a game already fullscreen keeps it hidden, and the page reads it at
+            // once to choose between the drop and the welcome. Shown first all the same, so Tauri knows it visible.
+            let (trigger, presence) = fullscreen::check(&window, None);
+            app.manage(island::IslandPresence(Mutex::new(presence)));
             window.show()?;
+            if presence == fullscreen::Presence::Hidden {
+                fullscreen::set_visible(&window, false)?;
+            }
             // Setup runs on the main thread, whose message loop delivers the hook's events.
             fullscreen::watch_foreground();
-            island::follow_cursor(app.handle().clone(), window);
+            island::follow_cursor(app.handle().clone(), window, trigger, presence);
             media::watch(app.handle());
             privacy::watch(app.handle());
             apps::watch(app.handle());
-            bar::register(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

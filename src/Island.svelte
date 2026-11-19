@@ -22,8 +22,10 @@
     ENTER,
     EXIT,
     FULLSCREEN,
+    INK,
     OPEN,
     PRESS,
+    WELCOME,
     bezier,
     motion,
     squash,
@@ -41,9 +43,11 @@
     radius,
     resolveView,
     sizeOf,
+    welcomeWidth,
     type Rect,
     type TimerFit,
     type View,
+    type Welcome,
   } from './lib/shapes'
   import {
     clockTime,
@@ -79,6 +83,7 @@
     type Timer,
   } from './lib/timers'
   import { ASSISTANTS, choices, type Choice, type Lang } from './lib/intent'
+  import { WORDS, announce, keysOf } from './lib/welcome'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
 
@@ -111,8 +116,9 @@
   let expanded = $state(false)
   let peeking = $state<string>()
   let hidden = $state(false)
-  let presence: Presence = 'shown'
-  let revealed = $state(true)
+  let presence = $state<Presence>('shown')
+  // Off the screen until the startup drop brings the island in.
+  let revealed = $state(false)
   let now = $state(new Date())
   // Windows' default. Rust sends the user's own each time the cursor arrives.
   let hoverTime = 400
@@ -135,6 +141,16 @@
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
+  // The first-launch welcome: due ('waiting'), on the island, or over for this session. `welcome` is its view once
+  // it greets, `blank` keeps the time out of the island it drops in, and `mark` is the logo that stands in for the
+  // bead with reduced motion. `spoken` is what a screen reader hears.
+  let launched = $state(false)
+  let greeting = $state<'waiting' | 'playing' | 'over'>('over')
+  let welcome = $state<Welcome>()
+  let blank = $state(false)
+  let mark = $state(false)
+  let spoken = $state('')
+  const keys = $derived(keysOf(shortcut, lang))
   // Icons asked for, by app id: `null` while Rust reads one, or when an app has none. Not reactive: one arriving
   // must not rerun the effect that asks for them.
   const icons: Record<string, Listed['icon']> = {}
@@ -168,17 +184,27 @@
   const view = $derived(
     resolveView({
       activity: arrangement.island,
-      hovered,
+      // No hover view while the welcome plays: a cursor on it holds the shortcut instead.
+      hovered: hovered && greeting !== 'playing',
       expanded,
       peeking,
       bar: barOpen,
       launch: !!launch,
       clock: telling,
       timer: fit,
+      welcome,
+      blank,
     }),
   )
-  // While the bar and its answer hold the island, what had it waits in the bubble.
-  const beside = $derived(barOpen || launch || telling ? arrangement.island : arrangement.bubble)
+  // While the bar and its answer hold the island, what had it waits in the bubble. The welcome keeps the island
+  // the only black mass.
+  const beside = $derived(
+    barOpen || launch || telling
+      ? arrangement.island
+      : launched && greeting !== 'playing'
+        ? arrangement.bubble
+        : undefined,
+  )
   // The bar names timers as the island does, so 'stop minuteur 2' finds the second one.
   const options = $derived(
     barOpen
@@ -194,14 +220,17 @@
   const size = $derived(sizeOf(view))
   // A timer's shape changes size without changing view, as an hour passes or its name shows.
   const key = $derived(
-    ('activity' in view && view.activity ? `${view.name}:${view.activity.id}` : view.name) +
-      `:${size.width}x${size.height}`,
+    ('activity' in view && view.activity
+      ? `${view.name}:${view.activity.id}`
+      : view.name === 'welcome'
+        ? `welcome:${view.step}`
+        : view.name) + `:${size.width}x${size.height}`,
   )
   const reduced = $derived(prefersReducedMotion.current)
 
   // What the island shows, piece by piece. A piece that stays from one view to the next moves instead of fading.
   const parts = $derived.by(() => {
-    const name = revealed ? view.name : undefined
+    const name = revealed && !blank ? view.name : undefined
     const activity = name && 'activity' in view ? view.activity : undefined
     return {
       date: name === 'hover' && !activity,
@@ -214,6 +243,7 @@
       timer: activity?.kind === 'timer' ? activity : undefined,
       bar: name === 'bar',
       launch: name === 'launch' ? launch : undefined,
+      welcome: name && view.name === 'welcome' ? view.step : undefined,
     }
   })
 
@@ -242,22 +272,26 @@
 
   // One spring per axis, so the width can lead and the height follow. `travel` slides the bubble out
   // of the island and `bubble` is its size; `tagShift`, `tagW` and `tagH` do the same for the privacy tag, which
-  // also opens into a card; `drop` lifts everything off the screen in fullscreen.
+  // also opens into a card; `drop` lifts everything off the screen in fullscreen, and at startup until the first
+  // drop. `inkD` and `inkR` are the welcome's bead: its centre's distance under the pill, and its radius.
   const start = untrack(() => size)
   const width = new Spring(start.width)
   const height = new Spring(start.height)
-  const drop = new Spring(0)
+  const drop = new Spring(-(TOP + start.height + 24))
   const travel = new Spring(0)
   const bubble = new Spring(0)
   const tagShift = new Spring(0)
   const tagW = new Spring(0)
   const tagH = new Spring(0)
-  const springs = [width, height, drop, travel, bubble, tagShift, tagW, tagH]
+  const inkD = new Spring(0)
+  const inkR = new Spring(0)
+  const springs = [width, height, drop, travel, bubble, tagShift, tagW, tagH, inkD, inkR]
 
   let goo = $state(false)
   let sigma = $state(0)
   let ramp: { from: number; to: number; start: number; end: number } | undefined
   let phase: 'none' | 'split' | 'shown' | 'merge' = 'none'
+  let inkPhase: 'none' | 'split' | 'merge' = 'none'
   let delayed: ReturnType<typeof setTimeout> | undefined
   let reveal = 0
   // Where the open card's left edge stays while it is open.
@@ -292,7 +326,11 @@
             height: th,
           }
         : undefined
-    return { fill, dot, tag: flag, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
+    // The bead hangs from the middle of the pill's bottom edge, as the logo's drop does.
+    const r = inkR.value
+    const ink =
+      r > 0.5 ? { x: viewport / 2 - r, y: fill.y + h + inkD.value - r, width: 2 * r, height: 2 * r } : undefined
+    return { fill, dot, tag: flag, ink, clip: layout(viewport, clip, 0, { drop: drop.value })[0] }
   }
 
   // Frames run only while something moves: at rest there is no loop, no IPC and no filter.
@@ -322,6 +360,12 @@
       pulse(120, 0, t)
       fade(0, 120, t)
     }
+    if (inkPhase === 'merge' && inkD.value < -8) {
+      inkPhase = 'none'
+      inkD.jump(0)
+      inkR.jump(0)
+      fade(0, 120, t)
+    }
     if (tagPhase === 'split' && near(tagShift) && near(tagW)) {
       tagPhase = 'shown'
       fade(0, 120, t)
@@ -334,6 +378,8 @@
     if (!hidden && !revealed && drop.value >= reveal) revealed = true
     geometry = shape()
     const moving = springs.some((s) => !s.resting) || !!ramp || !!delayed
+    if (folding && !moving) folding = false
+    ride()
     follow(moving)
     report(moving)
     if (moving) raf = requestAnimationFrame(frame)
@@ -356,9 +402,16 @@
     // Off the screen in fullscreen, the shape takes its new size at once: nobody would see it move.
     // Unlike the drops, it still springs in forced colors: an outline follows it fine.
     if (reduced || (hidden && drop.resting)) {
-      width.jump(target.width)
-      height.jump(target.height)
-      return wake()
+      const jump = () => {
+        delayed = undefined
+        width.jump(target.width)
+        height.jump(target.height)
+        wake()
+      }
+      // Reduced motion: the welcome's content fades out in the old shape before the shape changes.
+      if (reduced && (from.name === 'welcome' || to.name === 'welcome')) delayed = setTimeout(jump, gap)
+      else jump()
+      return
     }
     const { width: w, height: h, delay, pulse: arrives } = motion(from, to)
     const go = () => {
@@ -520,6 +573,11 @@
   let before = new Map<Element, DOMRect>()
   let box: DOMRect | undefined
   let grows = true
+  // Reduced motion: how long new content waits for the old one to fade out, during the welcome.
+  let gap = 0
+  // Out of the welcome, the new content waits for the shape as it starts to close, and keeps to its middle.
+  let folding = false
+  let lag = 0
   let last = untrack(() => view)
   let flips: { node: HTMLElement; dx: number; dy: number; scale: number }[] = []
   let basis = { w0: 0, w1: 0, h0: 0, h1: 0 }
@@ -530,6 +588,9 @@
       if (!content) return
       const [a, b] = [sizeOf(last), size]
       grows = revealed && b.width * b.height >= a.width * a.height
+      gap = reduced && (last.name === 'welcome' || view.name === 'welcome') ? 120 : 0
+      folding = !reduced && last.name === 'welcome' && view.name !== 'welcome'
+      lag = folding ? motion(last, view).delay : 0
       box = content.getBoundingClientRect()
       before = new Map([...content.children].map((node) => [node, node.getBoundingClientRect()]))
     })
@@ -543,8 +604,14 @@
       if (from === view) return
       flip()
       reshape(from, view)
+      ride()
     })
   })
+
+  // The content box is laid out at its final height from the top: folding, it rides the shape's middle.
+  function ride() {
+    if (content) content.style.translate = folding ? `-50% ${(height.value - size.height) / 2}px` : ''
+  }
 
   function flip() {
     if (reduced) return
@@ -580,7 +647,7 @@
 
   // Content comes in from a blur a beat after the shape starts, and leaves faster than it came.
   function enter(node: HTMLElement, { step = 0 } = {}) {
-    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    if (reduced) return { delay: gap, duration: 120, css: (t: number) => `opacity:${t}` }
     if (content?.contains(node)) {
       // Scaled from the island's center, or from its top for the panel and the peek.
       const [r, c] = [node.getBoundingClientRect(), content.getBoundingClientRect()]
@@ -588,7 +655,7 @@
       node.style.transformOrigin = `${c.left + c.width / 2 - r.left}px ${top - r.top}px`
     }
     return {
-      delay: ENTER.delay + ENTER.stagger * step,
+      delay: ENTER.delay + ENTER.stagger * step + lag,
       duration: ENTER.duration,
       easing: entering,
       css: (t: number, u: number) =>
@@ -605,7 +672,8 @@
       Object.assign(node.style, {
         position: 'absolute',
         left: `calc(50% + ${r.left - c.left - c.width / 2}px)`,
-        top: `${r.top - c.top}px`,
+        // Folding, the box rides the shape's middle: the old row starts where it was drawn.
+        top: `${r.top - c.top - (folding ? (c.height - size.height) / 2 : 0)}px`,
         width: `${node.offsetWidth}px`,
         margin: '0',
         transform: '',
@@ -660,7 +728,7 @@
   // Gives under the finger at once. The panel opens on release and carries the press's speed.
   let pressed = false
   function press(down: boolean) {
-    if (reduced || expanded || barOpen || pressed === down) return
+    if (reduced || expanded || barOpen || greeting === 'playing' || pressed === down) return
     pressed = down
     const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
@@ -733,6 +801,10 @@
     clearTimeout(hoverTimer)
     if (!inside) press(false)
     if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
+    if (!inside && held) {
+      held = false
+      beats.push(setTimeout(fold, LEAVE))
+    }
   }
 
   // A cursor still moving on the island starts the wait over from where it is.
@@ -759,14 +831,14 @@
         closeBar()
       }),
       listen<Presence>('island://presence', ({ payload }) => {
+        presenceHeard = true
         presence = payload
         fullscreen(payload === 'hidden')
+        // The welcome stops while you're busy or in fullscreen, and plays again once the island is back.
+        if (payload !== 'shown' && greeting === 'playing') end(true)
       }),
       listen('bar://toggle', () => toggleBar()),
     ]
-    invoke<string | null>('bar_shortcut')
-      .then((keys) => (shortcut = keys ?? undefined))
-      .catch(console.error)
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
 
@@ -821,6 +893,8 @@
       for (const t of list) {
         if (!ended(t, at) || announced[t.id]) continue
         announced[t.id] = true
+        // A timer that ends folds the welcome to it, even one already on the island as it began.
+        if (greeting === 'playing') end()
         if (t.id === first?.id) {
           expanded = false
           alert()
@@ -858,6 +932,175 @@
   function togglePause(t: Timer) {
     const at = Date.now()
     edit(t.id, (a) => (a.left === undefined ? pause(a, at) : resume(a, at)))
+  }
+
+  // --- Startup and first-launch welcome ---
+
+  // Every start drops the island in from above the screen, as it comes back after fullscreen, on the first frame
+  // after the fonts are ready. The first start after install also says hello, once (welcome_pending).
+  let presenceHeard = false
+  let saved = false
+  let held = false
+  let first: string | undefined
+  let beats: ReturnType<typeof setTimeout>[] = []
+  let greet: HTMLElement | undefined
+  let row = $state<HTMLElement>()
+
+  const ask = <T>(command: string, fallback: T) =>
+    tauri ? invoke<T>(command).catch(() => fallback) : Promise.resolve(fallback)
+  Promise.all([
+    ask<Presence>('island_presence', 'shown'),
+    ask('welcome_pending', false),
+    ask<string | null>('bar_shortcut', null),
+    document.fonts.ready,
+  ]).then(([state, pending, registered]) => {
+    // Set a frame ahead, so the hidden shortcut row is in the page when play() measures it. The demo brings its own.
+    if (tauri) shortcut = registered ?? undefined
+    requestAnimationFrame(() => {
+      // An event that came in the meantime is newer.
+      if (!presenceHeard) presence = state
+      greeting = pending ? 'waiting' : 'over'
+      launched = true
+      // Hidden at launch, the island comes in with the return drop once the fullscreen app ends.
+      if (presence === 'hidden') hidden = true
+      if (hidden) return
+      if (pending && presence === 'shown') play(true)
+      else arrive()
+    })
+  })
+
+  function arrive() {
+    if (reduced) {
+      // Nothing travels: the island fades in where it is.
+      drop.jump(0)
+      revealed = true
+      document.body.animate({ opacity: [0, 1] }, 200)
+    } else {
+      reveal = drop.value * 0.4
+      drop.to(0, ...FULLSCREEN.show, performance.now())
+    }
+    wake()
+  }
+
+  // The welcome plays only while the island is shown and nothing else holds it, and waits until then.
+  $effect(() => {
+    if (!launched || greeting !== 'waiting' || presence !== 'shown' || hidden || barOpen || expanded || card) return
+    // Coming back from fullscreen, the return drop is its drop.
+    untrack(() => play(!drop.resting))
+  })
+
+  // Drop, bead, greeting, shortcut, then the fold to whatever the island would show (WELCOME). Played later than
+  // the start, the island is already in place: it starts at the bead.
+  function play(dropping: boolean) {
+    // Measured on the hidden copies before anything moves: a layout mid-animation drops frames.
+    const wide = (node?: HTMLElement) => Math.ceil(node?.getBoundingClientRect().width ?? 0)
+    const [hello, shown] = [welcomeWidth('hello', wide(greet)), keys && welcomeWidth('keys', wide(row))]
+    greeting = 'playing'
+    first = arrangement.island?.id
+    const t0 = performance.now() - (dropping ? 0 : WELCOME.ink)
+    const at = (ms: number, then: () => void) => beats.push(setTimeout(then, t0 + ms - performance.now()))
+    if (dropping) {
+      blank = true
+      // Still above the screen: a song heard before now must not swing the empty island it drops as.
+      const idle = sizeOf({ name: 'idle' })
+      width.jump(idle.width)
+      height.jump(idle.height)
+      mark = reduced
+      arrive()
+    }
+    if (!instant()) at(WELCOME.ink, ink)
+    at(WELCOME.hello, () => {
+      absorb()
+      blank = mark = false
+      welcome = { name: 'welcome', step: 'hello', width: hello }
+      spoken = announce(shortcut, lang)
+    })
+    if (shown) {
+      at(WELCOME.keys, () => (welcome = { name: 'welcome', step: 'keys', width: shown }))
+      // Seen once the shortcut has shown for a second.
+      at(WELCOME.keys + 1000, save)
+      at(WELCOME.fold, fold)
+    } else
+      at(WELCOME.bare, () => {
+        save()
+        fold()
+      })
+  }
+
+  // A cursor resting on the island holds the shortcut: the fold waits until 300 ms after it leaves (point).
+  function fold() {
+    if (pointer) held = true
+    else end()
+  }
+
+  // A click on the island folds at once, from wherever the shape is, and counts as seen.
+  function skip() {
+    save()
+    end()
+  }
+
+  /** Folds to whatever the island would show. `again`: it plays again once the island is shown, unless seen. */
+  function end(again = false) {
+    beats.forEach(clearTimeout)
+    beats = []
+    held = false
+    absorb()
+    blank = mark = false
+    welcome = undefined
+    greeting = again && !saved ? 'waiting' : 'over'
+    if (spoken) setTimeout(() => (spoken = ''), 1500)
+  }
+
+  function save() {
+    if (saved) return
+    saved = true
+    if (tauri) invoke('welcome_done').catch(console.error)
+  }
+
+  // A call, a timer or a song that starts ends the welcome and takes the island. A song already playing may reach
+  // the page while the island drops in: that one is what the welcome folds to.
+  $effect(() => {
+    const next = arrangement.island
+    untrack(() => {
+      if (greeting !== 'playing' || next?.id === first) return
+      if (!welcome && next?.kind === 'music') first = next.id
+      else end()
+    })
+  })
+
+  // The bead splits off the pill's bottom from inside, as the bubble splits off its end, with the same springs and
+  // a wider goo, since its gap is wider. ink and absorb mirror split and merge above: change them together.
+  function ink() {
+    const t = performance.now()
+    inkPhase = 'split'
+    ramp = undefined
+    goo = true
+    sigma = INK.goo
+    inkD.jump(-8)
+    inkR.jump(8)
+    inkD.to(INK.d, 0.5, 0.3, t)
+    inkR.to(INK.r, 0.4, 0.25, t)
+    wake()
+  }
+
+  // Drawn back up into the pill, which lets it go once its centre is 8 px inside (frame).
+  function absorb() {
+    if (inkPhase !== 'split') return
+    const t = performance.now()
+    inkPhase = 'merge'
+    drive(inkD, -14, [0.36, 0], t)
+    drive(inkR, 6, [0.36, 0], t)
+    wake()
+  }
+
+  // The demo plays it again, from the drop.
+  function replay() {
+    if (hidden) return
+    end()
+    saved = false
+    drop.jump(-(TOP + height.target + 24))
+    revealed = false
+    play(true)
   }
 
   // --- Music ---
@@ -1000,6 +1243,7 @@
   function toggleBar() {
     if (barOpen) return closeBar()
     if (hidden) return
+    if (greeting === 'playing') end()
     expanded = false
     hovered = false
     closeCard()
@@ -1188,6 +1432,10 @@
         alert,
         fullscreen: () => fullscreen(!hidden),
         bar: toggleBar,
+        welcome: replay,
+        set shortcut(next: string | undefined) {
+          shortcut = next
+        },
         get apps() {
           return apps
         },
@@ -1335,6 +1583,23 @@
   {#if geometry.tag}
     <div class="fill" style={place(geometry.tag)}></div>
   {/if}
+  {#if geometry.ink}
+    <div class="fill" style={place(geometry.ink)}></div>
+  {/if}
+  {#if mark}
+    <!-- Reduced motion: logo.svg standing still under the island, scaled so its pill is the island's 34 px. -->
+    <svg
+      class="logo"
+      viewBox="212 330 600 340"
+      style:left="{geometry.fill.x + geometry.fill.width / 2 - 63.75}px"
+      style:top="{geometry.fill.y}px"
+      out:dissolve={{ duration: 120 }}
+    >
+      <path
+        d="M292 330H732A80 80 0 0 1 732 490H566C540 490 522.5 525.3 553.1 551A64 64 0 1 1 470.9 551C501.5 525.3 484 490 458 490H292A80 80 0 0 1 292 330Z"
+      />
+    </svg>
+  {/if}
 </div>
 
 <div
@@ -1355,7 +1620,7 @@
       class="opener"
       aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
       aria-expanded={done ? undefined : 'false'}
-      onclick={open}
+      onclick={greeting === 'playing' ? skip : open}
     ></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
@@ -1532,6 +1797,16 @@
       </span>
       <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
     {/if}
+    {#if parts.welcome === 'hello'}
+      <span class="greet" in:enter out:exit>{WORDS[lang].hello}</span>
+    {:else if parts.welcome === 'keys' && keys}
+      <span class="caption" in:enter out:exit>{WORDS[lang].bar}</span>
+      <!-- A "+" arrives with the key after it. Global: they come and go with the row around them. -->
+      {#each keys as cap, i (i)}
+        {#if i}<span class="plus" in:enter|global={{ step: i + 1 }} out:exit|global>+</span>{/if}
+        <span class="keycap" in:enter|global={{ step: i + 1 }} out:exit|global>{cap}</span>
+      {/each}
+    {/if}
     {#if parts.music}
       <span
         class="equalizer"
@@ -1559,7 +1834,21 @@
   <!-- The island's timer, at its natural width, so its shape can fit its name and digits. -->
   {#if topName}<span class="name measure" bind:clientWidth={nameWidth}>{topName}</span>{/if}
   {#if topDigits}<span class="countdown measure" bind:clientWidth={digitsWidth}>{topDigits}</span>{/if}
+  <!-- The welcome's widths are read here. -->
+  <span class="greet" bind:this={greet}>{WORDS[lang].hello}</span>
+  {#if keys}
+    <span class="row" bind:this={row}>
+      <span class="caption">{WORDS[lang].bar}</span>
+      {#each keys as cap, i (i)}
+        {#if i}<span class="plus">+</span>{/if}
+        <span class="keycap">{cap}</span>
+      {/each}
+    </span>
+  {/if}
 </span>
+
+<!-- The welcome, read once to a screen reader with the real shortcut, then cleared. -->
+<span class="spoken" role="status">{spoken}</span>
 
 {#if geometry.dot}
   <button type="button" class="island bubble" aria-label="Show in the island" style={place(geometry.dot)} onclick={swap}>
@@ -1659,6 +1948,60 @@
 
   .warm {
     visibility: hidden;
+  }
+
+  .spoken {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .logo {
+    position: absolute;
+    width: 127.5px;
+    height: 72.25px;
+  }
+
+  /* The welcome: the greeting, then the command bar's shortcut as flat keycaps. */
+  .greet {
+    font-family: 'Segoe UI Variable Display', 'Segoe UI', Inter, system-ui, sans-serif;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+
+  .row {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .caption {
+    margin-right: 12px;
+    color: rgb(255 255 255 / 0.6);
+    font-weight: 500;
+  }
+
+  .keycap {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 7px;
+    background: rgb(255 255 255 / 0.12);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.16);
+    font-size: 13px;
+  }
+
+  .plus {
+    margin: 0 5px;
+    color: rgb(255 255 255 / 0.6);
+    font-size: 12px;
+    font-weight: 500;
   }
 
   /* High contrast drops the black fill and the shadow: an outline keeps the shape. */
