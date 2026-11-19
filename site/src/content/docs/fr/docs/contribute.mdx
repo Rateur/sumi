@@ -53,7 +53,7 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 - `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
 - `src-tauri/src/privacy.rs` trouve les apps qui utilisent le micro ou la caméra, et coupe le micro.
 - `src/Island.svelte` dessine l'île. `src/PrivacyCard.svelte` dessine la carte du micro et de la caméra, et appelle les commandes `privacy_mute`, `privacy_settings` et `privacy_show`. Seuls ces deux fichiers parlent à Rust ; `src/main.ts` et `src/App.svelte` ne font que monter l'île.
-- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité. Chaque fichier sauf `demo.ts` a ses tests Vitest à côté (`*.test.ts`).
+- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité. Chaque fichier a ses tests Vitest à côté (`*.test.ts`).
 - `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
 - `site/` est le site, en Astro et Starlight. Sa page de contribution en anglais importe `.github/CONTRIBUTING.md`, dont cette page est la traduction.
 
