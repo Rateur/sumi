@@ -36,7 +36,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [ ] A command bar (`Win+Alt+S`) that sends your question to Claude, ChatGPT, Gemini, Perplexity or a search engine, and timers: type `25m`
 - [ ] Tuck the island into a thin line at the top with a scroll up, and a live taskbar icon that tucks it or brings it back
 - [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
-- [ ] Settings (position at the top or beside the taskbar, screen, theme, language, shortcuts), automatic updates and a signed installer
+- [ ] Settings (screen, theme, language, shortcuts), automatic updates and a signed installer
 
 ## How it's built
 

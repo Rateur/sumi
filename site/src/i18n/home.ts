@@ -53,8 +53,7 @@ export const home = {
 			{ title: 'Timers', text: 'Type 25m in the command bar.', tag: 'next' },
 			{ title: 'Weather', text: 'From Open-Meteo, for the city you choose.', tag: 'planned' },
 			{ title: 'Battery', text: 'Charging and low-battery alerts on laptops.', tag: 'planned' },
-			{ title: 'Settings', text: 'Position, screen, theme, language and shortcuts, in one window.', tag: 'planned' },
-			{ title: 'Beside the taskbar', text: 'The island 8 px from the taskbar, on whichever edge it sits.', tag: 'planned' },
+			{ title: 'Settings', text: 'Screen, theme, language and shortcuts, in one window.', tag: 'planned' },
 		],
 		quietTitle: 'It stays out of the way.',
 		quiet: [
@@ -128,8 +127,7 @@ export const home = {
 			{ title: 'Minuteurs', text: 'Tapez 25m dans la barre de commande.', tag: 'prochaine' },
 			{ title: 'Météo', text: 'Depuis Open-Meteo, pour la ville de votre choix.', tag: 'prévu' },
 			{ title: 'Batterie', text: 'Alertes de charge et de batterie faible sur portable.', tag: 'prévu' },
-			{ title: 'Réglages', text: 'Position, écran, thème, langue et raccourcis, dans une seule fenêtre.', tag: 'prévu' },
-			{ title: 'À côté de la barre des tâches', text: 'L’île à 8 px de la barre des tâches, sur le bord où elle se trouve.', tag: 'prévu' },
+			{ title: 'Réglages', text: 'Écran, thème, langue et raccourcis, dans une seule fenêtre.', tag: 'prévu' },
 		],
 		quietTitle: 'Elle se fait oublier.',
 		quiet: [

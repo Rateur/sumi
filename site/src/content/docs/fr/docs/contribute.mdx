@@ -47,7 +47,7 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 
 ## Organisation du code
 
-- `src-tauri/src/lib.rs` démarre l'app : l'icône de la zone de notification, la liste des commandes que la page peut appeler, et la surveillance de chaque module.
+- `src-tauri/src/lib.rs` démarre l'app, un seul exemplaire à la fois : l'icône de la zone de notification, la liste des commandes que la page peut appeler, et la surveillance de chaque module.
 - `src-tauri/src/island.rs` garde la fenêtre en haut de l'écran, laisse passer les clics partout sauf sur l'île, et ferme le panneau.
 - `src-tauri/src/fullscreen.rs` masque l'île quand un jeu, une vidéo ou un diaporama occupe l'écran principal.
 - `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
