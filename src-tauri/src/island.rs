@@ -282,7 +282,7 @@ pub fn follow_cursor(
         // shows first and then the island drops down.
         let mut hide_at = None;
         // The command bar brings the island itself to the front: that change of app is not one that closes it.
-        let own = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
+        let own = hwnd;
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
