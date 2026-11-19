@@ -14,7 +14,7 @@
 <script lang="ts">
   import { invoke, isTauri } from '@tauri-apps/api/core'
   import type { TransitionConfig } from 'svelte/transition'
-  import { lasted, light, type Privacy } from './lib/privacy'
+  import { lasted, light, type Privacy, type PrivacyApp } from './lib/privacy'
   import { CARD, cardSize } from './lib/shapes'
 
   // What the privacy tag opens into. The tag's shape, springs and timers stay in Island.svelte, which lends its
@@ -38,20 +38,23 @@
   const rows = $derived(privacy.apps.slice(0, many ? CARD.rows - 1 : CARD.rows))
   const cardBox = $derived(cardSize(privacy.apps.length))
 
+  // The button flips at once, so a quick second click undoes the first. Rust always answers with the real state.
   function mute() {
-    if (tauri) invoke('privacy_mute', { muted: !privacy.muted })
-    else privacy = { ...privacy, muted: !privacy.muted }
+    const muted = !privacy.muted
+    privacy = { ...privacy, muted }
+    if (tauri) invoke('privacy_mute', { muted })
   }
 
-  function settings() {
-    if (tauri) invoke('privacy_settings', { camera: light(privacy) === 'camera' })
+  function settings(camera = light(privacy) === 'camera') {
+    if (tauri) invoke('privacy_settings', { camera })
     onclose()
   }
 
   // Windows can't turn the camera off for every app the way it mutes the microphone: the app's own window can.
-  async function show(name: string) {
+  // Without one, the privacy page for what this app uses opens.
+  async function show(app: PrivacyApp) {
     onclose()
-    if (tauri && !(await invoke<boolean>('privacy_show', { name }))) settings()
+    if (tauri && !(await invoke<boolean>('privacy_show', { name: app.name }))) settings(app.camera)
   }
 </script>
 
@@ -77,7 +80,7 @@
       aria-label="Show {app.name}: {[app.mic && 'microphone', app.camera && 'camera']
         .filter(Boolean)
         .join(', ')}{lasted(app.sinceMs, now.getTime()) && `, ${lasted(app.sinceMs, now.getTime())}`}"
-      onclick={() => show(app.name)}
+      onclick={() => show(app)}
       in:enter|global={{ step: i }}
       out:exit|global={{ shrinks: true }}
     >
@@ -113,11 +116,11 @@
       </button>
     {/if}
     {#each privacy.apps.filter((a) => a.camera).slice(0, 1) as filming (filming.name)}
-      <button type="button" class="filming" aria-label="Show {filming.name}" onclick={() => show(filming.name)}>
+      <button type="button" class="filming" aria-label="Show {filming.name}" onclick={() => show(filming)}>
         {@render camera()}
       </button>
     {/each}
-    <button type="button" class="settings" aria-label="Privacy settings" onclick={settings}>
+    <button type="button" class="settings" aria-label="Privacy settings" onclick={() => settings()}>
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" />
       </svg>

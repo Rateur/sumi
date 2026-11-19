@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, WebviewWindow};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
 
 use crate::fullscreen::{self, Presence};
 
@@ -139,17 +139,105 @@ fn foreground() -> usize {
     0
 }
 
+/// The window's width, and the cursor from its top-left corner, in physical pixels. Plain Win32 calls from the
+/// poll's thread: Tauri's getters make the same ones, but each after a round trip to the main thread.
+#[cfg(windows)]
+fn window_and_cursor(window: usize) -> Option<(i32, i32, i32)> {
+    use windows_sys::Win32::Foundation::{HWND, POINT, RECT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+
+    let mut cursor = POINT { x: 0, y: 0 };
+    let mut rect = RECT {
+        left: 0,
+        top: 0,
+        right: 0,
+        bottom: 0,
+    };
+    // SAFETY: each call writes only to a local, and a window that went away makes them fail rather than misread.
+    let read =
+        unsafe { GetCursorPos(&mut cursor) != 0 && GetWindowRect(window as HWND, &mut rect) != 0 };
+    read.then_some((
+        rect.right - rect.left,
+        cursor.x - rect.left,
+        cursor.y - rect.top,
+    ))
+}
+
+#[cfg(not(windows))]
+fn window_and_cursor(_: usize) -> Option<(i32, i32, i32)> {
+    None
+}
+
+/// The primary screen's size in physical pixels, read from the poll's thread.
+#[cfg(windows)]
+fn screen() -> (i32, i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    // SAFETY: no pointer and no handle; a failed read returns 0.
+    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
+}
+
+#[cfg(not(windows))]
+fn screen() -> (i32, i32) {
+    (0, 0)
+}
+
+/// The wait, after the island comes back, for the primary screen's size from before the hide: a game's resolution
+/// can come back a moment after the game leaves the front.
+struct Settle {
+    /// Ticks left to wait.
+    left: u32,
+    /// The primary screen's size to come back to.
+    before: (i32, i32),
+}
+
+impl Settle {
+    /// One tick while the island shows, with the screen's size `now`: whether the poll moves the window. While
+    /// waiting, only once the screen is back. Otherwise on a new window width, which a new scale brings, and once a
+    /// second. The size to come back to is taken only when the presence check ran, and never while waiting: a game
+    /// that changes the resolution after it comes to the front stays unseen until the next check.
+    fn step(&mut self, now: (i32, i32), checked: bool, width_changed: bool, second: bool) -> bool {
+        if self.left == 0 {
+            if checked {
+                self.before = now;
+            }
+            return width_changed || second;
+        }
+        if now == self.before {
+            self.left = 0;
+            return true;
+        }
+        self.left -= 1;
+        false
+    }
+}
+
 /// Top-left corner that centers a window of `width` on the top edge of an area.
 pub fn top_center(area_x: i32, area_y: i32, area_width: u32, width: u32) -> (i32, i32) {
     let offset = (i64::from(area_width) - i64::from(width)) / 2;
     (area_x + offset as i32, area_y)
 }
 
-/// Moves the window to the top center of the primary screen's work area, if it isn't there yet.
+/// Gives the window back its size and moves it to the top center of the primary screen's work area, if it isn't
+/// there yet. Callers don't run it while `fullscreen::set_visible` keeps it hidden: during a game, the work area is
+/// the game's resolution, and the window would come back off center.
 pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
     let Some(monitor) = window.primary_monitor()? else {
         return Ok(());
     };
+    // Windows 10 keeps the old pixel size across a change of scale when windows don't draw while dragged.
+    if let Some(config) = window
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == window.label())
+    {
+        let size = LogicalSize::new(config.width, config.height)
+            .to_physical::<u32>(window.scale_factor()?);
+        if window.inner_size()? != size {
+            window.set_size(size)?;
+        }
+    }
     let area = monitor.work_area();
     let (x, y) = top_center(
         area.position.x,
@@ -177,6 +265,16 @@ pub fn follow_cursor(
     mut presence: Presence,
 ) {
     std::thread::spawn(move || {
+        #[cfg(windows)]
+        let hwnd = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
+        #[cfg(not(windows))]
+        let hwnd = 0;
+        let mut width = 0;
+        let mut scale = 1.0;
+        let mut settle = Settle {
+            left: 0,
+            before: screen(),
+        };
         let mut over = None;
         let mut before = None;
         let mut tick: u32 = 0;
@@ -184,7 +282,7 @@ pub fn follow_cursor(
         // shows first and then the island drops down.
         let mut hide_at = None;
         // The command bar brings the island itself to the front: that change of app is not one that closes it.
-        let own = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
+        let own = hwnd;
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
@@ -193,12 +291,10 @@ pub fn follow_cursor(
                 let _ = fullscreen::set_visible(&window, false);
             }
             let second = tick.is_multiple_of(30);
-            if second {
-                let _ = place(&window);
-            }
             // F11 and in-page fullscreen keep the same window in front: the once-a-second check catches them.
-            if fullscreen::switched() || second {
-                let (next, now) = fullscreen::check(&window, trigger);
+            let checked = fullscreen::switched() || second;
+            if checked {
+                let (next, now) = fullscreen::check(hwnd, trigger);
                 trigger = next;
                 if now != presence {
                     let hides = now == Presence::Hidden;
@@ -212,8 +308,9 @@ pub fn follow_cursor(
                             let _ = window.set_ignore_cursor_events(true);
                             hide_at = Some(tick.wrapping_add(HIDE_AFTER));
                         } else if hide_at.take().is_none() {
-                            // Back after the window hid, rather than before.
+                            // Back after the window hid, rather than before. Placed below, once the screen is back.
                             let _ = fullscreen::set_visible(&window, true);
+                            settle.left = 30;
                         }
                     }
                     if let Ok(mut current) = app.state::<IslandPresence>().0.lock() {
@@ -226,17 +323,22 @@ pub fn follow_cursor(
             if presence == Presence::Hidden {
                 continue;
             }
-            let (Ok(cursor), Ok(origin), Ok(scale)) = (
-                app.cursor_position(),
-                window.outer_position(),
-                window.scale_factor(),
-            ) else {
+            let Some((now_width, x, y)) = window_and_cursor(hwnd) else {
                 continue;
             };
-            let (x, y) = (
-                (cursor.x - f64::from(origin.x)) / scale,
-                (cursor.y - f64::from(origin.y)) / scale,
-            );
+            // Windows resizes the window for a new scale: center it again at once, not at the next second.
+            let width_changed = now_width != width;
+            if width_changed {
+                width = now_width;
+                // shortcut: where Windows keeps the old pixel width on a new scale (Windows 10, no contents while
+                // dragging), the hit test uses the old scale until the once-a-second place() resizes the window.
+                // Read the scale every second too if that shows.
+                scale = window.scale_factor().unwrap_or(scale);
+            }
+            if settle.step(screen(), checked, width_changed, second) {
+                let _ = place(&window);
+            }
+            let (x, y) = (f64::from(x) / scale, f64::from(y) / scale);
             let inside = app
                 .state::<IslandRects>()
                 .0
@@ -348,6 +450,50 @@ mod tests {
         // Even out of the island, until the button is up.
         assert!(takes_cursor(true, false, true));
         assert!(!takes_cursor(true, false, false));
+    }
+
+    const NATIVE: (i32, i32) = (1920, 1080);
+    const GAME: (i32, i32) = (1280, 720);
+
+    #[test]
+    fn coming_back_waits_for_the_screen_size_from_before_the_hide() {
+        let mut settle = Settle {
+            left: 2,
+            before: NATIVE,
+        };
+        // Still the game's resolution, even on a check and a new width: no move, and the size to wait for stays.
+        assert!(!settle.step(GAME, true, true, true));
+        assert_eq!((settle.left, settle.before), (1, NATIVE));
+        // The screen is back: the window moves and the wait ends.
+        assert!(settle.step(NATIVE, false, false, false));
+        assert_eq!(settle.left, 0);
+    }
+
+    #[test]
+    fn a_screen_that_doesnt_come_back_ends_the_wait() {
+        let mut settle = Settle {
+            left: 1,
+            before: NATIVE,
+        };
+        assert!(!settle.step(GAME, false, false, false));
+        assert_eq!(settle.left, 0);
+        // The next check takes the new size, and the once-a-second move runs.
+        assert!(settle.step(GAME, true, false, true));
+        assert_eq!(settle.before, GAME);
+    }
+
+    #[test]
+    fn otherwise_places_on_a_new_width_and_once_a_second() {
+        let mut settle = Settle {
+            left: 0,
+            before: NATIVE,
+        };
+        assert!(settle.step(NATIVE, false, true, false));
+        assert!(settle.step(NATIVE, true, false, true));
+        assert!(!settle.step(NATIVE, false, false, false));
+        // A game that changes the resolution between two checks doesn't change the size to come back to.
+        assert!(!settle.step(GAME, false, false, false));
+        assert_eq!(settle.before, NATIVE);
     }
 
     #[test]
