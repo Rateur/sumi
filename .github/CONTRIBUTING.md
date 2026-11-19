@@ -49,7 +49,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
-- `src/Island.svelte` draws the island and is the only file that talks to Rust.
+- `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
 - `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy. Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
@@ -98,10 +98,16 @@ On your first pull request, CI starts once I approve it. Leave **Allow edits by 
 - It keeps your PC private. Nothing the island shows is written to a log or a file, and nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
 - It adds no dependency, network request or Tauri permission (`src-tauri/capabilities/`) unless the issue agreed on it. Every package is code that each user runs.
 - The UI works with reduced motion and keeps AA contrast.
+- It reads like the code around it, so the next person, or an AI, can pick it up. Rust: `snake_case` for functions and modules, `CamelCase` for types, `UPPER_CASE` for constants. TypeScript: `camelCase`, `PascalCase` for types, `UPPER_CASE` for shared constants. Svelte components: `PascalCase.svelte`. Comments are short and say why, not what.
+- It leaves no debt behind: no dead code and no `TODO`. A known limit gets a `// shortcut: <the limit>, <when to upgrade>` comment.
+- A new file, command or event gets its line in [How the code is laid out](#how-the-code-is-laid-out), and a new Rust file opens with a `//!` comment that says what it does.
+- Rust: `unsafe` stays small. A block that relies on something the compiler can't check (a raw pointer it reads, `from_raw`, a transmute, a callback's `lparam`) says why it's sound in a `// SAFETY:` comment. A plain Windows call needs none. `windows` is for COM, WinRT and a Win32 call that takes or returns a `windows` type in that code (`HANDLE`, `PCWSTR`, `PWSTR`); `windows-sys` for every other Win32 call, even in the same file.
+- A change users can see updates its page in the site's docs, and the README when what users can do changes, in English and French. If you don't write French, say so and I'll add it.
+- Its words are plain and short: code comments, commit messages, the PR description, and the docs and README in both languages.
 
 ## AI tools
 
-Use them if they help. You answer for every line: you ran it on Windows, you understand it and you can explain it in review. Pull requests and issues that look generated and untested are closed without review.
+Use them if they help. You answer for every line: you ran it on Windows, you understand it and you can explain it in review. Pull requests and issues that look generated and untested are closed without review. Coding agents get their rules from [AGENTS.md](https://github.com/Rateur/sumi/blob/dev/AGENTS.md).
 
 ## Translations
 
