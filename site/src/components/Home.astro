@@ -6,7 +6,7 @@ import painting from '../assets/jinshan-band.webp';
 import cover from '../assets/cover.webp';
 import { home, type Lang } from '../i18n/home';
 import { motionVars } from '../../../src/lib/curves';
-import { BUBBLE, GAP } from '../../../src/lib/shapes';
+import { BUBBLE, GAP, TAG, TAG_GAP } from '../../../src/lib/shapes';
 
 interface Props {
 	lang: Lang;
@@ -213,8 +213,8 @@ const island = `${base}island/index.html`;
 						<span class="rm-tag rm-done">{t.roadmap[3].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-live aside" data-ui aria-hidden="true">
-							<iframe src={island} data-start="mic" data-hover="card" data-opens="card" data-mouse title="" tabindex="-1" loading="lazy"></iframe>
+						<span class="rm-live split" data-ui aria-hidden="true" style={`--split: ${(TAG_GAP + TAG) / 2}px`}>
+							<iframe src={island} data-start="mic" data-hover="mute" title="" tabindex="-1" loading="lazy"></iframe>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[4].title}</strong><span>{t.roadmap[4].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[4].tag}</span>
@@ -473,7 +473,7 @@ const island = `${base}island/index.html`;
 				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
 				row.addEventListener('pointerleave', (e) => e.pointerType === 'mouse' && hover(false));
 				row.addEventListener('click', (e) => {
-					if (e.pointerType !== 'mouse') return frame.dataset.mouse === undefined && hover(!on);
+					if (e.pointerType !== 'mouse') return hover(!on);
 					if (!on || !frame.dataset.click) return;
 					opened = !opened;
 					say(frame.dataset.click);
@@ -1601,15 +1601,9 @@ const island = `${base}island/index.html`;
 		color-scheme: normal;
 		pointer-events: none;
 	}
-	/* The island and its bubble are centered together, as the eye reads them. */
+	/* The island and its bubble, or its disc, are centered together, as the eye reads them. */
 	.rm-live.split iframe {
 		left: calc(50% - var(--split));
-	}
-	/* The island sits at the column's left, so its card opens within the column, short of the text. The frame is
-	   wide enough to hold the card and its shadow to the right of it. */
-	.rm-live.aside iframe {
-		left: 54px;
-		width: 680px;
 	}
 	.rm-row:has(.rm-live):hover {
 		position: relative;
@@ -1621,9 +1615,6 @@ const island = `${base}island/index.html`;
 	}
 	.rm > .rm-row[data-open='player'] ~ .rm-row {
 		translate: 0 108px;
-	}
-	.rm > .rm-row[data-open='card'] ~ .rm-row {
-		translate: 0 56px;
 	}
 	.rm-row[data-open] {
 		position: relative;
@@ -1638,9 +1629,6 @@ const island = `${base}island/index.html`;
 	}
 	.rm-row[data-open='player']::after {
 		height: 108px;
-	}
-	.rm-row[data-open='card']::after {
-		height: 56px;
 	}
 	.rm-copy,
 	.rm-tag {
@@ -1958,8 +1946,7 @@ const island = `${base}island/index.html`;
 			gap: 16px;
 			padding: 20px 16px;
 		}
-		.rm-live.split iframe,
-		.rm-live.aside iframe {
+		.rm-live.split iframe {
 			left: 50%;
 			width: min(480px, 100vw);
 		}
