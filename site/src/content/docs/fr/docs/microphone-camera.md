@@ -24,4 +24,5 @@ Les boutons suivent ce qui est utilisé : pas de bouton muet quand seule la cam�
 - Une app qui capte le son ou l'image sans passer par les couches audio et caméra de Windows n'est pas vue.
 - Un micro qu'une app se met à utiliser après le muet n'est pas coupé : le micro barré disparaît, et un clic sur muet le coupe aussi.
 - Le muet propre à une app, dans Discord ou Teams par exemple, ne s'affiche pas : le micro barré, c'est seulement le muet de Windows.
+- Après un redémarrage du service audio de Windows, le disque et le bouton micro peuvent ne plus marcher jusqu'à ce que vous redémarriez Sumi.
 - Les apps qui utilisent le micro ou la caméra restent sur votre PC.

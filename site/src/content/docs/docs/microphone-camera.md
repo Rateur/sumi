@@ -24,4 +24,5 @@ The buttons follow what is in use: no mute while only the camera is on, unless t
 - An app that captures sound or video outside Windows' audio and camera layers isn't seen.
 - A microphone an app starts using after you muted isn't muted: the crossed microphone goes, and a click on mute takes it too.
 - An app's own mute, in Discord or Teams for example, doesn't show: the crossed microphone is Windows' mute only.
+- After Windows' audio service restarts, the disc and mute may stop working until you restart Sumi.
 - Which apps use the microphone or the camera stays on your PC.
