@@ -1,7 +1,7 @@
 //! Sumi's Windows side. `island` polls the cursor on a thread of its own and emits island://pointer,
 //! island://presence and island://dismiss; `fullscreen` hooks the foreground window on the main thread and only feeds
 //! that poll. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
-//! of its own that sleeps until Windows calls back.
+//! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again.
 
 mod fullscreen;
 mod island;

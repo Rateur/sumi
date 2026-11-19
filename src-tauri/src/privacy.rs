@@ -486,7 +486,10 @@ mod win {
         };
         let ping = ComObject::new(Ping(tx.clone()));
         let client: IMMNotificationClient = ping.to_interface();
-        let _ = unsafe { enumerator.RegisterEndpointNotificationCallback(&client) };
+        // Without it, a microphone plugged in later goes unseen until Sumi restarts.
+        if let Err(e) = unsafe { enumerator.RegisterEndpointNotificationCallback(&client) } {
+            log::warn!("privacy: no device notifications: {e}");
+        }
         // The camera half: kept alive as long as the loop. Without Media Foundation, only the microphone shows.
         let _monitor =
             camera_monitor(tx).inspect_err(|e| log::warn!("privacy: no camera monitor: {e}"));
@@ -957,7 +960,8 @@ mod win {
         if size == 0 {
             return None;
         }
-        let mut data = vec![0u8; size as usize];
+        // u32s, so the block starts 4-byte aligned and the u16 reads below are aligned.
+        let mut data = vec![0u32; (size as usize).div_ceil(4)];
         unsafe { GetFileVersionInfoW(&path, None, size, data.as_mut_ptr().cast()) }.ok()?;
         let query = |key: &str| -> Option<(*const u16, u32)> {
             let mut value: *mut core::ffi::c_void = std::ptr::null_mut();
@@ -975,7 +979,8 @@ mod win {
         };
         // Its first entry is a language and a code page, two u16s: 4 bytes.
         let (translation, _) = query("\\VarFileInfo\\Translation").filter(|&(_, len)| len >= 4)?;
-        // SAFETY: those 4 bytes lie inside `data`, still alive, and the block keeps its values 4-byte aligned.
+        // SAFETY: those 4 bytes lie inside `data`, still alive; `data` is 4-byte aligned and the block keeps its
+        // values 4-byte aligned from its start.
         let (lang, codepage) = unsafe { (*translation, *translation.add(1)) };
         let (text, len) = query(&format!(
             "\\StringFileInfo\\{lang:04x}{codepage:04x}\\FileDescription"
