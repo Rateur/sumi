@@ -52,7 +52,7 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 - `src-tauri/src/fullscreen.rs` masque l'île quand un jeu, une vidéo ou un diaporama occupe l'écran principal.
 - `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
 - `src-tauri/src/privacy.rs` trouve les apps qui utilisent le micro ou la caméra, et coupe le micro.
-- `src/Island.svelte` dessine l'île, et c'est le seul fichier qui parle à Rust.
+- `src/Island.svelte` dessine l'île. `src/PrivacyCard.svelte` dessine la carte du micro et de la caméra, et appelle les commandes `privacy_mute`, `privacy_settings` et `privacy_show`. Seuls ces deux fichiers parlent à Rust ; `src/main.ts` et `src/App.svelte` ne font que monter l'île.
 - `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité. Chaque fichier sauf `demo.ts` a ses tests Vitest à côté (`*.test.ts`).
 - `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
 - `site/` est le site, en Astro et Starlight. Sa page de contribution en anglais importe `.github/CONTRIBUTING.md`, dont cette page est la traduction.
@@ -101,10 +101,16 @@ Sur votre première pull request, la CI démarre une fois que je l'ai approuvée
 - Elle protège votre vie privée. Rien de ce qu'affiche l'île n'est écrit dans un journal ou un fichier, et rien ne quitte le PC sans que l'utilisateur ait activé la fonction. Pas de télémétrie, de statistiques ni de rapports de plantage.
 - Elle n'ajoute ni dépendance, ni requête réseau, ni permission Tauri (`src-tauri/capabilities/`) sans accord dans l'issue. Chaque paquet, c'est du code que chaque utilisateur fait tourner.
 - L'interface fonctionne avec les animations réduites et garde un contraste AA.
+- Elle se lit comme le code autour, pour que la personne suivante, ou une IA, puisse la reprendre. Rust : `snake_case` pour les fonctions et les modules, `CamelCase` pour les types, `UPPER_CASE` pour les constantes. TypeScript : `camelCase`, `PascalCase` pour les types, `UPPER_CASE` pour les constantes partagées. Composants Svelte : `PascalCase.svelte`. Les commentaires sont courts et disent pourquoi, pas quoi.
+- Elle ne laisse pas de dette : ni code mort ni `TODO`. Une limite connue a son commentaire `// shortcut: <la limite>, <quand la lever>`.
+- Un nouveau fichier, une nouvelle commande ou un nouvel événement a sa ligne dans [Organisation du code](#organisation-du-code), et un nouveau fichier Rust commence par un commentaire `//!` qui dit ce qu'il fait.
+- Rust : `unsafe` reste petit. Un bloc qui repose sur ce que le compilateur ne peut pas vérifier (un pointeur brut qu'il lit, `from_raw`, un transmute, le `lparam` d'un callback) dit pourquoi il est sûr dans un commentaire `// SAFETY:`. Un simple appel à Windows n'en a pas besoin. `windows` sert à COM, à WinRT et à un appel Win32 qui prend ou renvoie un type de `windows` dans ce code (`HANDLE`, `PCWSTR`, `PWSTR`) ; `windows-sys` à tous les autres appels Win32, même dans le même fichier.
+- Une modification visible met à jour sa page dans la doc du site, et le README quand ce que l'on peut faire change, en anglais et en français. Si vous n'écrivez pas le français, dites-le et je l'ajoute.
+- Ses mots sont simples et courts : commentaires, messages de commit, description de la PR, doc et README dans les deux langues.
 
 ## Outils d'IA
 
-Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture.
+Servez-vous-en s'ils vous aident. Vous répondez de chaque ligne : vous l'avez lancée sous Windows, vous la comprenez et vous savez l'expliquer à la relecture. Les pull requests et les issues qui semblent générées et non testées sont fermées sans relecture. Les agents de code trouvent leurs règles dans [AGENTS.md](https://github.com/Rateur/sumi/blob/dev/AGENTS.md) (en anglais).
 
 ## Traductions
 
