@@ -307,21 +307,24 @@ mod os {
     }
 
     /// Whether Windows knows the `claude:` link. The exe lookup fails for a Store app's link, its name doesn't.
+    /// Asked inside COM: resolving a Store app's link goes through it.
     pub fn has_claude() -> bool {
-        let mut out = [0u16; 260];
-        let mut len = out.len() as u32;
-        // SAFETY: `out` holds `len` characters and outlives the call.
-        unsafe {
-            AssocQueryStringW(
-                ASSOCF_IS_PROTOCOL,
-                ASSOCSTR_FRIENDLYAPPNAME,
-                w!("claude"),
-                PCWSTR::null(),
-                Some(PWSTR(out.as_mut_ptr())),
-                &mut len,
-            )
-        }
-        .is_ok()
+        with_com(|| {
+            let mut out = [0u16; 260];
+            let mut len = out.len() as u32;
+            // SAFETY: `out` holds `len` characters and outlives the call.
+            unsafe {
+                AssocQueryStringW(
+                    ASSOCF_IS_PROTOCOL,
+                    ASSOCSTR_FRIENDLYAPPNAME,
+                    w!("claude"),
+                    PCWSTR::null(),
+                    Some(PWSTR(out.as_mut_ptr())),
+                    &mut len,
+                )
+            }
+            .is_ok()
+        })
     }
 
     /// Opens an app or a link the way Start does. Windows shows no error box: the island says it couldn't.

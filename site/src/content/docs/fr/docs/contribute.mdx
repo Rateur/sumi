@@ -55,7 +55,7 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 - `src-tauri/src/apps.rs` lit les apps du menu Démarrer, ouvre celle choisie dans la barre de commande, et ouvre une question dans un assistant ou le moteur de recherche.
 - `src-tauri/src/bar.rs` enregistre le raccourci de la barre de commande, et donne le focus à la barre puis le rend.
 - `src/Island.svelte` dessine l'île, et c'est le seul fichier qui parle à Rust.
-- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité. Chaque fichier sauf `demo.ts` a ses tests Vitest à côté (`*.test.ts`).
+- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité, et ce que veut dire la ligne de la barre de commande (`intent.ts`). Chaque fichier sauf `demo.ts` a ses tests Vitest à côté (`*.test.ts`).
 - `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
 - `site/` est le site, en Astro et Starlight. Sa page de contribution en anglais importe `.github/CONTRIBUTING.md`, dont cette page est la traduction.
 
