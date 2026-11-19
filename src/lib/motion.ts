@@ -19,20 +19,24 @@ export interface Motion {
 export function motion(from: View, to: View): Motion {
   const [a, b] = [sizeOf(from), sizeOf(to)]
   const grows = b.width * b.height >= a.width * a.height
-  const pulse =
-    to.name === 'compact' && from.name !== 'expanded' && !('activity' in from && from.activity?.id === to.activity.id)
+  // Back from the panel, the command bar or the welcome, what was there before comes back without a swell.
+  const back = from.name === 'expanded' || from.name === 'bar' || from.name === 'launch' || from.name === 'welcome'
+  const pulse = to.name === 'compact' && !back && !('activity' in from && from.activity?.id === to.activity.id)
+  // The welcome opens and folds as the panel; from its greeting to its shortcut, it only widens.
+  const opens = to.name === 'welcome' && from.name !== 'welcome'
+  const closes = from.name === 'welcome' && to.name !== 'welcome'
   const [width, height]: Axis[] =
-    to.name === 'expanded'
+    to.name === 'expanded' || to.name === 'bar' || opens
       ? [OPEN.width, OPEN.height]
-      : from.name === 'expanded'
+      : from.name === 'expanded' || from.name === 'bar' || closes
         ? [CLOSE.width, CLOSE.height]
         : to.name === 'hover'
           ? [[0.4, 0.25], [0.34, 0.15]]
           : from.name === 'hover' && to.name === 'idle'
             ? [[0.34, 0], [0.3, 0]]
-            : to.name === 'peek'
+            : to.name === 'peek' || to.name === 'launch'
               ? [[0.44, 0.28], [0.48, 0.2]]
-              : from.name === 'peek'
+              : from.name === 'peek' || from.name === 'launch'
                 ? [[0.38, 0], [0.32, 0]]
                 : [grows ? [0.44, 0.28] : [0.36, 0], [0.3, 0]]
   // An axis that shrinks never bounces, even when the shape as a whole grows.
@@ -62,6 +66,18 @@ export const PRESS: { scale: number; down: Axis; up: Axis } = { scale: 0.96, dow
 
 /** In fullscreen the island slides up off the screen a beat after its content leaves, and drops back with a bounce. */
 export const FULLSCREEN: { delay: number; hide: Axis; show: Axis } = { delay: 100, hide: [0.3, 0], show: [0.5, 0.2] }
+
+/** A finished timer peeks this long, in ms, then folds into the done pill. */
+export const END_PEEK = 6000
+
+/** A finished timer chimes every `every` ms, `times` times, then stays silent. */
+export const CHIME = { every: 10_000, times: 6 } as const
+
+/** The first-launch welcome, in ms from the start of the drop. Without a shortcut it folds at `bare`. */
+export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 2300 } as const
+
+/** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
+export const INK = { r: 15.5, d: 21, goo: 7 } as const
 
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {

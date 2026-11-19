@@ -28,4 +28,6 @@ Paused music stays a minute, then the time comes back. Play it again and it retu
 - A browser shows one player, the tab that played last, often without artwork.
 - Some players don't let other apps move through the song. The bar then stays put.
 - An app that closes takes its music with it. Some players, Spotify among them, can keep running after you close their window.
+- With touch or a pen, the first tap on the island reaches the app underneath; the second opens it.
+- While an app run as administrator, such as Task Manager, has focus, Windows hides Esc and clicks from Sumi: switch apps to close the panel.
 - The title, the artist and the artwork stay on your PC.

@@ -23,6 +23,8 @@ export default defineConfig({
 				ThemeSelect: './src/components/docs/Empty.astro',
 			},
 			favicon: '/favicon.svg',
+			// The contributing and design pages get their table of contents from the files they import.
+			routeMiddleware: './src/routeData.ts',
 			defaultLocale: 'root',
 			locales: {
 				root: { label: 'English', lang: 'en' },
@@ -44,7 +46,14 @@ export default defineConfig({
 				{
 					label: 'Features',
 					translations: { fr: 'Fonctions' },
-					items: ['docs/time', 'docs/fullscreen', 'docs/music', 'docs/microphone-camera'],
+					items: [
+						'docs/time',
+						'docs/fullscreen',
+						'docs/music',
+						'docs/microphone-camera',
+						'docs/command-bar',
+						'docs/timers',
+					],
 				},
 				{
 					label: 'Contribute',

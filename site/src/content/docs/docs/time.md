@@ -19,3 +19,5 @@ A tab, a text selection or a window dragged across the top of the screen passes 
 
 - Main screen only. Choosing the screen comes with the settings, before 1.0.
 - The format follows your Windows display language, not yet the clock format set in Windows.
+- With touch or a pen, the first tap on the island reaches the app underneath; the second opens it.
+- While an app run as administrator, such as Task Manager, has focus, Windows hides Esc and clicks from Sumi: switch apps to close the panel.

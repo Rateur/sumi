@@ -61,6 +61,14 @@ pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bo
     state.0.store(expanded, Ordering::Relaxed);
 }
 
+/// The presence the poll last decided, for a page that loads after `island://presence` was sent.
+pub struct IslandPresence(pub Mutex<Presence>);
+
+#[tauri::command]
+pub fn island_presence(state: tauri::State<'_, IslandPresence>) -> Presence {
+    state.0.lock().map_or(Presence::Shown, |presence| *presence)
+}
+
 /// How long the cursor rests on the island before it grows: the Windows hover time, within reason.
 /// Read on every arrival, so a changed setting applies without a restart.
 fn hover_time() -> u32 {
@@ -161,16 +169,22 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 // shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
 // first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
 // on the press itself: switch when touch matters or profiling shows a cost.
-pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
+/// `trigger` and `presence` are what setup found before showing the window.
+pub fn follow_cursor(
+    app: AppHandle,
+    window: WebviewWindow,
+    mut trigger: Option<usize>,
+    mut presence: Presence,
+) {
     std::thread::spawn(move || {
         let mut over = None;
         let mut before = None;
         let mut tick: u32 = 0;
-        let mut trigger = None;
-        let mut presence = Presence::Shown;
         // Going, the island slides up off the screen and then the window hides. Coming back, the window
         // shows first and then the island drops down.
         let mut hide_at = None;
+        // The command bar brings the island itself to the front: that change of app is not one that closes it.
+        let own = window.hwnd().map_or(0, |hwnd| hwnd.0 as usize);
         loop {
             std::thread::sleep(Duration::from_millis(33));
             tick = tick.wrapping_add(1);
@@ -201,6 +215,9 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                             // Back after the window hid, rather than before.
                             let _ = fullscreen::set_visible(&window, true);
                         }
+                    }
+                    if let Ok(mut current) = app.state::<IslandPresence>().0.lock() {
+                        *current = now;
                     }
                     let _ = app.emit("island://presence", now);
                     presence = now;
@@ -238,7 +255,8 @@ pub fn follow_cursor(app: AppHandle, window: WebviewWindow) {
                 if before
                     // A press the island took is on it, even when a quick drag left its edge before this tick.
                     .is_some_and(|(keys, front)| {
-                        front != now.1 || dismisses(keys, now.0, inside || over == Some(true))
+                        (front != now.1 && now.1 != own)
+                            || dismisses(keys, now.0, inside || over == Some(true))
                     })
                 {
                     expanded.0.store(false, Ordering::Relaxed);
