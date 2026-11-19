@@ -111,9 +111,11 @@ const CLITICS = new Set(['moi', 'toi', 'le', 'la', 'les', 'lui', 'leur', 'nous',
 // Kept whole, as are the hyphenated words of app names.
 const FROZEN = new Set(['rendez-vous', 'peut-etre', "aujourd'hui", "c'est-a-dire", 'notepad++'])
 // Politeness, on the ends of the line only. 'dis-moi' and 'tell me' ask for something, so they stay.
-// 'jveux' and 'pls' as people text them. 'vite' and 'for me' add nothing to what is asked.
+// 'jveux' and 'pls' as people text them. 'vite' and 'for me' add nothing to what is asked. 'yo', 'ok' and 'hi'
+// open a line, and 'do you know' wraps a question.
 const START = new RegExp(
-  "^(?:hey sumi|sumi|hey|est[- ]ce que (?:tu peux|vous pouvez)|tu peux|tu pourrais|peux[- ]tu|pourrais[- ]tu|" +
+  '^(?:hey sumi|sumi|hey|yo|ok|hi|do you know|' +
+    "est[- ]ce que (?:tu peux|vous pouvez)|tu peux|tu pourrais|peux[- ]tu|pourrais[- ]tu|" +
     "vous pouvez|pouvez vous|pourriez vous|stp|svp|s' il (?:te|vous) plait|please|pls|plz|can (?:you|ya|u)|" +
     "could you|would you|je veux|jveux|j' veux|je voudrais|j' aimerais|i want to|i want|i'd like to|i'd like|" +
     'i would like to|i would like)(?= |$)',
@@ -275,7 +277,12 @@ function spell(line: string): { line: string; article: boolean } {
     line = out + line.slice(last)
     folded = fold(line)
   }
-  for (const [re, write] of SPELL) rewrite(re, write)
+  for (const [re, write] of SPELL)
+    rewrite(re, (m) => {
+      // 'une demi-heure' and 'half an hour' are phrases, as 'une heure' is, whichever rewrite reads them.
+      article ||= /^(?:une?|an?) |half an /.test(m[0])
+      return write(m)
+    })
   rewrite(ONE, (m) => {
     // 'un min' is 'un minuteur' half typed: French says 'une minute'.
     if (m[1] === 'un') return m[0]
@@ -289,7 +296,7 @@ function spell(line: string): { line: string; article: boolean } {
 }
 
 // 'chrono' counts up, so it is a timer only with a unit: 'chrono 5 min', never 'chrono 5'.
-const KEYWORDS = new Set(['minuteur', 'minuterie', 'timer', 'chrono', 'chronometre'])
+const KEYWORDS = new Set(['minuteur', 'minuterie', 'timer', 'countdown', 'chrono', 'chronometre'])
 // A keyword of 8 letters or more allows one typo ('minutuer'), never 'timer', or 'times 10' would be one.
 const isKeyword = (w = '') => {
   const f = fold(w)
@@ -300,27 +307,44 @@ const KW = [...KEYWORDS].join('|')
 // texted ('met 1 minuteur de 10'): the number stays the one left.
 const GLUED = new RegExp(`(?<![\\p{L}\\d])(${KW})(?=\\d|de(?!\\p{L})|d')`, 'giu')
 const ONE_TIMER = new RegExp(`(?<![\\p{L}\\d])1 (?=(?:${KW})(?!\\p{L}))`, 'giu')
+// 'minuteur de5' is 'minuteur de 5': only the space comes back, the number stays as typed.
+const GLUED_DE = new RegExp(`(?<=(?<![\\p{L}\\d])(?:${KW}) d(?:e|'))(?=\\d)`, 'giu')
+// "d'une" without its apostrophe, as 'dheure' is d'heure, but only before a spelled duration: 'Dune' stays a film.
+const DUNE = /(?<![\p{L}\d])dune(?= (?:demi[- ])?heure| minute)/giu
 // Glue and determiners around the duration and the label, with their accents: 'thé' is no 'the'.
 const EDGE = new Set(
-  ['de', "d'", 'pour', 'for', 'of', 'a', 'an', 'un', 'une', 'le', 'la', 'les', "l'", 'des', 'du', 'the', 'my'].concat(
+  ['de', "d'", 'pour', 'pr', 'for', 'of', 'a', 'an', 'un', 'une', 'le', 'la', 'les', "l'", 'des', 'du', 'the', 'my'].concat(
     ['mon', 'ma', 'mes', 'ton', 'ta', 'tes'],
   ),
 )
+// Determiners: one right before the number makes a noun phrase.
+const PHRASE = new Set(['the', 'a', 'an', 'my', 'your', 'le', 'la', 'les', 'un', 'une', 'des', 'du', 'mon', 'ma', 'mes'])
+// Units are never corrected, so a word near one after a bare number is doubt: one letter ('2 j' for jours), one
+// typo ('sce', 'nm', 'minuets'), or two from 4 letters on with the unit's first letter ('hrue').
+const UNITS = ['sec', 'secs', 'second', 'seconds', 'seconde', 'secondes', 'mn', 'min', 'mins', 'minute', 'minutes']
+  .concat(['hr', 'hrs', 'hour', 'hours', 'heure', 'heures'])
+const nearUnit = (w = '') => {
+  const f = fold(w)
+  return f.length === 1 || (!!f && UNITS.some((u) => typos(f, u, 2) <= (f.length >= 4 && f[0] === u[0] ? 2 : 1)))
+}
 // A label with a subject or a conjugated verb is a sentence, not a name: 'jai 10 min a perdre', 'il reste 10 min'.
 const SENTENCE = new Set(
   ["j'", 'jai', 'je', 'tu', 'il', 'elle', 'on', 'nous', 'vous', 'ils', 'elles', 'me', "m'", 'moi', 'i', 'we'].concat(
     ['you', 'he', 'she', 'they', 'ai', 'as', 'est', 'suis', 'sont', 'reste', 'passe', 'pars', 'part', 'arrive'],
-    ['am', 'is', 'are', 'was'],
+    ['am', 'is', 'are', 'was', "i'm", 'im', "it's", "i've", "i'll", "we're", "you're", 'it', 'que', "qu'"],
   ),
 )
 // The verbs that start one: 'mets un minuteur de 10 s', 'set a timer for 5 minutes', 'lance 25m'.
 // The 'moi' of 'mets-moi' and 'fais-moi' says who for, not what.
 const SET = new RegExp(
   '^(?:mets|met|mettre|mettez|lance|lancer|lancez|demarre|demarrer|demarrez|programme|programmer|regle|regler|' +
-    'fais|faire|set|start|make|put)(?: moi)? ',
+    'fais|faire|set|start|make(?: it)?|put)(?: moi| me)? ',
 )
-// A question, a conversion, a stopwatch or a cycle: never a timer.
-const QUESTION = /\b(combien|comment|quel|quelle|quels|quelles|pourquoi|how|what|why|convert|convertir)\b|\?/
+// 'i need a 10 min timer', 'gimme a 5 min timer': a timer with its keyword only, as 'give me 5 minutes' is a remark.
+const WISH = /^(?:i need|gimme|give me) /
+// A question, a ranking, a conversion, a stopwatch or a cycle: never a timer. 'best 10 min workouts' is a search.
+const QUESTION =
+  /\b(combien|comment|quel|quelle|quels|quelles|pourquoi|how|what|why|convert|convertir|best|top|worst|meilleure?s?|pires?)\b|\?/
 const CONVERSION = /\b(en|in|to) [a-z]/
 const NOT_A_TIMER = /\b(stopwatch|pomodoro)\b/
 // A moment, a habit or the past, not a countdown: 'jarrive dans 5 min', 'remind me in 10 minutes', 'every 5
@@ -332,7 +356,8 @@ const NOT_NOW = new RegExp(
     'saturday|sunday)\\b',
 )
 // A time of day, checked before the accents go: 'à 18h30' is an alarm, 'a' alone is glue.
-const TIME_OF_DAY = /(^|\s)(à|at|until|vers|jusqu['’]à|jusqu['’]a)\s*\d/
+const TIME_OF_DAY =
+  /(^|\s)(à|at|until|vers|avant|before|après|apres|after|dès|des|[aà] partir d(?:e |')|jusque|jusqu(?:'|'? ?[aà]))\s*\d/
 const HOURS_12 = 12 * 3_600_000
 
 const toMs = (n: string, unit: string) => {
@@ -342,7 +367,14 @@ const toMs = (n: string, unit: string) => {
 
 /** A whole line read as a new timer: its length, and its label of at most 3 words. Anything else is no timer. */
 export function parseTimer(line: string): { ms: number; label?: string } | undefined {
-  const typed = line.trim().replace(/\s+/g, ' ').replace(/[’‘ʼ]/g, "'").replace(GLUED, '$1 ').replace(ONE_TIMER, 'un ')
+  const typed = line
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[’‘ʼ]/g, "'")
+    .replace(GLUED, '$1 ')
+    .replace(GLUED_DE, ' ')
+    .replace(ONE_TIMER, 'un ')
+    .replace(DUNE, "d'une")
   const { line: raw, article } = spell(typed)
   // Every duration has a digit once spelled numbers are read.
   if (!/\d/.test(raw)) return
@@ -352,8 +384,9 @@ export function parseTimer(line: string): { ms: number; label?: string } | undef
   const read = strip(prep(raw))
   if (NEGATION.test(read.text)) return
   const verb = SET.exec(read.text)?.[0].length ?? 0
-  const rest = read.raw.slice(verb)
-  const m = DURATION.exec(read.text.slice(verb))
+  const wish = verb ? 0 : (WISH.exec(read.text)?.[0].length ?? 0)
+  const rest = read.raw.slice(verb || wish)
+  const m = DURATION.exec(read.text.slice(verb || wish))
   if (!m) return
   const [, h, hu, hm, hs, mn, mu, ms, sn, su, bare] = m
   const n = (s?: string) => (s ? Number(s) : 0)
@@ -373,20 +406,32 @@ export function parseTimer(line: string): { ms: number; label?: string } | undef
   const before = split(rest.slice(0, m.index).replace(/(^|\s)d'$/i, ''))
   const after = split(rest.slice(m.index + m[0].length))
   const alone = !before.length && !after.length
+  // A determiner before the number makes a noun phrase ('the 10 minute rule'), and so does a singular unit before a
+  // noun ('5 minute journal'), unless a keyword or a verb asks for a timer.
+  const unit = fold(hu ?? mu ?? su ?? '')
+  const phrase =
+    PHRASE.has((before.at(-1) ?? '').toLowerCase()) ||
+    (!!after.length && /^(?:minute|hour|second)$/.test(unit) && Number((h ?? mn ?? sn ?? '').replace(',', '.')) > 1)
+  // Right after a bare number, a slipped unit is no name: '10 sce' would start 10 min.
+  const slip = bare !== undefined && nearUnit(after[0])
   const trim = (list: string[]) => {
     while (list.length && EDGE.has(list[0].toLowerCase())) list.shift()
     while (list.length && EDGE.has(list.at(-1)!.toLowerCase())) list.pop()
   }
   trim(before)
   trim(after)
-  // In front ('minuteur 10'), or behind in English ('10 minute timer').
-  const keyword = isKeyword(before[0]) ? before.shift() : isKeyword(after[0]) ? after.shift() : undefined
+  // Anywhere in front ('minuteur 10', 'pasta timer 12 min'), or behind in English ('10 minute timer').
+  const at = before.findIndex((w) => isKeyword(w))
+  const keyword = at >= 0 ? before.splice(at, 1)[0] : isKeyword(after[0]) ? after.shift() : undefined
+  // The particle of 'put a timer on' is no name.
+  if (at >= 0 && fold(before[at] ?? '') === 'on') before.splice(at, 1)
   trim(before)
   trim(after)
   const label = [...before, ...after]
   const odd = (w: string) => /\d/.test(w) || !/\p{L}/u.test(w) || isKeyword(w) || SENTENCE.has(fold(w))
-  if (label.length > 3 || label.some(odd)) return
-  if (article && !keyword && !verb) return
+  if (label.length > 3 || label.some(odd) || slip) return
+  if ((article || phrase) && !keyword && !verb) return
+  if (wish && !keyword) return
   // A bare number with any word is a name ('gpt 4', 'windows 11', '10 mon') unless a keyword says it is a timer.
   if (bare !== undefined && ((!alone && !keyword) || fold(keyword ?? '').startsWith('chrono'))) return
   return { ms: Math.round(total), label: label.join(' ') || undefined }
@@ -454,10 +499,15 @@ const ALIASES = [
   ['gestionnaire des taches', 'task manager'],
   ['panneau de configuration', 'control panel'],
   ['bloc-notes', 'notepad'],
+  ['horloge', 'clock'],
+  // Its plural on its own, as people say it: 'ouvre mes mails'. 'codes' stays no Visual Studio Code.
+  ['mail', 'mails'],
 ]
 const GROUPS = new Map(ALIASES.flatMap((group) => group.map((a) => [key(a), group] as const)))
 // Glue in a name: no shortening takes its letters, and no typo reaches the word after it, as 'porte' would 'La Poste'.
 const GLUE = new Set(['de', 'des', 'du', 'la', 'le', 'les', 'of', 'the', 'a', 'an', 'et', 'and'])
+// The system's name, in many of its apps' names ('Sécurité Windows', 'Windows Terminal'): it names none of them alone.
+const SHARED = new Set(['windows'])
 
 // Three rows of the table below, kept between calls so a keystroke allocates nothing.
 let rows = [new Int32Array(64), new Int32Array(64), new Int32Array(64)]
@@ -572,7 +622,7 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
     // Uninstallers never open from the bar, and a name seen twice is the first one.
     if (/\b(uninstall|desinstall)/.test(folded) || names.has(name)) continue
     names.set(name, app)
-    const group = GROUPS.get(name)?.filter((a) => key(a) !== name) ?? []
+    const group = GROUPS.get(name)?.filter((a) => key(a, true) !== key(app.name, true)) ?? []
     for (const a of group) if (!index.exact.has(key(a))) index.exact.set(key(a), app)
     const keys = [app.name, ...group].map((a) => key(a, true))
     for (const k of keys) index.plural.add(k)
@@ -582,7 +632,9 @@ function indexOf<A extends App>(apps: readonly A[]): Index<A> {
     const entry = { app, keys, spaced: keys.map((k) => ' ' + k), short, called }
     index.entries.push(entry)
     const typo = new Set(words.flatMap((list, n) => [keys[n], ...list.filter((_, i) => !GLUE.has(list[i - 1]))]))
-    for (const w of typo) if (allows(w)) add(index.byLength, w.length, [entry, w, letters(w)])
+    // A plural kept beside its word allows that word's typos: 'mails' none, as 'mail', so 'emails' is no Mail.
+    for (const w of typo)
+      if (allows(w) && !typo.has(w.slice(0, -1))) add(index.byLength, w.length, [entry, w, letters(w)])
     for (const c of new Set(words.flatMap((list) => list.map((w) => w[0])))) add(index.byInitial, c, entry)
     for (const c of new Set(keys.flatMap((k) => [k[0], k[1]]))) add(index.byStart, c, entry)
     for (const w of folded.split(/\s+/)) if (w.includes('-')) index.frozen.add(w)
@@ -617,13 +669,14 @@ export function findApp<A extends App>(query: string, apps: readonly A[]): A | u
   if (named) return named
   // No Calculator never opens Calendar.
   if (GROUPS.has(key(query))) return
-  // One letter is too little to act on.
-  if (q.length < 2) return
+  // One letter is too little to act on, and the system's name is a word many of its apps share.
+  if (q.length < 2 || SHARED.has(q)) return
   const { byLength, byInitial, byStart } = index
   // A word one plural letter short of a word in a name is a common noun, not that name: 'window' is no Windows
   // Terminal, 'game' no Epic Games Launcher, and no other app either. Plurals fold only onto a whole name, above.
+  // A single word only: in 'epic game', 'epic' already names the app.
   const initial = byInitial.get(q[0]) ?? []
-  const plurals = q.length - q.lastIndexOf(' ') > 3 ? [' ' + q + 's', ' ' + q + 'x'] : []
+  const plurals = q.length > 2 && !q.includes(' ') ? [' ' + q + 's', ' ' + q + 'x'] : []
   if (initial.some((e) => e.spaced.some((w) => plurals.some((p) => w.endsWith(p) || w.includes(p + ' '))))) return
   // A prefix, then the start of a word, the shorter name first. It wins only when every name that starts a word with
   // the query carries it: 'ste' is Steam rather than Steam VR, but 'st' is neither Steam nor Microsoft Store, so a
@@ -684,7 +737,7 @@ const DAY = half(['sommes-nous', 'sommes nous', 'nous sommes', 'on est', 'est-on
 const TIME = new RegExp(
   `^(?:(?:il est |${CEST} )?(?:quel|kel)(?:le)? heure(?: (?:${ASKED}))?|` +
     `${CEST} ${QUOI} ${HEURE}|(?:(?:affiche|montre|donne|dis)(?: moi)? )?${HEURE}|` +
-    "what time is it|what time it is|what(?:'s| is) the time|whats the time|" +
+    "(?:what|wat|wut) time(?: is it| it is|'s it)|what(?:'s| is) the time|whats the time|" +
     '(?:(?:show|tell)(?: me)? )?(?:the |current )?time)(?: (?:now|right now|rn|maintenant|la))?$',
 )
 const DATE = new RegExp(
@@ -693,7 +746,8 @@ const DATE = new RegExp(
     `${CEST} ${QUOI} la date|(?:(?:affiche|montre|donne|dis)(?: moi)? )?(?:la )?date|` +
     "what day is it|what day is today|what(?:'s| is) the day|whats the day|what date is it|" +
     "what(?:'s| is) (?:the|today's) date|whats (?:the|todays) date|" +
-    "(?:(?:show|tell)(?: me)? )?(?:the |today's |todays )?date)(?: (?:d' )?aujourd'?hui| today)?$",
+    "(?:(?:show|tell)(?: me)? )?(?:the |today's |todays )?date)" +
+    `(?: (?:${half(["d' aujourd'hui", "d' aujourdhui", "aujourd'hui", 'aujourdhui', 'ajd', 'today'])}))?$`,
 )
 
 // --- Assistants ---
@@ -723,46 +777,63 @@ const BY_NAME = new RegExp(
 // The verdict's search words only: 'trouve' and 'find' mostly ask for help.
 const SEARCH = /^(?:cherche|chercher|recherche|rechercher|search|look up)(?: moi)? (.+)$/
 // Dropped after a verb: 'ouvre les paramètres', 'open the calculator', "lance l'explorateur".
-const DETS = "le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my|l'|d'"
+// A lone 'l' or 'd' is the elision typed with a space: 'ouvre l appli discord'.
+const DETS = "le|la|les|un|une|des|du|de la|mon|ma|mes|ton|ta|tes|the|a|an|my|l'|d'|l|d"
 // After one of these the noun is a thing, not an app: 'lance un défi', 'start a fire'.
 const INDEFINITE = new Set(['un', 'une', 'a', 'an'])
 // The word for an app is no part of its name: "lance l'appli discord", 'open the spotify app'. Nor is the 'moi' of
 // 'ouvre-moi discord'.
 const NOUNS = 'app|appli|application|logiciel|programme'
-const NOUN = `(?:(?:${NOUNS}) )?`
+// "l'appli" without its apostrophe too: 'lance lappli spotify'.
+const LNOUNS = 'lapp|lappli|lapplication'
+const NOUN = `(?:(?:${NOUNS}|${LNOUNS}) )?`
 // Words still being typed name no app yet: 'ouvre me' may become 'ouvre mes réglages', 'lance le pr' 'lance le
 // programme', and after a timer's verb, 'start a ti' 'start a timer'.
-const TYPING = [...DETS.split('|'), ...NOUNS.split('|')]
+const TYPING = [...DETS.split('|'), ...NOUNS.split('|'), ...LNOUNS.split('|')]
 const TIMING = [...KEYWORDS]
 const OPEN = ['ouvre', 'ouvres', 'ouvrez', 'ouvrir', 'lance', 'lances', 'lancer', 'lancez', 'demarre', 'demarrer']
   .concat(['demarrez', 'open', 'launch', 'start'])
 // The first group opens what it names, or says no app aloud. 'montre', 'show' or 'run' takes an exact name: without
 // one it is just a question, so 'show the ti' is no Time Doctor. "m'ouvrir" and 'mouvrir' are 'open for me', and
-// 'open up' and 'fire up' a verb with its particle.
+// 'open up' and 'fire up' a verb with its particle. 'show me' is 'montre-moi'. A trailing 'now' or 'rn' adds
+// nothing, and leaves an exact name only.
 const VERB = new RegExp(
   `^(?:m' |me |m)?(?:(${OPEN.join('|')}|fire(?= up))(?: up)?|affiche|afficher|montre|montrer|show|run) ` +
-    `(?:moi )?(?:(${DETS}) )?${NOUN}(.+?)(?: (?:app|appli|application))?$`,
+    `(?:moi |me )?(?:(${DETS}) )?${NOUN}(.+?)(?: (?:app|appli|application))?` +
+    '( (?:now|right now|rn|asap|maintenant))?$',
   'd',
 )
 // Words that say the name is the system's own, after an exact name only: 'paramètres de discord' stays a question.
 const SYSTEM = /^(.+?) (?:du pc|de l' ?ordinateur|de mon pc|du systeme|de windows|windows)$/
 
-// A slip on the verb ('lnace', 'ouvrz') or no space after it ('ouvrediscord') opens only an exact name or alias,
-// never a guess on both sides. The verb keeps its first two letters or swaps them with the third: 'lunch', 'smart'
-// and 'dance' are words of their own.
+// A slip on the verb ('lnace', 'ouvrz', 'opne') or no space after it ('ouvrediscord') opens only an exact name or
+// alias, never a guess on both sides; glued, a whole word of one name too ('ouvrechrome'), never a part of one, so
+// 'startup' and 'openai' open nothing. The verb keeps its first two letters or swaps them with the third: 'lunch',
+// 'smart' and 'dance' are words of their own. Of the short verbs only 'open', the most typed, takes a slip.
 function slipped<A extends App>(text: string, index: Index<A>): A | undefined {
   const space = text.indexOf(' ')
   const first = space < 0 ? text : text.slice(0, space)
   const found: (A | undefined)[] = []
   for (const v of OPEN) {
-    if (first.length > v.length && first.startsWith(v)) found.push(exactly(index, text.slice(v.length)))
+    if (first.length > v.length && first.startsWith(v)) {
+      const rest = text.slice(v.length)
+      found.push(exactly(index, rest) ?? wordOf(index, rest))
+    }
     const start = first[1] === v[1] || (first[1] === v[2] && first[2] === v[1])
-    if (space < 0 || v.length < 5 || first[0] !== v[0] || !start || typos(first, v, 1) > 1) continue
+    if (space < 0 || (v.length < 5 && v !== 'open') || first[0] !== v[0] || !start || typos(first, v, 1) > 1) continue
     const verb = VERB.exec(v + text.slice(space))
     if (verb && !INDEFINITE.has(verb[2])) found.push(exactly(index, verb[3]))
   }
   const apps = new Set(found.filter((a) => a !== undefined))
   return apps.size === 1 ? [...apps][0] : undefined
+}
+
+// The one app with this whole word in its name, glue and the system's name aside.
+function wordOf<A extends App>(index: Index<A>, text: string): A | undefined {
+  const w = key(text, true)
+  if (w.length < 2 || w.includes(' ') || GLUE.has(w) || SHARED.has(w)) return
+  const hits = (index.byInitial.get(w[0]) ?? []).filter((e) => e.spaced.some((k) => `${k} `.includes(` ${w} `)))
+  return hits.length === 1 ? hits[0].app : undefined
 }
 
 /**
@@ -813,8 +884,9 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     const typing = (words: string[]) => words.some((w) => w.startsWith(verb![3]))
     if (verb && !INDEFINITE.has(verb[2]) && !typing(TYPING) && !(SET.test(text) && typing(TIMING))) {
       const system = SYSTEM.exec(verb[3])
+      const fuzzy = verb[1] && !verb[4]
       const app =
-        (system && exactly(index, system[1])) || (verb[1] ? findApp(verb[3], options.apps) : exactly(index, verb[3]))
+        (system && exactly(index, system[1])) || (fuzzy ? findApp(verb[3], options.apps) : exactly(index, verb[3]))
       if (app) return [open(app), typed]
       // Named as typed. 'lance un minuteur' is no missing app, just a question.
       const [from, to] = verb.indices![3]!

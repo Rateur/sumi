@@ -41,6 +41,18 @@ describe('parseTimer', () => {
     ['thé 3 min', minutes(3), 'thé'],
     ['10 min laundry', minutes(10), 'laundry'],
     ['minuteur lessive 45', minutes(45), 'lessive'],
+    // Glue and the words around the keyword are no name.
+    ['minuteur dune demi heure', minutes(30)],
+    ['minuteur 10 min pr les pates', minutes(10), 'pates'],
+    ['met un minuteur de 1h pr reviser', minutes(60), 'reviser'],
+    ['minuteur de5', minutes(5)],
+    ['set me a timer for 10 min', minutes(10)],
+    ['put a timer on for 10 minutes', minutes(10)],
+    ['i need a 10 min timer', minutes(10)],
+    ['gimme a 5 min timer', minutes(5)],
+    ['make it a 10 min timer', minutes(10)],
+    ['countdown 5 minutes', minutes(5)],
+    ['pasta timer 12 min', minutes(12), 'pasta'],
   ]
   it.each(accepted)('reads %s', (line, ms, label) => {
     expect(parseTimer(line)).toEqual({ ms, label })
@@ -330,6 +342,8 @@ describe('natural phrasing', () => {
     for (const [line, from, what] of [
       ['quelle heure est-il', 'quelle heure', 'time'],
       ['quel jour sommes-nous', 'quel jour', 'date'],
+      ["what's the date today", "what's the date", 'date'],
+      ["c'est quel jour aujourd'hui", "c'est quel jour", 'date'],
     ])
       for (let n = from.length; n <= line.length; n++)
         expect(choices(line.slice(0, n), options)[0], line.slice(0, n)).toMatchObject({ kind: 'clock', what })
@@ -384,13 +398,27 @@ describe('findApp', () => {
   })
 
   it('finds the built-in apps by their French or English name, whichever Windows has', () => {
-    const french = ['Calendrier', 'Gestionnaire des tâches', 'Panneau de configuration', 'Bloc-notes', 'Invite de commandes']
-    const english = ['Calendar', 'Task Manager', 'Control Panel', 'Notepad', 'Command Prompt']
+    const french = ['Calendrier', 'Gestionnaire des tâches', 'Panneau de configuration', 'Bloc-notes']
+      .concat(['Invite de commandes', 'Horloge'])
+    const english = ['Calendar', 'Task Manager', 'Control Panel', 'Notepad', 'Command Prompt', 'Clock']
     english.forEach((en, i) => {
       expect(findApp(en, french.map((name) => ({ name })))?.name).toBe(french[i])
       expect(findApp(french[i], english.map((name) => ({ name })))?.name).toBe(en)
     })
     expect(findApp('cmd', english.map((name) => ({ name })))?.name).toBe('Command Prompt')
+  })
+
+  it('opens no app by the name of the system alone', () => {
+    const list = ['Windows Terminal', 'Clock'].map((name) => ({ name }))
+    expect(findApp('windows', list)).toBeUndefined()
+    expect(top('open windows', { ...en, apps: list })).toMatchObject({ kind: 'ask' })
+    expect(top('ouvre horloge', { ...fr, apps: list })).toMatchObject({ kind: 'app', app: { name: 'Clock' } })
+  })
+
+  it('reads the plural of Mail by its alias, not any plural: emails and codes stay questions', () => {
+    expect(findApp('mails', apps)?.name).toBe('Mail')
+    expect(findApp('emails', apps)).toBeUndefined()
+    expect(findApp('codes', apps)).toBeUndefined()
   })
 
   it('reads a list once, and again when it changes', () => {
