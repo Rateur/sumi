@@ -1,4 +1,4 @@
-// One keystroke's reading against 500 apps, on 60-character lines: under 1 ms at p99. Not part of `npm test`, as
+// One keystroke's reading against 500 apps, on lines of up to 60 characters: under 1 ms at p99. Not part of `npm test`, as
 // the time depends on the PC: run it with `npx vitest bench --run`.
 
 import { test } from 'vitest'
@@ -20,10 +20,14 @@ const lines = {
   'verb, a typo': 'peux-tu ouvrir l’application microsft temas pour moi stp ?!!',
   question: 'quelle est la meilleure façon de cuire des pâtes al dente ??',
   timer: 'mets un minuteur de vingt-cinq minutes pour les pâtes stp !!',
+  // Short English names on a French list: the longest names hold the start of a word and their typos.
+  'command p': 'open command p',
+  'control p': 'open control p',
+  control: 'open control',
 }
 
 test.for(Object.entries(lines))('choices, 500 apps: %s', async ([, line], { bench, expect, annotate }) => {
-  expect(line).toHaveLength(60)
+  expect(line.length).toBeLessThanOrEqual(60)
   const { latency } = await bench(line, () => void choices(line, options)).run()
   await annotate(`p50 ${latency.p50!.toFixed(4)} ms, p99 ${latency.p99!.toFixed(4)} ms`)
   expect(latency.p99).toBeLessThan(1)

@@ -326,6 +326,21 @@ describe('natural phrasing', () => {
     expect(choices('stp demande à claude : pourquoi ?', options)[0]).toMatchObject({ question: 'pourquoi ?' })
   })
 
+  it('holds the clock while its question is typed', () => {
+    for (const [line, from, what] of [
+      ['quelle heure est-il', 'quelle heure', 'time'],
+      ['quel jour sommes-nous', 'quel jour', 'date'],
+    ])
+      for (let n = from.length; n <= line.length; n++)
+        expect(choices(line.slice(0, n), options)[0], line.slice(0, n)).toMatchObject({ kind: 'clock', what })
+  })
+
+  it('arms no timer before the first digit: a masculine "un" is no minute', () => {
+    for (const line of ['mets un minuteur de 25 minutes', 'lance un minuteur de 20 minutes'])
+      for (let n = 1; n < line.indexOf('2'); n++) expect(choices(line.slice(0, n), options)[0].kind).toBe('ask')
+    expect(choices('mets une minute', options)[0]).toMatchObject({ kind: 'timer', ms: 60_000 })
+  })
+
   it('names what it could not find as it was read', () => {
     expect(choices('ouvre zzz stp', options)[0]).toMatchObject({ kind: 'ask', label: 'Aucune app « zzz »' })
   })
@@ -366,6 +381,16 @@ describe('findApp', () => {
     const list = ['Calendrier', 'Calendar', 'Windows 10'].map((name) => ({ name }))
     for (const q of ['calculatrice', 'calculator', 'calc', 'windows 11']) expect(findApp(q, list)).toBeUndefined()
     expect(choices('ouvre la calculatrice', { ...fr, apps: list })[0]).toMatchObject({ kind: 'ask', label: 'Aucune app « calculatrice »' })
+  })
+
+  it('finds the built-in apps by their French or English name, whichever Windows has', () => {
+    const french = ['Calendrier', 'Gestionnaire des tâches', 'Panneau de configuration', 'Bloc-notes', 'Invite de commandes']
+    const english = ['Calendar', 'Task Manager', 'Control Panel', 'Notepad', 'Command Prompt']
+    english.forEach((en, i) => {
+      expect(findApp(en, french.map((name) => ({ name })))?.name).toBe(french[i])
+      expect(findApp(french[i], english.map((name) => ({ name })))?.name).toBe(en)
+    })
+    expect(findApp('cmd', english.map((name) => ({ name })))?.name).toBe('Command Prompt')
   })
 
   it('reads a list once, and again when it changes', () => {
