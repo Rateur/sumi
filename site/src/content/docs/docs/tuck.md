@@ -9,6 +9,7 @@ The island can tuck into a thin line under the top edge of your main screen, out
 
 - **Swipe it away, in any direction.** Rest the cursor on the island, then scroll the wheel or swipe the touchpad: one wheel notch is enough, and it goes into the line from that side. A scroll on a cursor that is only passing over does nothing.
 - **Or drag it away.** Press the island and drag it any way: it follows a little, and tucks when you let go. Drag it back to its place to change your mind.
+- **Even open.** The clock, music or timer panel tucks the same way, and its ink drains up into the edge. A drag on the music's progress bar still moves the song, and the buttons still take a click.
 - **In the tray icon's menu**, choose **Tuck the island**.
 - **Drag a window.** While you move or resize a window, the island tucks so Snap layouts has the top of the screen, and comes back when you let go. If it was already tucked, it stays tucked.
 

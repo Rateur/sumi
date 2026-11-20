@@ -1,6 +1,18 @@
 import { peeks, type Activity, type Presence } from './activities'
 import type { Lang } from './intent'
-import { SWIPE, TUCK, TUCK_AFTER, TUCK_AFTER_CLICK } from './motion'
+import {
+  CLOSE,
+  DRAIN,
+  FULLSCREEN,
+  GOUTTE,
+  MERGE,
+  SWIPE,
+  TUCK,
+  TUCK_AFTER,
+  TUCK_AFTER_CLICK,
+  type Axis,
+} from './motion'
+import { TOP } from './shapes'
 import { ended } from './timers'
 
 /** Who tucked the island: you, the island itself at rest, or a window being moved, which gives the top back. */
@@ -117,6 +129,31 @@ export function resist(distance: number): number {
   const give = SWIPE.give
   return Math.sign(distance) * give * (1 - 1 / (1 + (0.55 * Math.abs(distance)) / give))
 }
+
+/** A spring the tuck drives: the island's size, lift and taper (drip in shapes.ts), and the line's width and centre. */
+export type Part = 'width' | 'height' | 'lift' | 'taper' | 'lineW' | 'lineX'
+
+/** A beat of a tuck: `at` ms from its start, `part` heads for `to` on `axis`, without overshoot. */
+export interface Beat {
+  at: number
+  part: Part
+  to: number
+  axis: Axis
+}
+
+/**
+ * The drain (DRAIN), the tuck from an open panel: its sides pull in faster than its bottom rises, so it thins under
+ * the neck instead of closing into Goutte's round drop, and it drains up while it still pulls in. The ink spreads along
+ * the edge as the body comes in.
+ */
+export const DRAINS: readonly Beat[] = [
+  { at: DRAIN.pull, part: 'taper', to: 1, axis: FULLSCREEN.hide },
+  { at: DRAIN.pull, part: 'width', to: GOUTTE.thin, axis: FULLSCREEN.hide },
+  { at: DRAIN.pull, part: 'height', to: GOUTTE.long, axis: CLOSE.height },
+  { at: DRAIN.rise, part: 'lift', to: -(TOP + GOUTTE.rise), axis: MERGE },
+  { at: DRAIN.rise, part: 'lineW', to: TUCK.width, axis: CLOSE.width },
+  { at: DRAIN.rise, part: 'lineX', to: 0, axis: CLOSE.width },
+]
 
 /** The tray menu's item, as the island is or is about to be. */
 export const TRAY = {
