@@ -137,6 +137,7 @@ const KEYS: Record<string, string> = {
   g: 'long',
   z: 'pause',
   w: 'welcome',
+  r: 'tuck',
 }
 
 /**
@@ -149,7 +150,9 @@ const KEYS: Record<string, string> = {
  * nothing: the island only plays its answer. A framing page types in the bar with `type:<text>`, presses Enter with
  * 'enter' and ends the timers with 'clear'. W plays the first-launch welcome from the drop ('welcome'), with the
  * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none. `?lang=fr` or `?lang=en`
- * sets the island's language, as the site's pages do for their frames.
+ * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
+ edge, or brings it back ('tuck'); a scroll up on it after the hover dwell does too, and a rest, a scroll down or a pull
+ down on the line brings it back.
  */
 export function demo(island: {
   activities: Activity[]
@@ -163,6 +166,7 @@ export function demo(island: {
   fullscreen: () => void
   bar: () => void
   welcome: () => void
+  tuck: () => void
   shortcut: string | undefined
   apps: Listed[]
   claudeApp: boolean
@@ -208,6 +212,7 @@ export function demo(island: {
     enter: () => field()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
     clear: () => (island.activities = island.activities.filter((a) => !isTimer(a))),
     welcome: island.welcome,
+    tuck: island.tuck,
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
       island.claudeApp = !island.claudeApp
