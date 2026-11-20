@@ -417,9 +417,9 @@ describe('natural phrasing', () => {
   it.each(['batterie', 'battery', 'autonomie', 'niveau de batterie', 'battery level'])(
     'answers %s with the battery on the chip',
     (line) => {
-      const battery = { percent: 47, plugged: true, minutes: null, devices: [] }
-      expect(choices(line, { ...options, battery })[0]).toEqual({ kind: 'battery', label: '47 % · sur secteur' })
-      expect(choices(line, { ...options, battery, lang: 'en' })[0].label).toBe('47 % · plugged in')
+      const battery = { percent: 47, plugged: true, minutes: null, full: null, saver: false, devices: [] }
+      expect(choices(line, { ...options, battery })[0]).toEqual({ kind: 'battery', label: '47\u202f% · sur secteur' })
+      expect(choices(line, { ...options, battery, lang: 'en' })[0].label).toBe('47\u202f% · plugged in')
     },
   )
 

@@ -92,13 +92,19 @@
   import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
   import {
     BOLT,
+    COMPACT,
     POWER_PEEK,
-    charge,
+    fresh,
+    items,
     lines,
-    spoken as speak,
+    opens,
+    readOut,
+    panelSize,
+    said as speak,
     waits,
     type Battery,
     type Device,
+    type Item,
     type Low,
     type Power,
   } from './lib/power'
@@ -120,6 +126,8 @@
   import { TRAY, badge, tip, type Tray } from './lib/tray'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
+  import Batteries from './Batteries.svelte'
+  import Ring, { BOLT_PATH, glyph as drawing } from './Ring.svelte'
 
   // The hover shape outlives the cursor this long, so a slip past its edge doesn't shrink it.
   const LEAVE = 300
@@ -181,6 +189,12 @@
   let powerTimer: ReturnType<typeof setTimeout> | undefined
   let pending = $state<Power>()
   let battery = $state<Battery>()
+  // The batteries panel: open over the clock's, with a ring grown to its detail, and whether it holds the focus the
+  // bar had. When each device last peeked as it connected, in memory only (fresh in power.ts).
+  let panel = $state<'batteries'>()
+  let grown = $state<string>()
+  let focused = $state(false)
+  const connects = new Map<string, number>()
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -238,6 +252,7 @@
       welcome,
       blank,
       power,
+      batteries: panel && battery ? panelSize(items(battery, lang), grown) : undefined,
     }),
   )
   // While the bar and its answer hold the island, what had it waits in the bubble. The welcome keeps the island
@@ -282,7 +297,7 @@
     return {
       date: name === 'hover' && !activity,
       time: ((name === 'idle' || name === 'hover') && !activity) || activity?.kind === 'call',
-      panel: name === 'expanded' && !activity,
+      panel: name === 'expanded' && !activity && !('batteries' in view),
       music: activity?.kind === 'music' ? activity : undefined,
       player: name === 'expanded' && activity?.kind === 'music' ? activity : undefined,
       track: name === 'peek' && activity?.kind === 'music' ? activity : undefined,
@@ -292,6 +307,7 @@
       launch: name === 'launch' ? launch : undefined,
       welcome: name && view.name === 'welcome' ? view.step : undefined,
       power: name && view.name === 'power' ? view.power : undefined,
+      batteries: name && 'batteries' in view ? battery : undefined,
     }
   })
 
@@ -527,8 +543,9 @@
         height.jump(target.height)
         wake()
       }
-      // Reduced motion: the welcome's content fades out in the old shape before the shape changes.
-      if (reduced && (from.name === 'welcome' || to.name === 'welcome')) delayed = setTimeout(jump, gap)
+      // Reduced motion: the welcome's content, and the batteries' as a ring grows, fades out in the old shape before
+      // the shape changes.
+      if (reduced && gap) delayed = setTimeout(jump, gap)
       else jump()
       return
     }
@@ -693,7 +710,7 @@
   let before = new Map<Element, DOMRect>()
   let box: DOMRect | undefined
   let grows = true
-  // Reduced motion: how long new content waits for the old one to fade out, during the welcome.
+  // Reduced motion: how long new content waits for the old one to fade out, during the welcome and in the batteries.
   let gap = 0
   // Out of the welcome, the new content waits for the shape as it starts to close, and keeps to its middle.
   let folding = false
@@ -709,7 +726,8 @@
       const [a, b] = [sizeOf(last), size]
       // Into the tuck's drop, the content leaves shrinking.
       grows = revealed && !stowed && b.width * b.height >= a.width * a.height
-      gap = reduced && (last.name === 'welcome' || view.name === 'welcome') ? 120 : 0
+      const batteries = 'batteries' in last && 'batteries' in view
+      gap = reduced && (last.name === 'welcome' || view.name === 'welcome' || batteries) ? 120 : 0
       folding = !reduced && last.name === 'welcome' && view.name !== 'welcome'
       lag = folding ? motion(last, view).delay : 0
       box = content.getBoundingClientRect()
@@ -868,8 +886,10 @@
   function open() {
     if (hidden || tuck === 'tucking' || tuck === 'tucked') return
     pressed = false
-    // A finished timer never opens: a click on it is its OK.
+    // A finished timer never opens: a click on it is its OK. A battery peek opens the batteries.
     if (top && ended(top, Date.now())) return dismiss(top.id)
+    if (power) return openBatteries(false)
+    panel = undefined
     expanded = true
   }
 
@@ -960,7 +980,13 @@
         // Once the window lets the cursor through, the tag never hears it leave.
         if (payload === null) pointTag(false)
       }),
-      listen('island://dismiss', () => {
+      listen<boolean>('island://dismiss', ({ payload: escape }) => {
+        // Esc on a grown ring goes back to the row, and Rust watches for the next one.
+        if (escape && grown && expanded) {
+          grown = undefined
+          invoke('set_island_expanded', { expanded: true }).catch(console.error)
+          return
+        }
         elsewhere()
         expanded = false
         closeCard()
@@ -980,7 +1006,10 @@
       listen<boolean>('island://moving', ({ payload }) => (payload ? tuckIn('move') : tucker === 'move' && untuck())),
       listen<number>('power://plugged', ({ payload }) => notice({ kind: 'plugged', percent: payload })),
       listen<Low>('power://low', ({ payload }) => notice({ kind: 'low', ...payload })),
-      listen<Device>('power://device', ({ payload }) => notice({ kind: 'device', device: payload })),
+      listen<Device>('power://device', ({ payload }) => {
+        if (fresh(connects, payload.name, Date.now())) notice({ kind: 'device', device: payload })
+      }),
+      listen<Battery>('power://battery', ({ payload }) => (battery = payload)),
       listen<Device>('power://device-low', ({ payload }) => notice({ kind: 'deviceLow', device: payload })),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
@@ -1816,8 +1845,9 @@
   // 2.5 s; an app or a question shows what opens for 1.2 s, then the previous view comes back. If nothing opens, the peek says so for 2 s. The demo opens
   // nothing.
   function run(choice: Choice<Listed>) {
-    if (!barOpen) return
-    closeBar(choice.kind !== 'app' && choice.kind !== 'ask')
+    if (!barOpen || (choice.kind === 'battery' && !opens(battery))) return
+    // An app or a site takes the focus; the batteries panel keeps it for the arrows.
+    closeBar(choice.kind !== 'app' && choice.kind !== 'ask' && choice.kind !== 'battery')
     const t = Date.now()
     if (choice.kind === 'timer') {
       swell = true
@@ -1826,6 +1856,7 @@
     else if (choice.kind === 'pause') edit(choice.id, (a) => pause(a, t))
     else if (choice.kind === 'resume') edit(choice.id, (a) => resume(a, t))
     else if (choice.kind === 'stop') dismiss(choice.id)
+    else if (choice.kind === 'battery') openBatteries(true)
     else if (choice.kind === 'clock') {
       telling = true
       clearTimeout(launchTimer)
@@ -1885,6 +1916,40 @@
       spoken = ''
     }, POWER_PEEK[next.kind])
   }
+
+  // The batteries panel opens from the bar's « batterie » and from a click on a battery peek, never from the idle
+  // island. Opened from the bar, it keeps the focus for the arrows, and gives it back as it closes.
+  function openBatteries(keys: boolean) {
+    clearTimeout(powerTimer)
+    power = undefined
+    grown = undefined
+    focused = keys
+    panel = 'batteries'
+    expanded = true
+    if (battery) spoken = readOut(items(battery, lang), lang)
+    if (tauri)
+      invoke<Battery>('battery')
+        .then((read) => (battery = read))
+        .catch(console.error)
+  }
+
+  // A click on a ring grows it to its detail; on the grown one, or Esc, it goes back. "+N" is no button.
+  function pick(id: string) {
+    if (!battery || id === 'more' || items(battery, lang).length < 2) return
+    grown = grown === id ? undefined : id
+  }
+
+  $effect(() => {
+    if (expanded) return
+    untrack(() => {
+      if (!panel) return
+      panel = undefined
+      grown = undefined
+      spoken = ''
+      if (focused && tauri) invoke('bar_focus', { open: false }).catch(console.error)
+      focused = false
+    })
+  })
 
   $effect(() => {
     const next = free ? pending : undefined
@@ -1999,6 +2064,7 @@
         tuck: toggleTuck,
         swipe: (way: Direction) => tuckIn('you', way, true),
         power: notice,
+        batteries: () => openBatteries(false),
         get battery() {
           return battery
         },
@@ -2039,6 +2105,7 @@
   onresize={wake}
   onkeydown={(event) => {
     if (tauri || event.key !== 'Escape') return
+    if (grown) return (grown = undefined)
     expanded = false
     closeBar()
   }}
@@ -2098,25 +2165,17 @@
   {#if call.camera}<span class="dot camera"></span>{/if}
 {/snippet}
 
-<!-- A battery peek's glyph: what the device is, or a battery filled to its level, red when it runs low. -->
-{#snippet cell(p: Power)}
-  {@const glyph = p.kind === 'device' ? p.device.glyph : 'other'}
+<!-- The low battery: a red battery outline filled to its level. -->
+{#snippet empty(level: number)}
   <svg viewBox="0 0 24 24" aria-hidden="true">
-    {#if glyph === 'headset'}
-      <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
-      <rect x="3.5" y="14" width="4.5" height="6.5" rx="1.5" /><rect x="16" y="14" width="4.5" height="6.5" rx="1.5" />
-    {:else if glyph === 'mouse'}
-      <rect x="6.5" y="3" width="11" height="18" rx="5.5" /><path d="M12 7v3.5" />
-    {:else if glyph === 'controller'}
-      <path
-        d="M7.5 7.5h9a4.5 4.5 0 0 1 4.4 3.6l.9 4.6a2.6 2.6 0 0 1-4.6 2.1L15.5 16h-7l-1.7 1.8a2.6 2.6 0 0 1-4.6-2.1l.9-4.6a4.5 4.5 0 0 1 4.4-3.6Z"
-      />
-      <path d="M8 10.5v3M6.5 12h3M15.5 11h.01M17 13h.01" />
-    {:else}
-      <rect x="2" y="7" width="17.5" height="10" rx="3" /><path d="M22 10.5v3" />
-      <rect class="fill" x="4" y="9" width={13.5 * charge(p)} height="6" rx="1.5" />
-    {/if}
+    <rect x="2" y="7" width="17.5" height="10" rx="3" /><path d="M22 10.5v3" />
+    <rect class="fill" x="4" y="9" width={13.5 * Math.min(1, level / 100)} height="6" rx="1.5" />
   </svg>
+{/snippet}
+
+<!-- A device's glyph, drawn as its ring's. -->
+{#snippet device(kind: Item['kind'])}
+  <svg viewBox="0 0 24 24" aria-hidden="true">{@render drawing(kind)}</svg>
 {/snippet}
 
 <!-- The timer's ring, full at the start and empty at the end. -->
@@ -2456,18 +2515,44 @@
     {/if}
     <!-- One block level each: a nested block would skip its content's entrance. -->
     {#if parts.power?.kind === 'plugged'}
-      <!-- The bolt draws itself, then the level comes in. -->
+      {@const step = Math.ceil(BOLT / ENTER.stagger)}
+      <!-- The bolt draws itself, then the level, then a small battery filled to it. -->
       <span class="bolt" style="--draw:{BOLT}ms;--wait:{ENTER.delay}ms" out:exit>
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path pathLength="1" d="M9.5 1.5 3.5 9H8l-1.5 5.5L12.5 7H8z" /></svg>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path pathLength="1" d={BOLT_PATH} /></svg>
       </span>
-      <span in:enter={{ step: Math.ceil(BOLT / ENTER.stagger) }} out:exit>{lines(parts.power, lang)[0]}</span>
-    {:else if parts.power}
+      <span class="level" in:enter={{ step }} out:exit>{lines(parts.power, lang)[0]}</span>
+      <span class="charge" in:enter={{ step: step + 1 }} out:exit>
+        <svg viewBox="0 0 25 12" aria-hidden="true">
+          <rect x=".75" y=".75" width="20.5" height="10.5" rx="3.25" /><path d="M23.5 4.5v3" />
+          <rect class="fill" x="2.5" y="2.5" width={17 * Math.min(1, parts.power.percent / 100)} height="7" rx="1.75" />
+        </svg>
+      </span>
+    {:else if parts.power?.kind === 'device'}
+      {@const it = { id: parts.power.device.name, ...parts.power.device }}
+      <!-- What connected, its level, then its ring filling to it. Red at 20 % or less: its low warning. -->
+      <span class="glyph" in:enter out:exit>{@render device(it.kind)}</span>
+      <span class="level" in:enter={{ step: 1 }} out:exit>{lines(parts.power, lang)[0]}</span>
+      <span class="gauge" style:width="{COMPACT.ring}px" style:height="{COMPACT.ring}px" in:enter={{ step: 2 }} out:exit>
+        <Ring {it} stroke={(COMPACT.stroke * 44) / COMPACT.ring} drawn={false} wait={ENTER.delay + 2 * ENTER.stagger} {reduced} />
+      </span>
+    {:else if parts.power?.kind === 'deviceLow'}
+      {@const it = { id: parts.power.device.name, ...parts.power.device }}
       {@const [first, second] = lines(parts.power, lang)}
-      <span class="cell" class:low={waits(parts.power)} in:enter out:exit>{@render cell(parts.power)}</span>
+      <span class="gauge low" in:enter out:exit><Ring {it} wait={ENTER.delay} {reduced} /></span>
       <span class="track" out:exit>
         <span in:enter={{ step: 1 }}>{first}</span>
         <span class="muted" in:enter={{ step: 2 }}>{second}</span>
       </span>
+    {:else if parts.power}
+      {@const [first, second] = lines(parts.power, lang)}
+      <span class="cell" in:enter out:exit>{@render empty(parts.power.kind === 'low' ? parts.power.percent : 0)}</span>
+      <span class="track" out:exit>
+        <span in:enter={{ step: 1 }}>{first}</span>
+        <span class="muted" in:enter={{ step: 2 }}>{second}</span>
+      </span>
+    {/if}
+    {#if parts.batteries}
+      <Batteries battery={parts.batteries} {grown} {lang} {reduced} keys={focused} {exit} onpick={pick} />
     {/if}
     {#if parts.welcome === 'hello'}
       <span class="greet" in:enter out:exit>{WORDS[lang].hello}</span>
@@ -2775,11 +2860,16 @@
     height: 100%;
   }
 
-  /* A battery peek: plugging in, the bolt at the left end and the level at the right; the rest, a glyph and two
-     lines. */
+  /* A battery peek: plugging in and a device connecting, a glyph at the left end, the level then its drawing at the
+     right; a low battery, a battery or a ring and two lines. */
   .power {
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 6px;
     padding: 0 14px;
+  }
+
+  .power .level {
+    margin-left: auto;
   }
 
   .power:has(.track) {
@@ -2789,9 +2879,41 @@
   }
 
   .bolt,
-  .cell {
+  .cell,
+  .glyph,
+  .charge,
+  .gauge {
     display: grid;
     flex: none;
+  }
+
+  .glyph svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .charge svg {
+    width: 25px;
+    height: 12px;
+    fill: none;
+    stroke: rgb(255 255 255 / 0.45);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .charge .fill {
+    fill: #4ade80;
+    stroke: none;
+  }
+
+  .gauge.low {
+    width: 32px;
+    height: 32px;
   }
 
   .bolt svg {
@@ -2812,18 +2934,14 @@
     width: 28px;
     height: 28px;
     fill: none;
-    stroke: currentColor;
+    stroke: #f87171;
     stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
 
-  .cell.low {
-    color: #f87171;
-  }
-
   .cell .fill {
-    fill: currentColor;
+    fill: #f87171;
     stroke: none;
   }
 

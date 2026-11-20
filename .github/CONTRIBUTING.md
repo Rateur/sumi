@@ -55,7 +55,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
-- `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
+- `src/Island.svelte` draws the island. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
 - `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
@@ -89,7 +89,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `welcome_done` | page → Rust | returns `Result<(), String>` | nothing, or an error |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
-| `island://dismiss` | Rust → page | nothing | nothing |
+| `island://dismiss` | Rust → page | `bool`: whether Esc closed it, rather than a click elsewhere or another app | `boolean` |
 | `island://tuck` | Rust → page | nothing: a left click on the tray icon or its menu's tuck item, which tucks or brings back | nothing |
 | `island://moving` | Rust → page | `bool`: `true` once a window is dragged, `false` when the move ends | `boolean` |
 | `island://elsewhere` | Rust → page | nothing: a click outside the island while it waits to tuck itself | nothing |
@@ -99,8 +99,9 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
 | `power://plugged` | Rust → page | `u8`: the level, as the PC is plugged in | `number` |
 | `power://low` | Rust → page | `Low` (`power.rs`), once per discharge | `Low` (`src/lib/power.ts`) |
-| `power://device` | Rust → page | `Device` (`power.rs`), as it connects | `Device` (`src/lib/power.ts`) |
+| `power://device` | Rust → page | `Device` (`power.rs`), as it connects, but a mouse or a keyboard only when low | `Device` (`src/lib/power.ts`) |
 | `power://device-low` | Rust → page | `Device`, once per discharge | `Device` |
+| `power://battery` | Rust → page | `Battery` (`power.rs`), when what the batteries panel shows changed | `Battery` (`src/lib/power.ts`) |
 
 ## Before you push
 

@@ -1,7 +1,7 @@
 //! The battery: the laptop's, from Windows' power manager, and the level a Bluetooth device reports, as Windows shows
 //! it in its Bluetooth settings. Everything comes from Windows' events on a thread of its own, which sleeps in
-//! between: plugging in, the laptop running low, a device with a battery connecting or running low. What it reads goes
-//! to the page and nowhere else: nothing is logged or stored.
+//! between: plugging in, the laptop running low, a device with a battery connecting or running low, and what the
+//! batteries panel shows. What it reads goes to the page and nowhere else: nothing is logged or stored.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -17,13 +17,19 @@ const LOW: u8 = 20;
 /// watchers below don't keep each other's order.
 const FRESH: Duration = Duration::from_secs(5);
 
-/// What the command bar says: the laptop's level, `None` without a battery, whether it is plugged in, the minutes
-/// left when Windows knows them, and the connected devices that report a battery. Mirrored in src/lib/power.ts.
+/// The time to full shows once the PC has been on mains this long, while the charge rate settles.
+const SETTLE: Duration = Duration::from_secs(120);
+
+/// What the bar and the batteries panel show: the laptop's level, `None` without a battery, whether it is plugged
+/// in, the minutes left on battery and to full on mains when Windows knows them, energy saver, and the connected
+/// devices that report a battery. Mirrored in src/lib/power.ts.
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct Battery {
     percent: Option<u8>,
     plugged: bool,
     minutes: Option<u32>,
+    full: Option<u32>,
+    saver: bool,
     devices: Vec<Device>,
 }
 
@@ -31,18 +37,19 @@ pub struct Battery {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Device {
     name: String,
-    glyph: Glyph,
+    kind: Kind,
     percent: u8,
 }
 
-/// What the device peek draws beside its name. Mirrored in src/lib/power.ts.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+/// What a device is, for its glyph and its place in the panel. Mirrored in src/lib/power.ts.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Glyph {
+pub enum Kind {
     Headset,
-    Mouse,
+    Speaker,
     Controller,
-    #[default]
+    Mouse,
+    Keyboard,
     Other,
 }
 
@@ -62,26 +69,40 @@ enum Peek {
     DeviceLow(Device),
 }
 
-/// The connected devices with a battery, as last read, for the bar.
+/// The connected devices with a battery as last read, and since when the PC has been on mains, `None` from before
+/// launch or on battery.
 #[derive(Default)]
 pub struct Power {
     devices: Mutex<Vec<Device>>,
+    since: Mutex<Option<Instant>>,
 }
 
-/// One read when the bar opens, not a poll.
+impl Power {
+    fn now(&self) -> Battery {
+        let devices = self.devices.lock().map(|d| d.clone()).unwrap_or_default();
+        #[cfg_attr(not(windows), allow(unused_variables))]
+        let settled = self
+            .since
+            .lock()
+            .map(|s| s.is_none_or(|t| t.elapsed() >= SETTLE))
+            .unwrap_or(true);
+        #[cfg(windows)]
+        return Battery {
+            devices,
+            ..win::laptop(settled)
+        };
+        #[cfg(not(windows))]
+        return Battery {
+            devices,
+            ..Battery::default()
+        };
+    }
+}
+
+/// One read as the bar or the panel opens, not a poll: power://battery brings what changes after.
 #[tauri::command]
 pub fn battery(power: tauri::State<'_, Power>) -> Battery {
-    let devices = power.devices.lock().map(|d| d.clone()).unwrap_or_default();
-    #[cfg(windows)]
-    return Battery {
-        devices,
-        ..win::laptop()
-    };
-    #[cfg(not(windows))]
-    return Battery {
-        devices,
-        ..Battery::default()
-    };
+    power.now()
 }
 
 /// Starts watching on a thread of its own, as the music does: Tauri's main thread is single-threaded COM. Without
@@ -121,8 +142,8 @@ impl Laptop {
 #[derive(Default)]
 struct Gadget {
     name: String,
-    /// `None` for a phone or a computer, which show their own battery.
-    glyph: Option<Glyph>,
+    /// `None` for a phone or a computer, which show their own battery, and until the endpoint is heard.
+    kind: Option<Kind>,
     connected: bool,
     percent: Option<u8>,
     /// When the level came, `None` for one read at launch, which may be from an earlier connection.
@@ -130,7 +151,7 @@ struct Gadget {
     /// Since it connected: whether a level came, and whether the page heard of it.
     live: bool,
     told: bool,
-    /// Whether the low peek fired since the level was last above `LOW`.
+    /// Whether the low warning came since the level was last above `LOW`.
     warned: bool,
 }
 
@@ -138,7 +159,7 @@ impl Gadget {
     fn device(&self) -> Option<Device> {
         Some(Device {
             name: self.name.clone(),
-            glyph: self.glyph?,
+            kind: self.kind?,
             percent: self.percent?,
         })
     }
@@ -157,7 +178,7 @@ impl Gadgets {
         &mut self,
         address: &str,
         name: Option<String>,
-        glyph: Option<Option<Glyph>>,
+        kind: Option<Option<Kind>>,
         connected: Option<bool>,
         now: Instant,
     ) -> Option<Peek> {
@@ -166,8 +187,8 @@ impl Gadgets {
         if let Some(name) = name {
             g.name = name;
         }
-        if let Some(glyph) = glyph {
-            g.glyph = glyph;
+        if let Some(kind) = kind {
+            g.kind = kind;
         }
         let connected = connected?;
         let was = std::mem::replace(&mut g.connected, connected);
@@ -201,7 +222,7 @@ impl Gadgets {
         tell(g, ready)
     }
 
-    /// The connected devices whose level came while connected, by name.
+    /// The connected devices whose level came while connected. The page puts them in order.
     fn connected(&self) -> Vec<Device> {
         let mut devices: Vec<Device> = self
             .by_address
@@ -214,20 +235,22 @@ impl Gadgets {
     }
 }
 
-/// A level that just came on a connection: the low peek once per discharge, otherwise the device peek once per
-/// connection. Nothing for what was there at launch, nor for a phone or a computer.
+/// A level that just came. The first one on a connection peeks, red at `LOW` or under, which counts as the low
+/// warning; a mouse or a keyboard reconnects each time it wakes, so it peeks only that low. After that, the low peek
+/// once per discharge. Nothing for what was there at launch, nor for a phone or a computer.
 fn tell(g: &mut Gadget, ready: bool) -> Option<Peek> {
     let device = g.device().filter(|_| ready)?;
-    if device.percent <= LOW && !g.warned {
-        g.warned = true;
-        g.told = true;
-        return Some(Peek::DeviceLow(device));
+    let low = device.percent <= LOW && !g.warned;
+    g.warned |= low;
+    if !std::mem::replace(&mut g.told, true) {
+        let quiet = matches!(device.kind, Kind::Mouse | Kind::Keyboard);
+        return match (quiet, low) {
+            (false, _) => Some(Peek::Device(device)),
+            (true, true) => Some(Peek::DeviceLow(device)),
+            (true, false) => None,
+        };
     }
-    if g.told {
-        return None;
-    }
-    g.told = true;
-    Some(Peek::Device(device))
+    low.then_some(Peek::DeviceLow(device))
 }
 
 /// The Bluetooth address in an endpoint's or a node's id: its last run of exactly 12 hex digits, colons dropped.
@@ -240,22 +263,55 @@ fn address(id: &str) -> Option<String> {
         .map(str::to_ascii_uppercase)
 }
 
-/// The glyph for the categories Windows files a device under, such as `Communication.Headset.Bluetooth` or
-/// `Input.Gaming`. `None` for a phone or a computer.
-fn glyph(categories: &[String]) -> Option<Glyph> {
+/// What a device is, from its Bluetooth Class of Device (major, minor), its Bluetooth LE Appearance, then the
+/// categories Windows files it under. `None` for a phone or a computer.
+fn kind(cod: Option<(u32, u32)>, appearance: Option<u32>, categories: &[String]) -> Option<Kind> {
     let has = |prefix: &str| categories.iter().any(|c| c.starts_with(prefix));
-    if has("Communication.Phone") || has("Computer") {
+    let phone = matches!(cod, Some((1 | 2, _)))
+        || appearance.is_some_and(|a| matches!(a >> 6, 1 | 2))
+        || has("Communication.Phone")
+        || has("Computer");
+    if phone {
         return None;
     }
-    Some(if has("Communication.Headset") || has("Audio.Head") {
-        Glyph::Headset
-    } else if has("Input.Mouse") {
-        Glyph::Mouse
+    let by_cod = cod.and_then(|(major, minor)| match (major, minor) {
+        // Audio and video: wearable headset, headphones, loudspeaker.
+        (4, 1 | 6) => Some(Kind::Headset),
+        (4, 5) => Some(Kind::Speaker),
+        // Peripheral: joystick or gamepad, then keyboard, pointing device, or both.
+        (5, m) if matches!(m & 0x0f, 1 | 2) => Some(Kind::Controller),
+        (5, m) if (m >> 4) & 3 == 2 => Some(Kind::Mouse),
+        (5, m) if (m >> 4) & 3 != 0 => Some(Kind::Keyboard),
+        _ => None,
+    });
+    let by_appearance = appearance.and_then(|a| match a {
+        0x03c1 => Some(Kind::Keyboard),
+        0x03c2 => Some(Kind::Mouse),
+        0x03c3 | 0x03c4 => Some(Kind::Controller),
+        0x0841 => Some(Kind::Speaker),
+        // Earbuds, headset, headphones.
+        0x0941..=0x0943 => Some(Kind::Headset),
+        _ => None,
+    });
+    let by_category = if has("Communication.Headset") || has("Audio.Head") {
+        Some(Kind::Headset)
+    } else if has("Audio.Speakers") {
+        Some(Kind::Speaker)
     } else if has("Input.Gaming") {
-        Glyph::Controller
+        Some(Kind::Controller)
+    } else if has("Input.Mouse") {
+        Some(Kind::Mouse)
+    } else if has("Input.Keyboard") {
+        Some(Kind::Keyboard)
     } else {
-        Glyph::Other
-    })
+        None
+    };
+    Some(
+        by_cod
+            .or(by_appearance)
+            .or(by_category)
+            .unwrap_or(Kind::Other),
+    )
 }
 
 /// Minutes from Windows' 100 ns ticks. Windows gives the largest value when it doesn't know.
@@ -264,6 +320,19 @@ fn minutes(ticks: i64) -> Option<u32> {
         return None;
     }
     u32::try_from(ticks / 600_000_000).ok().filter(|&m| m > 0)
+}
+
+/// Minutes to full from the battery's report in mWh and mW, rounded up to 10 so it doesn't flicker, once the charge
+/// has `settled`. `None` without a charge rate: the page says "Plugged in".
+fn to_full(full: i32, remaining: i32, rate: i32, settled: bool) -> Option<u32> {
+    if !settled || rate <= 0 || full <= remaining {
+        return None;
+    }
+    let (gap, rate) = (
+        u64::try_from(full - remaining).ok()?,
+        u64::try_from(rate).ok()?,
+    );
+    u32::try_from((gap * 60).div_ceil(rate).div_ceil(10) * 10).ok()
 }
 
 #[cfg(not(windows))]
@@ -284,15 +353,20 @@ mod win {
         DeviceInformation, DeviceInformationKind, DeviceInformationUpdate, DeviceWatcher,
     };
     use windows::Foundation::{EventHandler, IPropertyValue, TypedEventHandler};
-    use windows::System::Power::{BatteryStatus, PowerManager, PowerSupplyStatus};
+    use windows::System::Power::{
+        BatteryStatus, EnergySaverStatus, PowerManager, PowerSupplyStatus,
+    };
     use windows::core::{Array, HSTRING, IInspectable, Interface};
     use windows_collections::{IIterable, IMapView};
 
-    use super::{Battery, Gadgets, Glyph, Laptop, Peek, Power, address, glyph, minutes};
+    use super::{Battery, Gadgets, Kind, Laptop, Peek, Power, address, kind, minutes, to_full};
 
     /// The level Windows shows in its Bluetooth settings, on a device's own nodes.
     const LEVEL: &str = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
     const CONNECTED: &str = "System.Devices.Aep.IsConnected";
+    const MAJOR: &str = "System.Devices.Aep.Bluetooth.Cod.Major";
+    const MINOR: &str = "System.Devices.Aep.Bluetooth.Cod.Minor";
+    const APPEARANCE: &str = "System.Devices.Aep.Bluetooth.Le.Appearance";
     const CATEGORY: &str = "System.Devices.Aep.Category";
     /// Paired devices only, Bluetooth and Bluetooth LE: without the pairing, the watcher would scan the air.
     const PAIRED: &str = "(System.Devices.Aep.ProtocolId:=\"{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}\" OR \
@@ -302,12 +376,12 @@ mod win {
     const NODES: &str = "System.Devices.DeviceInstanceId:~<\"BTH\"";
 
     enum Msg {
-        /// The laptop's supply or level changed.
+        /// The laptop's supply, level or energy saver changed.
         Laptop,
         Endpoint {
             address: String,
             name: Option<String>,
-            glyph: Option<Option<Glyph>>,
+            kind: Option<Option<Kind>>,
             connected: Option<bool>,
         },
         /// An endpoint was unpaired.
@@ -330,8 +404,30 @@ mod win {
         u8::try_from(p.clamp(0, 100)).ok()
     }
 
-    /// The laptop now: nothing without a battery, and the minutes left only on battery.
-    pub(super) fn laptop() -> Battery {
+    fn left() -> Option<u32> {
+        PowerManager::RemainingDischargeTime()
+            .ok()
+            .and_then(|t| minutes(t.Duration))
+    }
+
+    /// From the battery's own report: Windows gives no time to full.
+    fn full(settled: bool) -> Option<u32> {
+        let report = windows::Devices::Power::Battery::AggregateBattery()
+            .and_then(|b| b.GetReport())
+            .ok()?;
+        let read = |v: windows::core::Result<windows::Foundation::IReference<i32>>| {
+            v.and_then(|v| v.Value()).ok()
+        };
+        to_full(
+            read(report.FullChargeCapacityInMilliwattHours())?,
+            read(report.RemainingCapacityInMilliwattHours())?,
+            read(report.ChargeRateInMilliwatts())?,
+            settled,
+        )
+    }
+
+    /// The laptop now: nothing without a battery, the minutes left on battery, and to full on mains.
+    pub(super) fn laptop(settled: bool) -> Battery {
         if !present() {
             return Battery::default();
         }
@@ -340,6 +436,8 @@ mod win {
             percent: percent(),
             plugged,
             minutes: if plugged { None } else { left() },
+            full: if plugged { full(settled) } else { None },
+            saver: PowerManager::EnergySaverStatus().is_ok_and(|s| s == EnergySaverStatus::On),
             devices: Vec::new(),
         }
     }
@@ -362,6 +460,7 @@ mod win {
             };
             heard = PowerManager::PowerSupplyStatusChanged(&ping())
                 .and_then(|_| PowerManager::RemainingChargePercentChanged(&ping()))
+                .and_then(|_| PowerManager::EnergySaverStatusChanged(&ping()))
                 .inspect_err(|e| log::warn!("power: the battery can't be heard: {e}"))
                 .is_ok();
         }
@@ -373,18 +472,23 @@ mod win {
         if watchers.is_err() && !heard {
             return;
         }
-        let mut gadgets = Gadgets::default();
+        let power = app.state::<Power>();
+        let mut gadgets = Gadgets {
+            ready: watchers.is_err(),
+            ..Gadgets::default()
+        };
         let mut listed = 0;
+        let mut shown = None;
         while let Ok(msg) = rx.recv() {
             let now = Instant::now();
             let peek = match msg {
-                Msg::Laptop => read(&mut laptop),
+                Msg::Laptop => read(&mut laptop, &power, now),
                 Msg::Endpoint {
                     address,
                     name,
-                    glyph,
+                    kind,
                     connected,
-                } => gadgets.endpoint(&address, name, glyph, connected, now),
+                } => gadgets.endpoint(&address, name, kind, connected, now),
                 Msg::Gone(address) => {
                     gadgets.by_address.remove(&address);
                     None
@@ -396,23 +500,31 @@ mod win {
                     None
                 }
             };
-            if let Ok(mut devices) = app.state::<Power>().devices.lock() {
+            if let Ok(mut devices) = power.devices.lock() {
                 *devices = gadgets.connected();
             }
             if let Some(peek) = peek {
                 emit(app, peek);
             }
+            // What an open panel shows, sent only when it changed.
+            if gadgets.ready {
+                let now = Some(power.now());
+                if now != shown {
+                    let _ = app.emit("power://battery", &now);
+                    shown = now;
+                }
+            }
         }
     }
 
-    fn left() -> Option<u32> {
-        PowerManager::RemainingDischargeTime()
-            .ok()
-            .and_then(|t| minutes(t.Duration))
-    }
-
-    fn read(laptop: &mut Laptop) -> Option<Peek> {
+    /// Reads the laptop after an event, and keeps when it was plugged in for the time to full.
+    fn read(laptop: &mut Laptop, power: &Power, now: Instant) -> Option<Peek> {
         let plugged = plugged();
+        if plugged != laptop.plugged
+            && let Ok(mut since) = power.since.lock()
+        {
+            *since = plugged.then_some(now);
+        }
         laptop.read(percent()?, plugged, if plugged { None } else { left() })
     }
 
@@ -433,19 +545,26 @@ mod win {
         props.Lookup(&HSTRING::from(key)).ok()?.cast().ok()
     }
 
-    fn categories(props: &IMapView<HSTRING, IInspectable>) -> Option<Option<Glyph>> {
-        let mut out = Array::<HSTRING>::new();
-        value(props, CATEGORY)?.GetStringArray(&mut out).ok()?;
-        Some(glyph(
-            &out.iter().map(|c| c.to_string()).collect::<Vec<_>>(),
-        ))
+    /// A number Windows keeps as a byte or a short: the property value converts it.
+    fn number(props: &IMapView<HSTRING, IInspectable>, key: &str) -> Option<u32> {
+        value(props, key)?.GetUInt32().ok()
+    }
+
+    fn kind_of(props: &IMapView<HSTRING, IInspectable>) -> Option<Kind> {
+        let mut categories = Array::<HSTRING>::new();
+        let categories = value(props, CATEGORY)
+            .and_then(|v| v.GetStringArray(&mut categories).ok())
+            .map(|()| categories.iter().map(|c| c.to_string()).collect::<Vec<_>>())
+            .unwrap_or_default();
+        let cod = number(props, MAJOR).zip(number(props, MINOR));
+        kind(cod, number(props, APPEARANCE), &categories)
     }
 
     /// Handlers run on Windows' thread pool: they read what came with the event and post it, nothing more.
     fn endpoints(tx: &Sender<Msg>) -> windows::core::Result<DeviceWatcher> {
         let watcher = DeviceInformation::CreateWatcherWithKindAqsFilterAndAdditionalProperties(
             &HSTRING::from(PAIRED),
-            &props(&[CONNECTED, CATEGORY]),
+            &props(&[CONNECTED, MAJOR, MINOR, APPEARANCE, CATEGORY]),
             DeviceInformationKind::AssociationEndpoint,
         )?;
         let send = tx.clone();
@@ -459,13 +578,14 @@ mod win {
                     let _ = send.send(Msg::Endpoint {
                         address,
                         name: info.Name().ok().map(|n| n.to_string()),
-                        glyph: categories(&props),
+                        kind: Some(kind_of(&props)),
                         connected: value(&props, CONNECTED).and_then(|v| v.GetBoolean().ok()),
                     });
                 }
                 Ok(())
             },
         ))?;
+        // An update carries what changed: the connection. What a device is doesn't change.
         let send = tx.clone();
         watcher.Updated(
             &TypedEventHandler::<DeviceWatcher, DeviceInformationUpdate>::new(move |_, update| {
@@ -477,7 +597,7 @@ mod win {
                     let _ = send.send(Msg::Endpoint {
                         address,
                         name: None,
-                        glyph: categories(&props),
+                        kind: None,
                         connected: value(&props, CONNECTED).and_then(|v| v.GetBoolean().ok()),
                     });
                 }
@@ -560,7 +680,7 @@ mod win {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use super::{Device, Gadgets, Glyph, LOW, Laptop, Low, Peek, address, glyph, minutes};
+    use super::{Device, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind, minutes, to_full};
 
     #[test]
     fn plugging_in_peeks_and_unplugging_says_nothing() {
@@ -636,18 +756,36 @@ mod tests {
     }
 
     #[test]
-    fn draws_headsets_mice_and_controllers_and_leaves_phones_out() {
-        let of = |c: &[&str]| glyph(&c.iter().map(|s| s.to_string()).collect::<Vec<_>>());
-        assert_eq!(
-            of(&["Communication.Headset.Bluetooth", "Audio"]),
-            Some(Glyph::Headset)
-        );
-        assert_eq!(of(&["Input.Mouse"]), Some(Glyph::Mouse));
-        assert_eq!(of(&["Input.Gaming"]), Some(Glyph::Controller));
-        assert_eq!(of(&["Audio.Speakers"]), Some(Glyph::Other));
-        assert_eq!(of(&[]), Some(Glyph::Other));
-        assert_eq!(of(&["Communication.Phone", "Audio"]), None);
-        assert_eq!(of(&["Computer.Notebook"]), None);
+    fn tells_devices_apart_by_class_appearance_then_category() {
+        let none: &[String] = &[];
+        // As this PC's devices read: a headset, a speaker, a controller.
+        assert_eq!(kind(Some((4, 1)), None, none), Some(Kind::Headset));
+        assert_eq!(kind(Some((4, 6)), None, none), Some(Kind::Headset));
+        assert_eq!(kind(Some((4, 5)), None, none), Some(Kind::Speaker));
+        assert_eq!(kind(Some((5, 2)), None, none), Some(Kind::Controller));
+        assert_eq!(kind(Some((5, 0b10_0000)), None, none), Some(Kind::Mouse));
+        assert_eq!(kind(Some((5, 0b01_0000)), None, none), Some(Kind::Keyboard));
+        assert_eq!(kind(None, Some(0x03c1), none), Some(Kind::Keyboard));
+        assert_eq!(kind(None, Some(0x03c2), none), Some(Kind::Mouse));
+        assert_eq!(kind(None, Some(0x03c4), none), Some(Kind::Controller));
+        assert_eq!(kind(None, Some(0x0841), none), Some(Kind::Speaker));
+        assert_eq!(kind(None, Some(0x0941), none), Some(Kind::Headset));
+        assert_eq!(kind(None, Some(0x0943), none), Some(Kind::Headset));
+        let headset = ["Communication.Headset.Bluetooth".to_string()];
+        assert_eq!(kind(None, None, &headset), Some(Kind::Headset));
+        assert_eq!(kind(Some((4, 10)), None, none), Some(Kind::Other));
+        assert_eq!(kind(None, None, none), Some(Kind::Other));
+    }
+
+    #[test]
+    fn leaves_phones_and_computers_out() {
+        let none: &[String] = &[];
+        assert_eq!(kind(Some((2, 3)), None, none), None);
+        assert_eq!(kind(Some((1, 3)), None, none), None);
+        // The iPhone's Bluetooth LE endpoint, as this PC reads it.
+        assert_eq!(kind(None, Some(64), none), None);
+        assert_eq!(kind(None, Some(0x0080), none), None);
+        assert_eq!(kind(None, None, &["Communication.Phone".to_string()]), None);
     }
 
     #[test]
@@ -658,25 +796,31 @@ mod tests {
         assert_eq!(minutes(-1), None);
     }
 
-    fn headset(percent: u8) -> Device {
+    #[test]
+    fn rounds_the_time_to_full_up_to_ten_minutes_once_settled() {
+        // 20 Wh to go at 30 W: 40 minutes.
+        assert_eq!(to_full(45_000, 25_000, 30_000, true), Some(40));
+        // 41 minutes reads 50.
+        assert_eq!(to_full(45_000, 24_500, 30_000, true), Some(50));
+        assert_eq!(to_full(45_000, 25_000, 30_000, false), None);
+        // This PC, full and idle: no rate.
+        assert_eq!(to_full(35_350, 35_170, 0, true), None);
+        assert_eq!(to_full(45_000, 45_000, 1_000, true), None);
+    }
+
+    fn device(kind: Kind, percent: u8) -> Device {
         Device {
             name: "Casque".into(),
-            glyph: Glyph::Headset,
+            kind,
             percent,
         }
     }
 
-    /// A headset paired before launch, last seen at `percent`, listed while away.
-    fn listed(percent: u8) -> (Gadgets, Instant) {
+    /// A device paired before launch, last seen at `percent`, listed while away.
+    fn listed(kind: Kind, percent: u8) -> (Gadgets, Instant) {
         let mut g = Gadgets::default();
         let t = Instant::now();
-        g.endpoint(
-            "A",
-            Some("Casque".into()),
-            Some(Some(Glyph::Headset)),
-            Some(false),
-            t,
-        );
+        g.endpoint("A", Some("Casque".into()), Some(Some(kind)), Some(false), t);
         g.level("A", percent, t);
         g.ready = true;
         (g, t)
@@ -684,10 +828,11 @@ mod tests {
 
     #[test]
     fn a_device_peeks_with_the_level_that_comes_after_it_connects() {
-        let (mut g, t) = listed(90);
+        let (mut g, t) = listed(Kind::Headset, 90);
         // The level Windows kept from last time is no news.
         assert_eq!(g.endpoint("A", None, None, Some(true), t), None);
         assert!(g.connected().is_empty());
+        let headset = |p| device(Kind::Headset, p);
         assert_eq!(g.level("A", 60, t), Some(Peek::Device(headset(60))));
         assert_eq!(g.level("A", 59, t), None);
         assert_eq!(g.connected(), vec![headset(59)]);
@@ -695,12 +840,12 @@ mod tests {
 
     #[test]
     fn a_level_just_before_the_connection_counts() {
-        let (mut g, t) = listed(90);
+        let (mut g, t) = listed(Kind::Headset, 90);
         assert_eq!(g.level("A", 80, t), None);
         let later = t + Duration::from_secs(1);
         assert_eq!(
             g.endpoint("A", None, None, Some(true), later),
-            Some(Peek::Device(headset(80)))
+            Some(Peek::Device(device(Kind::Headset, 80)))
         );
         // Long after, it would be the last connection's.
         g.endpoint("A", None, None, Some(false), later);
@@ -710,7 +855,8 @@ mod tests {
 
     #[test]
     fn a_device_warns_once_per_discharge() {
-        let (mut g, t) = listed(90);
+        let (mut g, t) = listed(Kind::Headset, 90);
+        let headset = |p| device(Kind::Headset, p);
         g.endpoint("A", None, None, Some(true), t);
         assert_eq!(g.level("A", 25, t), Some(Peek::Device(headset(25))));
         assert_eq!(g.level("A", 18, t), Some(Peek::DeviceLow(headset(18))));
@@ -725,7 +871,33 @@ mod tests {
     }
 
     #[test]
-    fn what_was_there_at_launch_shows_in_the_bar_without_a_peek() {
+    fn connecting_low_is_the_low_warning() {
+        let (mut g, t) = listed(Kind::Controller, 90);
+        g.endpoint("A", None, None, Some(true), t);
+        assert_eq!(
+            g.level("A", 15, t),
+            Some(Peek::Device(device(Kind::Controller, 15)))
+        );
+        assert_eq!(g.level("A", 14, t), None);
+    }
+
+    #[test]
+    fn a_mouse_or_a_keyboard_peeks_only_when_low() {
+        for k in [Kind::Mouse, Kind::Keyboard] {
+            let (mut g, t) = listed(k, 90);
+            g.endpoint("A", None, None, Some(true), t);
+            assert_eq!(g.level("A", 52, t), None);
+            assert_eq!(g.level("A", 19, t), Some(Peek::DeviceLow(device(k, 19))));
+            // Waking up low says it once.
+            let (mut g, t) = listed(k, 90);
+            g.endpoint("A", None, None, Some(true), t);
+            assert_eq!(g.level("A", 12, t), Some(Peek::DeviceLow(device(k, 12))));
+            assert_eq!(g.level("A", 11, t), None);
+        }
+    }
+
+    #[test]
+    fn what_was_there_at_launch_shows_in_the_panel_without_a_peek() {
         let mut g = Gadgets::default();
         let t = Instant::now();
         assert_eq!(g.level("A", 70, t), None);
@@ -733,14 +905,14 @@ mod tests {
             g.endpoint(
                 "A",
                 Some("Casque".into()),
-                Some(Some(Glyph::Headset)),
+                Some(Some(Kind::Headset)),
                 Some(true),
                 t
             ),
             None
         );
         g.ready = true;
-        assert_eq!(g.connected(), vec![headset(70)]);
+        assert_eq!(g.connected(), vec![device(Kind::Headset, 70)]);
         assert_eq!(g.level("A", 69, t), None);
     }
 

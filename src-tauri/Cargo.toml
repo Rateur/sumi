@@ -30,6 +30,7 @@ tauri-plugin-log = "2"
 base64 = "0.23"
 windows = { version = "0.62", features = [
   "Devices_Enumeration",
+  "Devices_Power",
   "Media_Control",
   "Storage_Streams",
   "System_Power",
