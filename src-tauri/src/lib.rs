@@ -1,6 +1,6 @@
 //! Sumi's Windows side. `island` polls the cursor on a thread of its own and emits island://pointer,
-//! island://presence and island://dismiss; `fullscreen` hooks the foreground window on the main thread and only feeds
-//! that poll. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
+//! island://presence, island://dismiss and island://moving; `fullscreen` hooks the foreground window and window moves
+//! on the main thread and only feeds that poll. The tray's tuck item emits island://tuck. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
 //! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads
 //! Start's list once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers`
 //! and `welcome` only answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
@@ -16,9 +16,9 @@ mod welcome;
 
 use std::sync::Mutex;
 
-use tauri::Manager;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::{Emitter, Manager};
 
 pub fn run() {
     // One Sumi at a time: a second copy would draw a second island and a second tray icon. A dev build uses its
@@ -51,6 +51,7 @@ pub fn run() {
             island::set_island_rects,
             island::set_island_expanded,
             island::island_presence,
+            island::set_tuck_label,
             apps::apps_list,
             apps::has_claude,
             apps::app_icon,
@@ -84,20 +85,25 @@ pub fn run() {
             let tip = bar::bar_shortcut(app.state())
                 .map_or("Sumi".into(), |keys| format!("Sumi · {keys}"));
 
-            // The island has no title bar and no taskbar button: the tray icon is how you quit.
+            // The island has no title bar and no taskbar button: the tray icon is how you quit. Its first item tucks
+            // the island or brings it back; the page gives it its words, in the island's language.
+            let tuck = MenuItem::with_id(app, "tuck", "Tuck the island", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit Sumi", true, None::<&str>)?;
             let mut tray = TrayIconBuilder::new()
                 .tooltip(tip)
-                .menu(&Menu::with_items(app, &[&quit])?)
-                .on_menu_event(|app, event| {
-                    if event.id() == "quit" {
-                        app.exit(0);
+                .menu(&Menu::with_items(app, &[&tuck, &quit])?)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "tuck" => {
+                        let _ = app.emit("island://tuck", ());
                     }
+                    "quit" => app.exit(0),
+                    _ => {}
                 });
             if let Some(icon) = app.default_window_icon() {
                 tray = tray.icon(icon.clone());
             }
             tray.build(app)?;
+            app.manage(island::TuckItem(tuck));
 
             let window = app
                 .get_webview_window("island")
