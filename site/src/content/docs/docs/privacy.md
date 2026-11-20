@@ -3,7 +3,7 @@ title: Privacy
 description: Sumi collects nothing.
 ---
 
-Sumi has no account, no telemetry and no analytics. Version 0.7.0 doesn't use the network at all. What it shows comes from Windows and stays on your PC: the music's title, artist and artwork, which apps use the microphone or the camera, and the battery of your PC and of your Bluetooth devices.
+Sumi has no account, no telemetry and no analytics. Version 0.7.0 doesn't use the network at all. What it shows comes from Windows and stays on your PC: the music's title, artist and artwork, which apps use the microphone or the camera, and the battery of your PC and of your Bluetooth devices. For a JBL speaker's battery, Sumi connects to your own speaker over Bluetooth LE for a moment; nothing leaves the PC.
 
 Features that need the network will stay off until you turn them on:
 
