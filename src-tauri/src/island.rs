@@ -7,8 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::menu::MenuItem;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow, Wry};
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
 
 use crate::fullscreen::{self, Presence};
 
@@ -78,18 +77,6 @@ pub struct IslandPresence(pub Mutex<Presence>);
 #[tauri::command]
 pub fn island_presence(state: tauri::State<'_, IslandPresence>) -> Presence {
     state.0.lock().map_or(Presence::Shown, |presence| *presence)
-}
-
-/// The tray menu's tuck item. The page gives it its words, in the island's language, as the island tucks and comes
-/// back.
-pub struct TuckItem(pub MenuItem<Wry>);
-
-#[tauri::command]
-pub fn set_tuck_label(app: AppHandle, label: String) {
-    // Before setup has made the item, the page sets it again at its next change.
-    if let Some(item) = app.try_state::<TuckItem>() {
-        let _ = item.0.set_text(label);
-    }
 }
 
 /// A window being moved or resized, as the poll follows it. It counts once the cursor leaves Windows' drag rectangle
