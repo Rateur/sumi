@@ -14,6 +14,7 @@ mod fastpair;
 mod fullscreen;
 mod island;
 mod media;
+mod pads;
 mod power;
 mod privacy;
 mod timers;
