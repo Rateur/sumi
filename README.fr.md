@@ -11,12 +11,12 @@
   <p><a href="README.md">English</a> · <b>Français</b></p>
 </div>
 
-![Sumi en haut de l'écran : l'heure, la date sous le curseur, une chanson et son lecteur, le disque du micro et sa carte, puis la barre de commande qui lance un minuteur](.github/assets/demo.gif)
+![Sumi en haut de l'écran : l'heure, la date sous le curseur, une chanson et son lecteur, le disque du micro et sa carte, la barre de commande qui lance un minuteur, puis l'île balayée vers le haut en un trait et ramenée](.github/assets/demo.gif)
 
 Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, puis change quand il se passe quelque chose : une chanson démarre, une app allume votre micro, un minuteur se termine. Un clic dessus affiche les commandes.
 
 > [!NOTE]
-> Sumi est en début de développement. La version 0.6.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran, affiche votre musique avec ses commandes, met un point à côté de l'île quand une app utilise votre micro ou votre caméra et ouvre une barre de commande pour un minuteur, une app ou une question. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
+> Sumi est en début de développement. La version 0.7.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran, affiche votre musique avec ses commandes, met un point à côté de l'île quand une app utilise votre micro ou votre caméra, ouvre une barre de commande pour un minuteur, une app ou une question, et se range en un trait en haut quand vous la balayez ou la laissez au repos. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
 
 ## Télécharger
 
@@ -34,7 +34,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [x] La musique de toute app que Windows sait piloter (Spotify, navigateurs, VLC…) : pochette, précédent, lecture/pause, suivant, progression ; l'heure passe dans une bulle à côté (0.4.0)
 - [x] Un point orange ou vert quand une app utilise le micro ou la caméra, avec l'app et un bouton muet sous le curseur (0.5.0)
 - [x] Une barre de commande (`Win+Alt+S`) : un minuteur, une app, une question pour Claude, ChatGPT, Gemini, Perplexity ou un moteur de recherche ; des minuteurs sur l'île, dès `25m` (0.6.0)
-- [ ] Ranger l'île en un fin trait en haut d'un défilement vers le haut, et une icône vivante dans la barre des tâches qui la range ou la fait revenir
+- [x] Ranger l'île en un fin trait en haut d'un balayage, ou seule au repos ; une icône vivante dans la zone de notification, avec le micro, la caméra et la musique, qui la range ou la fait revenir (0.7.0)
 - [ ] La météo d'[Open-Meteo](https://open-meteo.com), et sur portable des alertes de charge et de batterie faible
 - [ ] Les réglages (écran, thème, langue, raccourcis), les mises à jour automatiques et un installateur signé
 
