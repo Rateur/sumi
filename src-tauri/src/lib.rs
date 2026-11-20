@@ -61,6 +61,7 @@ pub fn run() {
             apps::app_icon,
             apps::app_launch,
             apps::assistant_open,
+            apps::open_meteo,
             bar::bar_shortcut,
             bar::bar_focus,
             media::media_control,

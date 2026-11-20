@@ -1,5 +1,6 @@
 <script lang="ts" module>
   import { ASSISTANTS, type App, type Choice, type Lang, type Target } from './lib/intent'
+  import { DRAWINGS, type Glyph } from './lib/weather'
 
   /** An app from the list, with the color of the monogram that stands in until its icon loads. Start's apps have
    * the id Rust opens them by, and their icon once it is read. */
@@ -15,11 +16,15 @@
     search: '#5F6368',
   }
 
-  /** What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, or the timer's amber ring. */
-  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon } {
+  /**
+   * What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, a cloud for the weather, or the
+   * timer's amber ring.
+   */
+  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon; glyph?: Glyph } {
     if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
     if (choice.kind === 'ask') return { letter: ASSISTANTS[choice.to].name[0], color: MARKS[choice.to] }
+    if (choice.kind === 'weather') return { glyph: 'cloud' }
     return {}
   }
 </script>
@@ -37,6 +42,7 @@
     choices,
     lang,
     reduced,
+    asking = false,
     shortcut,
     enter,
     exit,
@@ -47,6 +53,8 @@
     choices: Choice<Listed>[]
     lang: Lang
     reduced: boolean
+    /** The field holds a question, read-only, and the chip is its answer: the weather's consent. */
+    asking?: boolean
     /** The shortcut that opens the bar, as Rust registered it: `Win+Alt+S`. */
     shortcut?: string
     enter: (node: HTMLElement, params?: { step?: number }) => TransitionConfig
@@ -147,7 +155,11 @@
         scale.kick(-80, t)
         wake()
       }
-      setTimeout(() => onrun(picked), reduced ? 0 : 110)
+      // The bar may stay open, as for the weather's consent: the next Enter counts.
+      setTimeout(() => {
+        onrun(picked)
+        running = false
+      }, reduced ? 0 : 110)
     } else if (event.key === 'Escape') {
       event.preventDefault()
       onclose()
@@ -158,6 +170,15 @@
   const focus = (node: HTMLInputElement) => {
     if (window === parent) node.focus()
   }
+
+  // A question shows from its start, whatever the caret did.
+  let field = $state<HTMLInputElement>()
+  $effect(() => {
+    void line
+    if (!asking || !field) return
+    field.setSelectionRange(0, 0)
+    field.scrollLeft = 0
+  })
 </script>
 
 {#snippet face(choice: Choice<Listed>, mark: ReturnType<typeof markOf>)}
@@ -170,6 +191,8 @@
       <svg class="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /><path d="M8 5v3.5l2 1.5" /></svg>
     {:else if choice.kind === 'battery'}
       <svg class="battery" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="11" height="7" rx="2" /><path d="M14.5 7v2" /></svg>
+    {:else if mark.glyph}
+      <svg class="sky" viewBox="0 0 24 24"><path d={DRAWINGS[mark.glyph]} /></svg>
     {:else}
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
     {/if}
@@ -180,8 +203,11 @@
 
 <input
   class="field"
+  class:asking
   type="text"
+  bind:this={field}
   bind:value={line}
+  readonly={asking}
   placeholder={lang === 'fr' ? 'Minuteur, app, question…' : 'Timer, app, question…'}
   aria-label={lang === 'fr' ? 'Barre de commande' : 'Command bar'}
   aria-keyshortcuts={shortcut?.replace('Win', 'Meta')}
@@ -230,6 +256,13 @@
 
   .field::placeholder {
     color: rgb(255 255 255 / 0.6);
+  }
+
+  /* A question takes the room the chip leaves, without a caret: it can't be edited. */
+  .field.asking {
+    flex-grow: 1;
+    margin-right: 12px;
+    caret-color: transparent;
   }
 
   /* The chip has no padding of its own, so it can spring down to nothing. */
@@ -293,9 +326,16 @@
   }
 
   .mark svg.clock,
-  .mark svg.battery {
+  .mark svg.battery,
+  .mark svg.sky {
     stroke: #fff;
     stroke-linecap: round;
+  }
+
+  /* Drawn on 24 units, so its stroke matches the clock's at 14 px. */
+  .mark svg.sky {
+    stroke-width: 2.8;
+    stroke-linejoin: round;
   }
 
   .label {

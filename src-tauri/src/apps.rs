@@ -1,7 +1,8 @@
 //! Start's apps for the command bar, and the hand-off of a question to an assistant. The list takes about 400 ms to
 //! read, so it is read at startup on a thread of its own, kept in memory only, and read again in the background when
 //! the bar opens if it is more than 10 minutes old. Only an app from that list can be launched, and an assistant's
-//! link is built here from a fixed table: the page never passes a path or a URL.
+//! link is built here from a fixed table, as is Open-Meteo's for the weather's credit: the page never passes a path or
+//! a URL.
 
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -26,6 +27,8 @@ const LONGEST_LINK: usize = 30_000;
 const SETTLE: Duration = Duration::from_millis(1_500);
 /// Sumi's own id in Start: the identifier in tauri.conf.json, which its installer gives its shortcut.
 const OWN_ID: &str = "io.github.rateur.sumi";
+/// Where the weather comes from, opened by a click on the peek's credit, as its licence (CC BY 4.0) asks.
+const OPEN_METEO: &str = "https://open-meteo.com";
 
 /// An entry of Start's list: the name Start shows, and the id Windows opens it by. Mirrored in src/Island.svelte.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -210,6 +213,12 @@ pub async fn app_launch(window: WebviewWindow, id: String) -> bool {
 pub async fn assistant_open(window: WebviewWindow, target: Target, query: String) -> bool {
     let claude_app = window.state::<Apps>().claude.load(Ordering::Relaxed);
     hand_off(&window, link(target, &query, claude_app)).await
+}
+
+/// Opens Open-Meteo's site, from the weather peek's credit.
+#[tauri::command]
+pub async fn open_meteo(window: WebviewWindow) -> bool {
+    hand_off(&window, OPEN_METEO.to_owned()).await
 }
 
 /// Lets what opens come to the front, opens it off the main thread since an app can take seconds to start, and

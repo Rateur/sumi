@@ -1,11 +1,12 @@
 import { isTauri } from '@tauri-apps/api/core'
 import type { Listed } from '../CommandBar.svelte'
-import { langOf } from './intent'
+import { fold, langOf } from './intent'
 import type { Activity } from './activities'
 import type { Player } from './music'
 import type { Battery, Device, Power } from './power'
 import type { Privacy, PrivacyApp } from './privacy'
 import { ended, isTimer, order, pause, resume } from './timers'
+import type { Forecast } from './weather'
 
 const SONGS = [
   { title: 'Midnight City', artist: 'M83', color: '#A78BFA' },
@@ -98,6 +99,50 @@ const SETS: Record<string, Battery> = {
   five: { ...pc, devices: DEVICES },
 }
 
+// Open-Meteo's forecast for Lyon, recorded on 20 November 2026 at 21:15 there, cut to that day's hours. The demo
+// answers from it and never touches the network: Paris gets that morning, with rain at 14 h, and Oslo a clear night.
+// Any other city is not found, and 'offline' cuts the network.
+const LYON: Forecast = {
+  current: { time: '2026-11-20T21:15', temperature_2m: 11.5, weather_code: 2, is_day: 0 },
+  hourly: {
+    time: Array.from({ length: 24 }, (_, h) => `2026-11-20T${String(h).padStart(2, '0')}:00`),
+    precipitation_probability: [0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 3, 5, 25, 65, 38, 18, 20, 10, 8, 15, 10, 8, 8],
+  },
+  daily: {
+    time: ['2026-11-20', '2026-11-21'],
+    weather_code: [80, 80],
+    temperature_2m_max: [14.3, 14.1],
+    temperature_2m_min: [10.3, 9.4],
+  },
+}
+const PLACES: Record<string, { name: string; latitude: number; longitude: number; forecast: Forecast }> = {
+  lyon: { name: 'Lyon', latitude: 45.74906, longitude: 4.84789, forecast: LYON },
+  paris: {
+    name: 'Paris',
+    latitude: 48.85341,
+    longitude: 2.3488,
+    forecast: { ...LYON, current: { ...LYON.current, time: '2026-11-20T11:15', temperature_2m: 12.4, is_day: 1 } },
+  },
+  oslo: {
+    name: 'Oslo',
+    latitude: 59.91273,
+    longitude: 10.74609,
+    forecast: { ...LYON, current: { ...LYON.current, temperature_2m: 1.6, weather_code: 0 } },
+  },
+}
+let offline = false
+
+// Answers as Open-Meteo would, a moment later, so the bar's fold shows.
+async function recorded(url: string): Promise<unknown> {
+  await new Promise((done) => setTimeout(done, 250))
+  if (offline) throw new TypeError('Failed to fetch')
+  const query = new URL(url).searchParams
+  const name = query.get('name')
+  const place = name === null ? undefined : PLACES[fold(name.trim())]
+  if (name !== null) return place ? { results: [place] } : { generationtime_ms: 0.08 }
+  return Object.values(PLACES).find((p) => String(p.latitude) === query.get('latitude'))?.forecast
+}
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000, total: 25 * 60_000 }),
@@ -183,7 +228,8 @@ const KEYS: Record<string, string> = {
  into the edge; a rest, a click, a scroll down or a pull down on the line brings it back. Y plugs the PC in ('plugged'),
  X runs its battery low ('low'), Q connects a speaker ('device'), and S opens the batteries panel ('batteries'), as the
  bar's `batterie` and Enter do; 'one', 'three' and 'five' give it that many rings, 'mains' and 'saver' turn those on,
- 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low.
+ 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low. `météo Lyon`, `Paris` or `Oslo` in the bar
+ answers from recorded forecasts, never the network; 'offline' cuts it or brings it back.
  */
 export function demo(island: {
   activities: Activity[]
@@ -203,6 +249,7 @@ export function demo(island: {
   batteries: () => void
   battery: Battery | undefined
   shortcut: string | undefined
+  lookup: (url: string) => Promise<unknown>
   apps: Listed[]
   claudeApp: boolean
 }) {
@@ -257,6 +304,7 @@ export function demo(island: {
     device: () => island.power({ kind: 'device', device: DEVICES[2] }),
     'device-low': () => island.power({ kind: 'deviceLow', device: DEVICES[3] }),
     batteries: island.batteries,
+    offline: () => (offline = !offline),
     ...Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, () => (island.battery = set)])),
     mains: () => island.battery && (island.battery = { ...island.battery, plugged: !island.battery.plugged, full: 50 }),
     saver: () => island.battery && (island.battery = { ...island.battery, saver: !island.battery.saver }),
@@ -275,6 +323,7 @@ export function demo(island: {
     island.claudeApp = true
     island.battery = SETS.three
     island.shortcut = (new URLSearchParams(location.search).get('shortcut') ?? 'Win+Alt+S') || undefined
+    island.lookup = recorded
   }
   addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {

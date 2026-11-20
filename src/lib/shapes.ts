@@ -8,6 +8,8 @@ export type View =
   // The command bar, and the peek it folds into after Enter: an app launching or a question handed off.
   | { name: 'bar' }
   | { name: 'launch' }
+  // The weather the bar asked for, for a few seconds.
+  | { name: 'weather' }
   // Music and a running timer open into their own panels; anything else opens the clock's.
   | { name: 'expanded'; activity?: Activity }
   // The batteries panel, from the bar or a battery peek, sized by its rings (panelSize in power.ts).
@@ -132,6 +134,8 @@ export function resolveView(state: {
   peeking?: string
   bar?: boolean
   launch?: boolean
+  /** The weather the bar asked for, which always shows. */
+  weather?: boolean
   /** The bar's answer to 'quelle heure est-il': the hover view, over whatever runs. */
   clock?: boolean
   timer?: TimerFit
@@ -142,9 +146,11 @@ export function resolveView(state: {
   /** The batteries panel's size, while it is open. */
   batteries?: Size
 }): View {
-  const { activity, hovered, expanded, peeking, bar, launch, clock, timer, welcome, blank, power, batteries } = state
+  const { activity, hovered, expanded, peeking, bar, launch, weather, clock, timer, welcome, blank, power, batteries } =
+    state
   if (bar) return { name: 'bar' }
   if (launch) return { name: 'launch' }
+  if (weather) return { name: 'weather' }
   if (welcome) return welcome
   if (blank) return { name: 'idle' }
   if (clock) return { name: 'hover' }
@@ -173,6 +179,7 @@ export function sizeOf(view: View): Size {
   if (view.name === 'expanded') return SIZES.expanded
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]
+  if (view.name === 'weather') return PEEKED
   // Plugging in and a device connecting take the music's compact shape; a low battery, a song's peek.
   if (view.name === 'power') return ['plugged', 'device'].includes(view.power.kind) ? COMPACT.music : PEEKED
   return SIZES[view.name]

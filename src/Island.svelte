@@ -89,7 +89,7 @@
     words,
     type Timer,
   } from './lib/timers'
-  import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
+  import { ASSISTANTS, choices, fold as folded, langOf, type Choice, type Lang } from './lib/intent'
   import {
     BOLT,
     COMPACT,
@@ -108,6 +108,24 @@
     type Low,
     type Power,
   } from './lib/power'
+  import {
+    DRAWINGS,
+    FETCH,
+    TIMEOUT,
+    WEATHER_ERROR,
+    WEATHER_PEEK,
+    WEATHER_WORDS,
+    chip,
+    cityOf,
+    consent,
+    fahrenheit,
+    forecast,
+    forecastOf,
+    geocoding,
+    peek as forecastPeek,
+    type City,
+    type Sky,
+  } from './lib/weather'
   import { WORDS, announce, keysOf } from './lib/welcome'
   import {
     DRAINS,
@@ -195,6 +213,13 @@
   let grown = $state<string>()
   let focused = $state(false)
   const connects = new Map<string, number>()
+  // The weather, asked in the bar only. The yes and `here`, the city last found, live in memory for the session:
+  // quitting Sumi forgets both. `asking` is the bar's consent question, `sky` the peek.
+  let consented = false
+  let here = $state<City>()
+  let asking = $state<Extract<Choice<Listed>, { kind: 'weather' }>>()
+  let sky = $state<Sky>()
+  let skyTimer: ReturnType<typeof setTimeout> | undefined
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -247,6 +272,7 @@
       peeking,
       bar: barOpen,
       launch: !!launch,
+      weather: !!sky,
       clock: telling,
       timer: fit,
       welcome,
@@ -260,24 +286,28 @@
   const beside = $derived(
     tuck !== 'shown'
       ? undefined
-      : barOpen || launch || telling
+      : barOpen || launch || telling || sky
         ? arrangement.island
         : launched && greeting !== 'playing'
           ? arrangement.bubble
           : undefined,
   )
-  // The bar names timers as the island does, so 'stop minuteur 2' finds the second one.
+  // The bar names timers as the island does, so 'stop minuteur 2' finds the second one. While it asks for the
+  // weather's yes, its one chip is that yes.
   const options = $derived(
-    barOpen
-      ? choices(line, {
-          apps,
-          lang,
-          claudeApp,
-          timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
-          now: now.getTime(),
-          battery,
-        })
-      : ([] as Choice<Listed>[]),
+    !barOpen
+      ? ([] as Choice<Listed>[])
+      : asking
+        ? [{ ...asking, label: WEATHER_WORDS[lang].allow }]
+        : choices(line, {
+            apps,
+            lang,
+            claudeApp,
+            timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
+            now: now.getTime(),
+            battery,
+            city: here?.name,
+          }),
   )
   const size = $derived(sizeOf(view))
   // A timer's shape changes size without changing view, as an hour passes or its name shows.
@@ -305,6 +335,7 @@
       timer: activity?.kind === 'timer' ? activity : undefined,
       bar: name === 'bar',
       launch: name === 'launch' ? launch : undefined,
+      weather: name === 'weather' ? sky : undefined,
       welcome: name && view.name === 'welcome' ? view.step : undefined,
       power: name && view.name === 'power' ? view.power : undefined,
       batteries: name && 'batteries' in view ? battery : undefined,
@@ -872,9 +903,10 @@
   }
 
   // Gives under the finger at once. The panel opens on release and carries the press's speed.
+  // The weather's peek opens nothing, so it never gives: only its credit takes a click.
   let pressed = false
   function press(down: boolean) {
-    if (reduced || expanded || barOpen || greeting === 'playing' || pressed === down) return
+    if (reduced || expanded || barOpen || greeting === 'playing' || (down && sky) || pressed === down) return
     pressed = down
     const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
@@ -911,6 +943,7 @@
       hovered = false
       peeking = undefined
       power = undefined
+      sky = undefined
       closeBar()
     }
     const t = performance.now()
@@ -1737,7 +1770,7 @@
         bar: barOpen || !!launch || telling,
         welcome: greeting === 'playing',
         peeking,
-        peek: !!power,
+        peek: !!power || !!sky,
       },
       now.getTime(),
     ),
@@ -1792,6 +1825,8 @@
     launch = undefined
     telling = false
     power = undefined
+    sky = undefined
+    asked++
     barOpen = true
     // From the line, the island comes back as the bar.
     untuck()
@@ -1815,6 +1850,8 @@
     if (barOpen && tauri && giveBack) invoke('bar_focus', { open: false })
     barOpen = false
     line = ''
+    if (asking) spoken = ''
+    asking = undefined
   }
 
   // The monogram of an app whose icon hasn't come yet, as in the privacy card.
@@ -1846,6 +1883,7 @@
   // nothing.
   function run(choice: Choice<Listed>) {
     if (!barOpen || (choice.kind === 'battery' && !opens(battery))) return
+    if (choice.kind === 'weather') return weather(choice)
     // An app or a site takes the focus; the batteries panel keeps it for the arrows.
     closeBar(choice.kind !== 'app' && choice.kind !== 'ask' && choice.kind !== 'battery')
     const t = Date.now()
@@ -1881,6 +1919,71 @@
     }
   }
 
+  // --- Weather ---
+
+  // Each ask, so an answer that comes after a newer ask, or after the bar opened again, is dropped.
+  let asked = 0
+  // The page asks Open-Meteo itself: both hosts answer with `Access-Control-Allow-Origin: *`. The demo swaps in
+  // recorded answers, so it never touches the network.
+  let lookup = (url: string): Promise<unknown> =>
+    fetch(url, { ...FETCH, signal: AbortSignal.timeout(TIMEOUT) }).then((r) =>
+      r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)),
+    )
+
+  // Enter on the weather. Without a city typed or found this session, it does nothing: the chip asks for one. The
+  // first Enter of a session sends nothing: the field says what Open-Meteo will get and the chip becomes the yes.
+  // Esc is no, and closes the bar.
+  function weather(choice: Extract<Choice<Listed>, { kind: 'weather' }>) {
+    const city = choice.city ?? here?.name
+    if (!city) return
+    if (!consented && !asking) {
+      asking = { ...choice, city }
+      line = consent(city, lang)
+      spoken = WEATHER_WORDS[lang].consent(city)
+      return
+    }
+    consented = true
+    closeBar()
+    forecastFor(city, choice.day)
+  }
+
+  // The bar folds into the city while Open-Meteo answers, then into the peek, or into what went wrong.
+  // shortcut: no forecast cache, add one if people spam Enter
+  async function forecastFor(city: string, day: 0 | 1) {
+    const mine = ++asked
+    const words = WEATHER_WORDS[lang]
+    const fail = (text: string) => mine === asked && show({ glyph: 'cloud', text }, WEATHER_ERROR)
+    show({ glyph: 'cloud', text: chip(city, day, lang) }, 2 * TIMEOUT)
+    try {
+      // The session's city keeps its place: only its forecast is asked again.
+      const known = here && folded(here.name) === folded(city) ? here : undefined
+      const found = known ?? cityOf(await lookup(geocoding(city, lang)))
+      if (mine !== asked) return
+      if (!found) return fail(words.unknown)
+      here = found
+      const answer = forecastOf(await lookup(forecast(found, fahrenheit(navigator.language))))
+      if (mine !== asked) return
+      if (!answer) return fail(words.offline)
+      clearTimeout(launchTimer)
+      launch = undefined
+      const next = forecastPeek(found.name, day, answer, lang)
+      sky = next
+      spoken = next.lines.join('. ')
+      clearTimeout(skyTimer)
+      skyTimer = setTimeout(() => {
+        sky = undefined
+        spoken = ''
+      }, WEATHER_PEEK)
+    } catch {
+      fail(words.offline)
+    }
+  }
+
+  // The peek's credit opens Open-Meteo's site, from a link fixed in Rust. The demo opens nothing.
+  function credit() {
+    if (tauri) invoke('open_meteo').catch(console.error)
+  }
+
   // --- Battery ---
 
   // A battery peek shows over whatever has the island for a moment (POWER_PEEK in power.ts), never over a call, a
@@ -1893,6 +1996,7 @@
       !hidden &&
       !barOpen &&
       !launch &&
+      !sky &&
       !telling &&
       !expanded &&
       greeting !== 'playing' &&
@@ -2073,6 +2177,9 @@
         },
         set shortcut(next: string | undefined) {
           shortcut = next
+        },
+        set lookup(next: (url: string) => Promise<unknown>) {
+          lookup = next
         },
         get apps() {
           return apps
@@ -2329,7 +2436,7 @@
   }}
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
-  {#if !expanded && !barOpen && !launch}
+  {#if !expanded && !barOpen && !launch && !sky}
     {@const done = fit?.ended && top}
     <button
       type="button"
@@ -2498,6 +2605,7 @@
         choices={options}
         {lang}
         {reduced}
+        asking={!!asking}
         {shortcut}
         {enter}
         {exit}
@@ -2509,9 +2617,23 @@
       <span class="mark" style:background={parts.launch.color} in:enter out:exit>
         {#if parts.launch.icon}
           <canvas use:paintIcon={parts.launch.icon}></canvas>
+        {:else if parts.launch.glyph}
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d={DRAWINGS[parts.launch.glyph]} /></svg>
         {:else if parts.launch.letter}{parts.launch.letter}{/if}
       </span>
       <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
+    {/if}
+    {#if parts.weather}
+      <!-- The weather asked for: its glyph, the city and the sky over the low and the high or the rain to come, and
+           Open-Meteo's credit, which its licence asks for. -->
+      <span class="glyph" in:enter out:exit>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d={DRAWINGS[parts.weather.glyph]} /></svg>
+      </span>
+      <span class="track" out:exit>
+        <span in:enter={{ step: 1 }}>{parts.weather.lines[0]}</span>
+        <span class="muted" in:enter={{ step: 2 }}>{parts.weather.lines[1]}</span>
+      </span>
+      <button type="button" class="credit" in:enter={{ step: 3 }} out:exit onclick={credit}>Open-Meteo</button>
     {/if}
     <!-- One block level each: a nested block would skip its content's entrance. -->
     {#if parts.power?.kind === 'plugged'}
@@ -2858,6 +2980,47 @@
   .launch .mark canvas {
     width: 100%;
     height: 100%;
+  }
+
+  .launch .mark svg {
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* The weather asked for: a glyph, two lines, and the credit in the bottom right corner. */
+  .weather {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 18px 0 16px;
+  }
+
+  .weather .glyph svg {
+    width: 28px;
+    height: 28px;
+    stroke-width: 1.6;
+  }
+
+  .weather .track > span:first-child {
+    color: #fff;
+  }
+
+  /* On the second line's baseline. */
+  .credit {
+    position: absolute;
+    right: 18px;
+    bottom: 9.5px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: rgb(255 255 255 / 0.4);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 500;
   }
 
   /* A battery peek: plugging in and a device connecting, a glyph at the left end, the level then its drawing at the
