@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { kinds, marks, scroll, swipe, tucksItself, wakes, type Notch } from './tuck'
+import { TUCK_AFTER, TUCK_AFTER_CLICK } from './motion'
+import { drag, kinds, marks, resist, scroll, swipe, tucksAfter, tucksItself, wakes, type Notch } from './tuck'
 
 const call: Activity = { id: 'call', kind: 'call', mic: true, camera: false }
 const song: Activity = { id: 'spotify', kind: 'music', title: 'Intro', artist: 'The xx', color: '#fff' }
@@ -34,6 +35,18 @@ describe('tucksItself', () => {
     for (const kind of ['music', 'call', 'privacy', 'bar', 'welcome', 'peek', 'done'] as const) {
       expect(tucksItself(['time', kind])).toBe(false)
     }
+  })
+})
+
+describe('tucksAfter', () => {
+  it('waits 10 s at rest, and 1 s after a click elsewhere', () => {
+    expect(tucksAfter(['time'], false)).toBe(TUCK_AFTER)
+    expect(tucksAfter(['timer'], true)).toBe(TUCK_AFTER_CLICK)
+  })
+
+  it('never tucks what stays, click or not', () => {
+    expect(tucksAfter(['music'], true)).toBeUndefined()
+    expect(tucksAfter(['done'], true)).toBeUndefined()
   })
 })
 
@@ -72,7 +85,9 @@ describe('wakes', () => {
 
 describe('scroll and swipe', () => {
   const run = (moves: [number, number][], lines = false) =>
-    moves.reduce<Notch[]>((notches, [at, dy]) => scroll(notches, at, dy, lines), [])
+    moves.reduce<Notch[]>((notches, [at, dy]) => scroll(notches, at, 0, dy, lines), [])
+  const sideways = (moves: [number, number][]) =>
+    moves.reduce<Notch[]>((notches, [at, dx]) => scroll(notches, at, dx, 0), [])
 
   it('tucks on one wheel notch up', () => {
     expect(swipe(run([[0, -100]]))).toBe('up')
@@ -91,8 +106,37 @@ describe('scroll and swipe', () => {
     expect(swipe(run([[0, 40]]))).toBe('down')
   })
 
+  it('swipes sideways on the touchpad, along the longer axis', () => {
+    expect(swipe(sideways([[0, -25], [100, -25]]))).toBe('left')
+    expect(swipe(sideways([[0, 60]]))).toBe('right')
+    expect(swipe(scroll(scroll([], 0, 30, -50), 50, 0, 0))).toBe('up')
+  })
+
   it('counts a line as 33 px', () => {
     expect(swipe(run([[0, -1]], true))).toBeUndefined()
     expect(swipe(run([[0, -2]], true))).toBe('up')
+  })
+})
+
+describe('drag', () => {
+  it('is no swipe inside its 8 px square, as a click', () => {
+    expect(drag(5, -8)).toBeUndefined()
+  })
+
+  it('goes the way of its longer axis once out of it', () => {
+    expect(drag(0, -9)).toBe('up')
+    expect(drag(3, 12)).toBe('down')
+    expect(drag(-20, 10)).toBe('left')
+    expect(drag(20, -10)).toBe('right')
+  })
+})
+
+describe('resist', () => {
+  it('follows a short drag at about half, and never past 24 px', () => {
+    expect(resist(0)).toBe(0)
+    expect(resist(8)).toBeCloseTo(3.7, 1)
+    expect(resist(-8)).toBeCloseTo(-3.7, 1)
+    expect(resist(1e4)).toBeLessThan(24)
+    expect(resist(40)).toBeLessThan(resist(60))
   })
 })

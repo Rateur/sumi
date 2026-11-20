@@ -79,7 +79,10 @@ export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 230
 /** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
 export const INK = { r: 15.5, d: 21, goo: 7 } as const
 
-/** The tuck: the line under the top edge, its hit height, and the gesture: deltaY summed within `within` ms, or a pull. */
+/**
+ * The tuck: the line under the top edge, its hit height, and the gesture: deltas summed within `within` ms past
+ * `wheel`, or a pull.
+ */
 export const TUCK = { width: 132, height: 4, hit: 12, wheel: 40, within: 200, pull: 12 } as const
 
 /**
@@ -108,6 +111,17 @@ export const GOUTTE = {
 /** What the island shows tucks itself after this long at rest, in ms, when it is a kind that tucks (tuck.ts). */
 export const TUCK_AFTER = 10_000
 
+/** After a click elsewhere, it tucks itself this soon instead, in ms. */
+export const TUCK_AFTER_CLICK = 1000
+
+/**
+ * Swipes that tuck the island, in any direction. A press that moves past `drag` px is a swipe; while held, the island
+ * follows the pointer with resistance, up to `give` px. A wheel swipe pushes it at `push` px/s. Sideways, the island
+ * slides `side` px that way before it is drawn up; down, it first stretches `stretch` px longer and thinner, for
+ * `snap` ms.
+ */
+export const SWIPE = { drag: 8, give: 24, push: 240, side: 40, stretch: 14, snap: 100 } as const
+
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
   const at = (p1: number, p2: number, t: number) => 3 * p1 * t * (1 - t) ** 2 + 3 * p2 * (1 - t) * t * t + t ** 3
@@ -126,4 +140,9 @@ export function bezier(x1: number, y1: number, x2: number, y2: number): (x: numb
 /** Stretch along the width while it moves, as a share of the size: 0 at rest, 4 % at most. */
 export function squash(velocity: number): number {
   return Math.max(-0.04, Math.min(0.04, velocity * 4e-5))
+}
+
+/** Lean while it slides sideways, its top ahead, in degrees: 0 at rest, 10 at most. */
+export function lean(velocity: number): number {
+  return Math.max(-10, Math.min(10, velocity * 0.04))
 }

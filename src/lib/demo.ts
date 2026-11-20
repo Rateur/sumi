@@ -113,6 +113,14 @@ export function message(data: unknown, actions: readonly string[]): { type: stri
   if (actions.includes(data)) return { action: data }
 }
 
+// Alt+arrow swipes the island into its line from that side.
+const ARROWS: Record<string, string> = {
+  ArrowUp: 'tuck-up',
+  ArrowDown: 'tuck-down',
+  ArrowLeft: 'tuck-left',
+  ArrowRight: 'tuck-right',
+}
+
 const KEYS: Record<string, string> = {
   c: 'call',
   t: 'timer',
@@ -151,8 +159,9 @@ const KEYS: Record<string, string> = {
  * 'enter' and ends the timers with 'clear'. W plays the first-launch welcome from the drop ('welcome'), with the
  * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none. `?lang=fr` or `?lang=en`
  * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
- edge, or brings it back ('tuck'); a scroll up on it after the hover dwell does too, and a rest, a scroll down or a pull
- down on the line brings it back.
+ edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
+ 'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does; a rest, a click, a scroll down or a
+ pull down on the line brings it back.
  */
 export function demo(island: {
   activities: Activity[]
@@ -167,6 +176,7 @@ export function demo(island: {
   bar: () => void
   welcome: () => void
   tuck: () => void
+  swipe: (way: 'up' | 'down' | 'left' | 'right') => void
   shortcut: string | undefined
   apps: Listed[]
   claudeApp: boolean
@@ -213,6 +223,10 @@ export function demo(island: {
     clear: () => (island.activities = island.activities.filter((a) => !isTimer(a))),
     welcome: island.welcome,
     tuck: island.tuck,
+    'tuck-up': () => island.swipe('up'),
+    'tuck-down': () => island.swipe('down'),
+    'tuck-left': () => island.swipe('left'),
+    'tuck-right': () => island.swipe('right'),
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
       island.claudeApp = !island.claudeApp
@@ -229,6 +243,10 @@ export function demo(island: {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {
       event.preventDefault()
       return actions.bar()
+    }
+    if (event.altKey && ARROWS[event.key]) {
+      event.preventDefault()
+      return actions[ARROWS[event.key]]()
     }
     // Letters typed in the bar are text, not demo keys.
     if (event.target instanceof HTMLInputElement || event.ctrlKey || event.altKey || event.metaKey) return

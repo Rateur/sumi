@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke, isTauri } from '@tauri-apps/api/core'
   import { listen } from '@tauri-apps/api/event'
-  import { untrack } from 'svelte'
+  import { tick as flushed, untrack } from 'svelte'
   import { prefersReducedMotion } from 'svelte/motion'
   import { MediaQuery, SvelteMap } from 'svelte/reactivity'
   import { fade as dissolve } from 'svelte/transition'
@@ -26,10 +26,11 @@
     INK,
     OPEN,
     PRESS,
+    SWIPE,
     TUCK,
-    TUCK_AFTER,
     WELCOME,
     bezier,
+    lean,
     motion,
     squash,
     type Axis,
@@ -87,7 +88,20 @@
   } from './lib/timers'
   import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
   import { WORDS, announce, keysOf } from './lib/welcome'
-  import { TRAY, kinds, marks, scroll, swipe, tucksItself, wakes, type Notch, type Tucker } from './lib/tuck'
+  import {
+    TRAY,
+    drag,
+    kinds,
+    marks,
+    resist,
+    scroll,
+    swipe,
+    tucksAfter,
+    wakes,
+    type Direction,
+    type Notch,
+    type Tucker,
+  } from './lib/tuck'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
 
@@ -262,7 +276,9 @@
   // A timer on screen needs the seconds, in step with its end. Off screen, a timer only wakes the page as it ends and
   // for each chime; a paused one never does. The clock alone wakes up once a minute.
   const onScreen = $derived(
-    hidden || stowed ? '' : [arrangement.island, arrangement.bubble].flatMap((a) => (isTimer(a) ? [a.id] : [])).join(' '),
+    hidden || stowed
+      ? ''
+      : [arrangement.island, arrangement.bubble].flatMap((a) => (isTimer(a) ? [a.id] : [])).join(' '),
   )
   $effect(() => {
     void [timers, onScreen]
@@ -286,8 +302,8 @@
   // of the island and `bubble` is its size; `tagShift`, `tagW` and `tagH` do the same for the privacy tag, which
   // also opens into a card; `drop` lifts everything off the screen in fullscreen, and at startup until the first
   // drop. `inkD` and `inkR` are the welcome's bead: its centre's distance under the pill, and its radius. `lift`
-  // draws the island up into the edge as it tucks, and `lineW` and `lineB` are the line's ink: its width, and its
-  // bottom edge from the top of the screen.
+  // and `slide` move the island up or down and sideways as a swipe tucks it, and `lineW`, `lineB` and `lineX` are the
+  // line's ink: its width, its bottom edge from the top of the screen, and its centre's offset.
   const start = untrack(() => size)
   const width = new Spring(start.width)
   const height = new Spring(start.height)
@@ -300,9 +316,14 @@
   const inkD = new Spring(0)
   const inkR = new Spring(0)
   const lift = new Spring(0)
+  const slide = new Spring(0)
   const lineW = new Spring(0)
   const lineB = new Spring(GOUTTE.away)
-  const springs = [width, height, drop, travel, bubble, tagShift, tagW, tagH, inkD, inkR, lift, lineW, lineB]
+  const lineX = new Spring(0)
+  const springs = [
+    width, height, drop, travel, bubble, tagShift, tagW, tagH, inkD, inkR,
+    lift, slide, lineW, lineB, lineX,
+  ]
 
   let goo = $state(false)
   let sigma = $state(0)
@@ -337,6 +358,9 @@
       travel: travel.value,
       drop: lifted,
     })
+    // A swipe moves the island sideways, and the bubble with it.
+    fill.x += slide.value
+    if (dot) dot.x += slide.value
     const clip = { width: Math.min(w, width.value), height: Math.min(h, height.value) }
     // The privacy tag sits beside whichever edge is farther right, level with the top row. While it is smaller than
     // a disc it grows from the disc's center; past that, from its top-left corner, into the card.
@@ -364,7 +388,7 @@
     const lw = lineW.value
     const line =
       tuck !== 'shown' && !hidden && lw > 0.5
-        ? { x: (viewport - lw) / 2, y: lineB.value - GOUTTE.above, width: lw, height: GOUTTE.above }
+        ? { x: (viewport - lw) / 2 + lineX.value, y: lineB.value - GOUTTE.above, width: lw, height: GOUTTE.above }
         : undefined
     const hit = { x: (viewport - TUCK.width) / 2, y: 0, width: TUCK.width, height: TUCK.hit }
     // The shadow leaves with the island: it fades with how much of it is still below the line.
@@ -381,7 +405,8 @@
       shine: level(fades.shine, t),
       shade,
       hit,
-      clip: layout(viewport, clip, 0, { drop: lifted })[0],
+      lean: reduced ? 0 : lean(slide.velocity),
+      clip: { ...layout(viewport, clip, 0, { drop: lifted })[0], x: (viewport - clip.width) / 2 + slide.value },
     }
   }
 
@@ -905,6 +930,7 @@
         if (payload === null) pointTag(false)
       }),
       listen('island://dismiss', () => {
+        elsewhere()
         expanded = false
         closeCard()
         closeBar()
@@ -918,6 +944,7 @@
       }),
       listen('bar://toggle', () => toggleBar()),
       listen('island://tuck', toggleTuck),
+      listen('island://elsewhere', elsewhere),
       // A window moved or resized: the island makes room for Snap layouts, and comes back unless it was tucked.
       listen<boolean>('island://moving', ({ payload }) => (payload ? tuckIn('move') : tucker === 'move' && untuck())),
     ]
@@ -1330,12 +1357,17 @@
   let notches: Notch[] = []
   let pull: number | undefined
   let armed = true
+  // A press on the island, while it is held: where it began, and whether it has gone past a click's square.
+  let grip: { x: number; y: number; far: boolean } | undefined
+  // A swipe's press doesn't also open the island as it is released.
+  let swiped = false
 
   const away = () => tuck === 'tucking' || tuck === 'tucked'
   const toggleTuck = () => (away() ? untuck() : tuckIn('you'))
 
-  /** Tucks the island into its line. Never beside the privacy tag, which always brings it back. */
-  function tuckIn(by: Tucker) {
+  /** Tucks the island into its line, drawn in from `way`, after a push that way for a wheel swipe. Never beside the
+   * privacy tag, which always brings it back. */
+  function tuckIn(by: Tucker, way: Direction = 'up', push = false) {
     if (away() || tagged(privacy)) return
     // The welcome holds the island, unless you tuck it: then it counts as seen.
     if (greeting === 'playing') {
@@ -1355,8 +1387,13 @@
     tuck = 'tucking'
     stowed = true
     if (instant()) return dimTuck(t)
+    if (push) {
+      const spring = way === 'left' || way === 'right' ? slide : lift
+      spring.to(spring.target, ...PRESS.up, t)
+      spring.kick(way === 'left' || way === 'up' ? -SWIPE.push : SWIPE.push, t)
+    }
     // A bubble merges back into the island as it closes, in the tuck's goo.
-    drawUp(t, back)
+    drawUp(t, back, way)
     wake()
   }
 
@@ -1379,15 +1416,26 @@
   }
 
   // The edge's ink comes down while the island closes into a drop, the drop is drawn up through a neck, and the ink
-  // spreads along the edge. The welcome bead's goo: its neck holds across the 8 px under the edge.
-  function drawUp(t0: number, back = false) {
+  // spreads along the edge. The welcome bead's goo: its neck holds across the 8 px under the edge. Swiped sideways,
+  // the island slides that way first, so the neck forms off-centre and the drop is drawn up on a curve; swiped down,
+  // it first stretches down like a rubber band, then snaps up into the same neck.
+  function drawUp(t0: number, back = false, way: Direction = 'up') {
+    const x = way === 'left' ? -SWIPE.side : way === 'right' ? SWIPE.side : 0
     pill = true
     if (!back) {
       lineW.jump(GOUTTE.ink)
       lineB.jump(GOUTTE.away)
+      lineX.jump(x)
     }
     fade(INK.goo, 80, t0)
     drive(lineB, TUCK.height, MERGE, t0)
+    // Its own speed is kept: a drag or a push already heads that way.
+    if (x) slide.to(x, ...MERGE, t0)
+    if (way === 'down') {
+      drive(width, size.width - SWIPE.stretch, FULLSCREEN.hide, t0)
+      drive(height, size.height + SWIPE.stretch, FULLSCREEN.hide, t0)
+      t0 += SWIPE.snap
+    }
     step(t0, GOUTTE.close, (t) => {
       drive(width, BUBBLE, FULLSCREEN.hide, t)
       drive(height, BUBBLE, FULLSCREEN.hide, t)
@@ -1398,7 +1446,11 @@
       drive(height, GOUTTE.long, MERGE, t)
       drive(lift, -(TOP + GOUTTE.rise), MERGE, t)
     })
-    step(t0, GOUTTE.spread, (t) => drive(lineW, TUCK.width, CLOSE.width, t))
+    // The ink spreads along the edge into the centred line.
+    step(t0, GOUTTE.spread, (t) => {
+      drive(lineW, TUCK.width, CLOSE.width, t)
+      drive(lineX, 0, CLOSE.width, t)
+    })
     check(
       () => TOP + drop.value + lift.value + height.value < lineB.value - 2,
       (t) => {
@@ -1447,6 +1499,7 @@
     drive(width, size.width, OPEN.width, t)
     drive(height, size.height, OPEN.height, t)
     drive(lift, 0, FULLSCREEN.show, t)
+    drive(slide, 0, FULLSCREEN.show, t)
     drive(lineB, GOUTTE.away, MERGE, t)
     if (sigma > 0) fade(0, 120, t)
     stowed = false
@@ -1469,6 +1522,7 @@
     width.jump(size.width)
     height.jump(size.height)
     lift.jump(0)
+    slide.jump(0)
     fades.pill = still(0)
     dim('pill', 1, 120, t)
     dim('line', 0, 120, t)
@@ -1483,6 +1537,8 @@
     sigma = 0
     goo = false
     fades = { pill: still(1), line: still(1), shine: still(tucked ? 1 : 0) }
+    slide.jump(0)
+    lineX.jump(0)
     if (tucked) {
       pill = false
       lineW.jump(TUCK.width)
@@ -1525,19 +1581,58 @@
     wake()
   }
 
-  // Scroll up on the island once the hover dwell has passed tucks it; down on the line brings it back.
+  // A wheel or touchpad swipe on the island, once the hover dwell has passed, tucks it from that side; down on the line
+  // brings it back.
   function wheelIsland(event: WheelEvent) {
     if (tuck !== 'shown' || !hovered || expanded || barOpen || card) return
-    notches = scroll(notches, event.timeStamp, event.deltaY, event.deltaMode === WheelEvent.DOM_DELTA_LINE)
-    if (swipe(notches) !== 'up') return
+    const lines = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+    notches = scroll(notches, event.timeStamp, event.deltaX, event.deltaY, lines)
+    const way = swipe(notches)
+    if (!way) return
     notches = []
     armed = event.clientY >= TUCK.hit
-    tuckIn('you')
+    tuckIn('you', way, true)
   }
 
   function wheelLine(event: WheelEvent) {
-    notches = scroll(notches, event.timeStamp, event.deltaY, event.deltaMode === WheelEvent.DOM_DELTA_LINE)
+    const lines = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+    notches = scroll(notches, event.timeStamp, event.deltaX, event.deltaY, lines)
     if (swipe(notches) === 'down') untuck()
+  }
+
+  // A press on the island that moves is a swipe: past a click's square the island follows the pointer, less and
+  // less, and released out there it tucks from that side. Back inside, or beside the privacy tag, it springs back.
+  function gripStart(event: PointerEvent) {
+    swiped = false
+    if (event.button !== 0 || tuck !== 'shown' || expanded || barOpen || card) return
+    grip = { x: event.clientX, y: event.clientY, far: false }
+  }
+
+  function gripMove({ clientX, clientY }: PointerEvent) {
+    if (!grip) return
+    const [dx, dy] = [clientX - grip.x, clientY - grip.y]
+    if (!grip.far && drag(dx, dy)) {
+      grip.far = swiped = true
+      press(false)
+    }
+    if (!grip.far || reduced) return
+    const t = performance.now()
+    slide.to(resist(dx), ...PRESS.down, t)
+    lift.to(resist(dy), ...PRESS.down, t)
+    wake()
+  }
+
+  function gripEnd({ clientX, clientY }: PointerEvent) {
+    if (!grip) return
+    const way = drag(clientX - grip.x, clientY - grip.y)
+    const far = grip.far
+    grip = undefined
+    if (way && tuck === 'shown' && !tagged(privacy)) return tuckIn('you', way)
+    if (!far) return
+    const t = performance.now()
+    drive(slide, 0, PRESS.up, t)
+    drive(lift, 0, PRESS.up, t)
+    wake()
   }
 
   // While tucked, what's new and stays brings the island back (wakes), and so does the privacy tag. Nothing is
@@ -1551,34 +1646,48 @@
     })
   })
 
-  // What shows tucks itself after TUCK_AFTER at rest when every kind of it tucks (AUTO in tuck.ts): never under
-  // the cursor, with something open, or in fullscreen. The site's examples keep their island.
-  const restful = $derived(
-    (tauri || import.meta.env.DEV) &&
-      launched &&
-      tuck === 'shown' &&
-      !hidden &&
-      !pointer &&
-      !expanded &&
-      !card &&
-      tucksItself(
-        kinds(
-          {
-            island: arrangement.island,
-            bubble: beside,
-            tagged: tagged(privacy),
-            bar: barOpen || !!launch || telling,
-            welcome: greeting === 'playing',
-            peeking,
-          },
-          now.getTime(),
-        ),
-      ),
+  // What shows tucks itself at rest when every kind of it tucks (AUTO in tuck.ts): never under the cursor, with
+  // something open, or in fullscreen. The site's examples keep their island.
+  const atRest = $derived(
+    (tauri || import.meta.env.DEV) && launched && tuck === 'shown' && !hidden && !pointer && !expanded && !card,
   )
+  const showsNow = $derived(
+    kinds(
+      {
+        island: arrangement.island,
+        bubble: beside,
+        tagged: tagged(privacy),
+        bar: barOpen || !!launch || telling,
+        welcome: greeting === 'playing',
+        peeking,
+      },
+      now.getTime(),
+    ),
+  )
+  const resting = $derived(atRest ? tucksAfter(showsNow, false) : undefined)
+  let waiting: ReturnType<typeof setTimeout> | undefined
   $effect(() => {
-    if (!restful) return
-    const timer = setTimeout(() => tuckIn('auto'), TUCK_AFTER)
-    return () => clearTimeout(timer)
+    const wait = resting
+    if (wait === undefined) return
+    waiting = setTimeout(() => tuckIn('auto'), wait)
+    return () => clearTimeout(waiting)
+  })
+
+  // A click elsewhere while it waits, or the one that closed its panel: what tucks itself goes sooner. Read once the
+  // panel's closing has reached the wait above.
+  function elsewhere() {
+    flushed().then(() => {
+      const wait = atRest ? tucksAfter(showsNow, true) : undefined
+      if (wait === undefined) return
+      clearTimeout(waiting)
+      waiting = setTimeout(() => tuckIn('auto'), wait)
+    })
+  }
+
+  // Rust says when a click lands elsewhere only while the island waits to tuck itself.
+  $effect(() => {
+    const waiting = resting !== undefined
+    if (tauri) invoke('set_island_waiting', { waiting }).catch(console.error)
   })
 
   // The tray menu's item says what a click on it will do, in the island's language.
@@ -1786,6 +1895,7 @@
         bar: toggleBar,
         welcome: replay,
         tuck: toggleTuck,
+        swipe: (way: Direction) => tuckIn('you', way, true),
         set shortcut(next: string | undefined) {
           shortcut = next
         },
@@ -1811,7 +1921,12 @@
 
 <svelte:window
   oncontextmenu={(event) => event.preventDefault()}
-  onpointermove={move}
+  onpointermove={(event) => {
+    move(event)
+    gripMove(event)
+  }}
+  onpointerup={gripEnd}
+  onpointercancel={gripEnd}
   onresize={wake}
   onkeydown={(event) => {
     if (tauri || event.key !== 'Escape') return
@@ -1819,7 +1934,9 @@
     closeBar()
   }}
   onpointerdown={(event) => {
-    if (tauri || island.contains(event.target as Node)) return
+    if (tauri || (event.target as Element).closest('.island, .hit')) return
+    // As Rust tells the app: a click elsewhere while the island waits, or one that closes it.
+    elsewhere()
     expanded = false
     closeBar()
   }}
@@ -1930,7 +2047,12 @@
 <!-- The black shapes, under the content, so the goo never blurs the text. -->
 <div class="shapes" class:goo style:--shade={geometry.shade < 1 ? geometry.shade : undefined}>
   {#if geometry.pill > 0}
-    <div class="fill" style={place(geometry.fill)} style:opacity={geometry.pill < 1 ? geometry.pill : undefined}></div>
+    <div
+      class="fill"
+      style={place(geometry.fill)}
+      style:opacity={geometry.pill < 1 ? geometry.pill : undefined}
+      style:transform={Math.abs(geometry.lean) > 0.05 ? `skewX(${-geometry.lean}deg)` : undefined}
+    ></div>
   {/if}
   {#if geometry.line}
     {@const { x, y, width, height } = geometry.line}
@@ -1975,10 +2097,10 @@
 {/if}
 
 {#if tuck === 'tucked'}
-  <!-- Only the line's hit area takes the cursor: a rest, a scroll down or a pull down brings the island back. -->
-  <div
+  <!-- Only the line's hit area takes the cursor: a rest, a click, a scroll down or a pull down brings it back. -->
+  <button
+    type="button"
     class="hit"
-    role="group"
     aria-label={TRAY[lang].back}
     style="left:{geometry.hit.x}px;width:{geometry.hit.width}px;height:{geometry.hit.height}px"
     onpointerenter={() => tauri || point(true)}
@@ -1992,7 +2114,8 @@
     onpointermove={(event) => pull !== undefined && event.clientY - pull >= TUCK.pull && untuck()}
     onpointerup={() => (pull = undefined)}
     onpointercancel={() => (pull = undefined)}
-  ></div>
+    onclick={untuck}
+  ></button>
 {/if}
 
 <div
@@ -2002,7 +2125,10 @@
   inert={away()}
   style={place(geometry.clip)}
   onwheel={wheelIsland}
-  onpointerdown={(event) => event.button === 0 && press(true)}
+  onpointerdown={(event) => {
+    if (event.button === 0) press(true)
+    gripStart(event)
+  }}
   onpointercancel={() => press(false)}
   onpointerenter={() => tauri || point(true)}
   onpointerleave={() => (tauri ? press(false) : point(false))}
@@ -2015,7 +2141,7 @@
       class="opener"
       aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
       aria-expanded={done ? undefined : 'false'}
-      onclick={greeting === 'playing' ? skip : open}
+      onclick={() => (swiped ? (swiped = false) : greeting === 'playing' ? skip() : open())}
     ></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
@@ -2344,6 +2470,10 @@
   .hit {
     position: absolute;
     top: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: default;
   }
 
   .island {
