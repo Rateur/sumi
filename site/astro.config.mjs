@@ -48,6 +48,7 @@ export default defineConfig({
 					items: [
 						'docs/time',
 						'docs/fullscreen',
+						'docs/tuck',
 						'docs/music',
 						'docs/microphone-camera',
 						'docs/command-bar',

@@ -23,6 +23,7 @@ Cette page décrit l'île de la 1.0. Ce que fait déjà chaque version est dans 
 | Bulle | Cercle de 34 px | Une deuxième activité, ou l'heure, à 8 px à droite de l'île. Un clic la fait passer sur l'île. |
 | Disque de confidentialité | Cercle de 20 px, carte de 248 px de large | Une app utilise le micro ou la caméra, ou le micro est coupé. À 6 px à droite de tout le reste ; s'ouvre en carte sous le curseur. |
 | Masquée | — | Un jeu, une vidéo ou un diaporama occupe tout l'écran principal. Revient compacte. |
+| Rangée | Ligne de 132 × 4 px, captée sur 132 × 12 px | Molette vers le haut après une pause, depuis la zone de notification, pendant qu'une fenêtre est déplacée, ou toute seule au repos. Voir [Ranger l'île](#ranger-lîle). |
 | Bienvenue | Salutation max(200, texte + 80) × 56 px, ligne du raccourci texte + 48 × 56 px | Une fois, au premier lancement. |
 
 L'île se place à 8 px du bord supérieur, centrée sur l'écran choisi. Les tailles sont données à l'échelle 100 % et suivent celle de l'affichage.
@@ -109,6 +110,7 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - Elle se masque quand une fenêtre occupe tout l'écran principal, ou quand Windows signale un jeu en plein écran ou une présentation : elle remonte hors de l'écran, puis sa fenêtre se masque, et rien ne reste au-dessus du jeu. Un clic sur un autre écran la garde masquée. Elle revient sans prendre le focus.
 - Quand Windows indique que vous êtes occupé, par exemple avec une app en plein écran sur un autre écran, ce qui change s'affiche sur place, sans coup d'œil, et un nouveau morceau ne fait pas gonfler l'île. Un appel s'affiche quand même en coup d'œil.
 - Elle se place sous le haut de la zone de travail : une barre des tâches en haut la fait descendre. Elle vérifie une fois par seconde.
+- Elle se range dans une ligne de 4 px sous le bord supérieur : à la molette vers le haut, toute seule au repos quand elle n'affiche que l'heure ou un minuteur en cours, et pendant qu'une fenêtre est déplacée, pour laisser le haut aux dispositions d'ancrage. Voir [Ranger l'île](#ranger-lîle).
 - Un Sumi figé ne laisse jamais de copie « Ne répond pas » en haut de l'écran.
 
 ## Mouvements
@@ -118,11 +120,64 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - **Appuyez** et l'île cède un peu ; relâchez et elle s'ouvre avec cet élan. Une nouvelle activité, un changement de morceau ou un minuteur fini la font gonfler un instant.
 - **La bulle** se détache comme une goutte, reliée à l'île jusqu'à ce qu'elles se séparent, et s'y fond de la même façon.
 - **En plein écran**, le contenu s'en va et l'île remonte hors de l'écran. Elle redescend quand le jeu ou la vidéo se termine.
+- **En se rangeant**, l'île se resserre en une goutte que le bord supérieur aspire, et revient comme une perle qui tombe de la ligne. Voir [Ranger l'île](#ranger-lîle).
 - **À chaque démarrage**, l'île descend du haut de l'écran de la même façon (depuis −66 px, un ressort de 0,5 s avec un rebond de 0,2), à la première image après le chargement des polices, et son contenu arrive aux 60 % de la descente. Elle ne descend pas tant que quelque chose est en plein écran : elle arrive avec la descente du retour.
 - **Avec les effets d'animation coupés** dans Windows, les formes changent d'un coup et le contenu passe en fondu enchaîné. Ni flou, ni étirement, ni défilement, ni enfoncement, ni fusion des formes.
-- **Au repos, rien ne tourne** : aucune image d'animation, aucun filtre, aucun message à Rust. L'horloge se réveille une fois par minute, un minuteur une fois par seconde quand l'île l'affiche, et sinon seulement pour sa fin et ses carillons, et l'égaliseur ne bouge que si la musique joue et que l'île est visible.
+- **Au repos, rien ne tourne** : aucune image d'animation, aucun filtre, aucun message à Rust. L'horloge se réveille une fois par minute, un minuteur une fois par seconde quand l'île l'affiche, et sinon seulement pour sa fin et ses carillons, et l'égaliseur ne bouge que si la musique joue et que l'île est visible. Rangée, rien ne tourne que l'horloge et la fin d'un minuteur ; l'attente avant qu'elle se range toute seule est un seul délai.
 - **Le premier survol est aussi fluide que les suivants** : une copie cachée de chaque taille de texte est mise en page au lancement, pour que les polices soient prêtes avant d'être utiles.
 - **Le site bouge de la même façon.** Ses îles utilisent des courbes CSS calculées à la construction du site à partir des ressorts et des durées de l'app (`src/lib/curves.ts`) : changer l'un change l'autre.
+
+## Ranger l'île
+
+L'île se range dans une ligne sous le bord supérieur, à l'écart des onglets et des barres de titre, et revient quand quelque chose a besoin d'elle.
+
+| | |
+|---|---|
+| Ligne | 132 × 4 px, centrée, collée au bord supérieur, quelle que soit la forme d'où elle vient. Angles droits en haut, rayon de 2 px en bas. Sa rangée du bas est blanche à 20 % sur le noir, ce qui la détache d'une barre de titre sombre. Pas d'ombre. |
+| Zone de capture | 132 × 12 px depuis le bord supérieur, seulement quand l'île est rangée. Partout ailleurs, le curseur passe. |
+| Ranger | Posez le curseur sur l'île le temps du délai de survol de Windows, puis molette vers le haut : `deltaY` additionné sur 200 ms à −40 ou moins. Un cran suffit ; une molette avant le délai ne fait rien. « Ranger l'île » dans le menu de la zone de notification aussi. |
+| Faire revenir | Posez le curseur sur la ligne le temps du délai de survol, molette vers le bas dessus (+40 en 200 ms), ou appuyez dessus et tirez de 12 px vers le bas. « Faire revenir l'île » dans le menu de la zone de notification, le raccourci de la barre de commande (la barre s'ouvre depuis la ligne) et un type qui reste, ci-dessous, à son arrivée. Elle revient à ce qu'elle afficherait à ce moment-là, jamais à la vue du survol. |
+| Fenêtres déplacées | Pendant qu'une fenêtre est déplacée ou redimensionnée, une fois que le curseur a dépassé la distance de glissement de Windows, l'île se range pour laisser le haut aux dispositions d'ancrage. Elle revient à la fin du déplacement, sauf si elle était déjà rangée. |
+
+Un curseur que la molette a laissé sur la ligne doit la quitter une fois avant qu'une pause dessus fasse revenir l'île. Tant que le point du micro ou de la caméra s'affiche, l'île ne se range pas.
+
+### Se range toute seule
+
+Ce qu'affichent l'île et sa bulle décide si elle reste ou se range toute seule après 10 s au repos : sans curseur dessus, sans rien d'ouvert, sans accueil en cours. Après l'avoir fait revenir à la main, le compte repart une fois que le curseur la quitte. La molette vers le haut range toujours chacun d'eux, sauf à côté du point du micro et de la caméra.
+
+| Affiche | Au repos |
+|---|---|
+| Point du micro ou de la caméra | Reste, et la fait revenir |
+| Appel | Reste, et la fait revenir |
+| Barre de commande ou sa réponse | Reste, et la fait revenir |
+| Accueil | Reste, et la fait revenir |
+| Coup d'œil de fin ou pastille de fin d'un minuteur | Reste, et la fait revenir |
+| Musique, en lecture ou en pause | Reste, et la fait revenir |
+| Minuteur en cours | Se range toute seule. Sa fin la fait revenir. |
+| L'heure seule | Se range toute seule |
+
+Avec une bulle, les deux doivent se ranger pour que l'île se range. Quand Windows indique que vous êtes occupé, seuls un appel et la fin d'un minuteur la font revenir. En plein écran, rien ne la fait revenir : ce qui est arrivé entre-temps la fait revenir dès que l'île s'affiche.
+
+### Mouvement
+
+L'île se resserre en une goutte que le bord aspire, et l'encre s'étale le long du bord. Elle revient comme la perle de l'accueil, en miroir : la ligne perle une goutte, qui tombe et s'ouvre en île. Durées en ms :
+
+| ms | Ranger |
+|---|---|
+| 0 | Le contenu s'en va. Fusion de σ 0 à 7 en 80 ms. Une encre de 24 px de large descend d'au-dessus du bord jusqu'au bas de la ligne (0,36 s, sans rebond). |
+| 60 | L'île se resserre en une goutte de 34 px (0,3 s, sans rebond). Une bulle s'y fond en même temps. |
+| 180 | La goutte est aspirée, son haut jusqu'à 50 px au-dessus de sa place, en 16 × 40 px (0,36 s). |
+| 300 | L'encre s'étale le long du bord jusqu'à 132 px (0,4 s, sans rebond). |
+| vers 350 | La goutte est dans la ligne : elle disparaît, et la fusion s'efface en 120 ms. |
+| vers 630 | La ligne est dessinée, et sa rangée claire apparaît en fondu en 120 ms. Au repos vers 900. |
+
+| ms | Retour |
+|---|---|
+| 0 | Fusion à σ 5 d'un coup. Une perle de rayon 8, son centre à 8 px au-dessus du bas de la ligne, tombe : son haut jusqu'à 8 px sous le bord (0,5 s, rebond 0,3), 34 px de large et de haut (0,4 s, rebond 0,25). La ligne se resserre à 40 px ; sa rangée claire s'efface en 60 ms. |
+| 120 | Le bord la lâche : l'encre repart au-dessus du bord. |
+| 260 | La goutte s'ouvre en île comme le panneau, et le contenu arrive. Au repos vers 880, 1030 pour la musique. |
+
+L'encre monte 40 px au-dessus du bord de l'écran, pour que la fusion garde un ménisque entier contre le bord. L'ombre s'efface avec la part de l'île encore sous la ligne. Rappelée en cours de route, chaque ressort repart d'où il est. Avec les effets d'animation coupés, et avec un thème à contraste élevé, l'île et la ligne passent en fondu enchaîné en 120 ms dans chaque sens et rien ne se déplace ; avec un thème à contraste élevé, la ligne a un contour.
 
 ## Bienvenue
 

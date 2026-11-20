@@ -17,6 +17,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
+| Tucked | Line 132 × 4 px, caught over 132 × 12 px | Scrolled up after a rest, from the tray, while a window is moved, or by itself at rest. See [Tuck](#tuck). |
 | Welcome | Greeting max(200, text + 80) × 56 px, shortcut row text + 48 × 56 px | Once, at the first launch. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
@@ -103,6 +104,7 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
 - While Windows says you're busy, such as a fullscreen app on another screen, news changes in place with no peek, and a new song doesn't swell. A call still peeks.
 - It sits under the top of the work area, so a taskbar at the top pushes it down. It checks once a second.
+- It tucks into a 4 px line under the top edge: when you scroll up on it, by itself at rest when it shows only the time or a running timer, and while a window is moved, so Snap layouts has the top. See [Tuck](#tuck).
 - A frozen Sumi never leaves a "Not responding" copy at the top of the screen.
 
 ## Motion
@@ -112,11 +114,64 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - **Press** and the island gives a little; release and it opens with that speed. A new activity, a song change or a finished timer swell it for a moment.
 - **The bubble** splits off like a drop, joined to the island until they part, and merges back the same way.
 - **In fullscreen** the content leaves and the island slides up off the screen. It drops back down when the game or video ends.
+- **Tucking**, the island closes into a drop that the top edge draws in, and comes back as a bead that falls from the line. See [Tuck](#tuck).
 - **Every start** the island drops in from above the screen the same way (from −66 px, a 0.5 s spring with 0.2 bounce), on the first frame after the fonts are ready, and its content comes in 60 % of the way down. It doesn't drop while something is fullscreen: it comes back with the return drop.
 - **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
-- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible.
+- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible. Tucked, nothing runs but the clock and a timer's end; the wait before it tucks itself is one timeout.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
+
+## Tuck
+
+The island tucks into a line under the top edge, out of the way of tabs and title bars, and comes back when something needs it.
+
+| | |
+|---|---|
+| Line | 132 × 4 px, centred, flush with the top edge, whatever it tucked from. Square on top, 2 px radius below. Its bottom row is white at 20 % over the black, which sets it apart from a dark title bar. No shadow. |
+| Hit area | 132 × 12 px from the top edge, while tucked only. Everything else lets the cursor through. |
+| Tuck | Rest the cursor on the island for the Windows hover time, then scroll up: `deltaY` summed over 200 ms at −40 or less. One wheel notch does it; a scroll before the rest does nothing. The tray menu's "Tuck the island" does it too. |
+| Come back | Rest on the line for the hover time, scroll down on it (+40 within 200 ms), or press on it and pull 12 px down. The tray menu's "Bring the island back", the command bar's shortcut (the bar opens from the line) and a kind that stays, below, as it arrives. It comes back to what it would show then, never to the hover view. |
+| Window moves | While a window is moved or resized, once the cursor has gone past Windows' drag distance, the island tucks so Snap layouts has the top. It comes back when the move ends, unless it was tucked already. |
+
+A cursor the scroll left on the line has to leave it once before a rest there brings the island back. While the microphone or camera dot shows, the island doesn't tuck.
+
+### Tucks itself
+
+What the island and its bubble show decides whether it stays or tucks itself after 10 s at rest: no cursor on it, nothing open, no welcome playing. After you bring it back by hand, the count starts again once the cursor leaves. A scroll up still tucks any of them, except beside the microphone and camera dot.
+
+| Shows | At rest |
+|---|---|
+| Microphone or camera dot | Stays, and brings it back |
+| Call | Stays, and brings it back |
+| Command bar or its answer | Stays, and brings it back |
+| Welcome | Stays, and brings it back |
+| A timer's end peek or done pill | Stays, and brings it back |
+| Music, playing or paused | Stays, and brings it back |
+| Running timer | Tucks itself. Its end brings it back. |
+| Time alone | Tucks itself |
+
+With a bubble, both must tuck for the island to tuck. While Windows says you're busy, only a call and a timer's end bring it back. In fullscreen nothing does: what came meanwhile brings it back once the island shows.
+
+### Motion
+
+The island closes into a drop that the edge draws in, and the ink spreads along the edge. It comes back as the welcome's bead, mirrored: the line beads a drop, which falls and opens into the island. Times in ms:
+
+| ms | Tuck |
+|---|---|
+| 0 | The content leaves. Goo from σ 0 to 7 in 80 ms. Ink 24 px wide comes down from above the edge to the line's bottom (0.36 s, no bounce). |
+| 60 | The island closes into a 34 px drop (0.3 s, no bounce). A bubble merges back into it meanwhile. |
+| 180 | The drop is drawn up, its top to 50 px above its place, 16 × 40 px (0.36 s). |
+| 300 | The ink spreads along the edge to 132 px (0.4 s, no bounce). |
+| about 350 | The drop is inside the line: it goes, and the goo fades out in 120 ms. |
+| about 630 | The line is drawn, and its lighter row fades in over 120 ms. At rest by about 900. |
+
+| ms | Return |
+|---|---|
+| 0 | Goo σ 5 at once. A bead of radius 8, its centre 8 px inside the line's bottom, falls: its top to 8 px under the edge (0.5 s, bounce 0.3), 34 px wide and tall (0.4 s, bounce 0.25). The line gathers to 40 px; its lighter row fades out in 60 ms. |
+| 120 | The edge lets go: the ink goes back above the edge. |
+| 260 | The drop opens into the island as the panel does, and the content comes in. At rest by about 880, 1030 for the music. |
+
+The ink runs 40 px above the screen's edge, so the goo keeps a full meniscus there. The shadow fades with how much of the island is still below the line. Called back mid-tuck, every spring heads back from where it is. With reduced motion, and in a contrast theme, the island and the line crossfade in 120 ms each way and nothing travels; in a contrast theme the line is outlined.
 
 ## Welcome
 
