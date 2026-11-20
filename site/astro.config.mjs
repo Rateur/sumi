@@ -3,7 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-	site: 'https://sumi.valentinperies.fr',
+	site: 'https://sumi.rateur.fr',
 	trailingSlash: 'always',
 	// Starlight 0.43 stopped forcing this: keeping it leaves every page's styles as they were built.
 	scopedStyleStrategy: 'where',

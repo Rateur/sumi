@@ -27,7 +27,7 @@ For maintainers. A release goes from `dev` to `main`, then a tag on `main` build
    git push origin v0.2.0
    ```
 
-4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Put the GIF at the top of the notes (`https://raw.githubusercontent.com/Rateur/sumi/v0.2.0/.github/assets/<name>.gif`) and the [code signing policy](https://sumi.valentinperies.fr/docs/code-signing/) link at the bottom. Install the attached `Sumi-setup.exe`, then click **Publish release** with **Set as the latest release** checked. Then check the site: its download links point to this release now.
+4. **Publish.** The tag starts the Release workflow. It checks that the tag matches the version, builds the installer and opens a draft release with the notes from `CHANGELOG.md`. Put the GIF at the top of the notes (`https://raw.githubusercontent.com/Rateur/sumi/v0.2.0/.github/assets/<name>.gif`) and the [code signing policy](https://sumi.rateur.fr/docs/code-signing/) link at the bottom. Install the attached `Sumi-setup.exe`, then click **Publish release** with **Set as the latest release** checked. Then check the site: its download links point to this release now.
 
    Each installer carries a build attestation. Anyone can check it came from this repository's workflow:
 

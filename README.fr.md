@@ -22,7 +22,7 @@ Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, pu
 
 [**Télécharger Sumi pour Windows**](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe) (10 et 11, 64 bits), ou choisissez une version sur la [page des releases](https://github.com/Rateur/sumi/releases).
 
-L'installateur n'est pas encore signé. Votre navigateur peut le retenir comme peu téléchargé : conservez-le depuis sa liste de téléchargements. Windows signale ensuite un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Une version Microsoft Store, signée par Microsoft, arrive : voir la [politique de signature du code](https://sumi.valentinperies.fr/fr/docs/code-signing/). Pour quitter Sumi, passez par son icône dans la zone de notification.
+L'installateur n'est pas encore signé. Votre navigateur peut le retenir comme peu téléchargé : conservez-le depuis sa liste de téléchargements. Windows signale ensuite un éditeur inconnu : cliquez sur **Informations complémentaires**, puis **Exécuter quand même**. Une version Microsoft Store, signée par Microsoft, arrive : voir la [politique de signature du code](https://sumi.rateur.fr/fr/docs/code-signing/). Pour quitter Sumi, passez par son icône dans la zone de notification.
 
 ## Feuille de route
 
@@ -56,7 +56,7 @@ Sumi ne collecte rien. Les fonctions qui ont besoin du réseau resteront désact
 
 ## Contribuer
 
-Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](https://sumi.valentinperies.fr/fr/docs/contribute/) avant d'ouvrir une pull request : il liste ce que vérifie une relecture, du nommage à la doc dans les deux langues. [Fonctionnement de l'île](https://sumi.valentinperies.fr/fr/docs/design/) décrit le comportement de l'île, et les agents de code commencent par [AGENTS.md](AGENTS.md) (en anglais). Questions et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
+Le code arrive d'abord sur la branche `dev`. Lisez [le guide de contribution](https://sumi.rateur.fr/fr/docs/contribute/) avant d'ouvrir une pull request : il liste ce que vérifie une relecture, du nommage à la doc dans les deux langues. [Fonctionnement de l'île](https://sumi.rateur.fr/fr/docs/design/) décrit le comportement de l'île, et les agents de code commencent par [AGENTS.md](AGENTS.md) (en anglais). Questions et retours sont les bienvenus dans les [Discussions](https://github.com/Rateur/sumi/discussions).
 
 ## Licence
 
