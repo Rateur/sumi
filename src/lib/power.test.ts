@@ -8,6 +8,7 @@ import {
   fresh,
   info,
   items,
+  lands,
   layout,
   lines,
   opens,
@@ -22,6 +23,7 @@ import {
   waits,
   type Battery,
   type Device,
+  type Power,
 } from './power'
 
 const head: Device = { name: 'Casque UGREEN HiTune Max5', kind: 'headset', percent: 80 }
@@ -221,6 +223,22 @@ describe('peeks', () => {
     expect(waits({ kind: 'deviceLow', device: pad })).toBe(true)
     expect(waits({ kind: 'plugged', percent: 47 })).toBe(false)
     expect(waits({ kind: 'device', device: head })).toBe(false)
+  })
+
+  it('brings a device connecting out of the line, early or late, unless a window is moved', () => {
+    const device: Power = { kind: 'device', device: { ...speaker, percent: 64 } }
+    const late: Power = { kind: 'device', device: { name: 'JBL Go 4', kind: 'speaker', percent: null } }
+    for (const peek of [device, late, { kind: 'plugged', percent: 64 } as Power]) {
+      expect(lands(peek, true, undefined)).toBe('show')
+      expect(lands(peek, true, 'you')).toBe('show')
+      expect(lands(peek, true, 'auto')).toBe('show')
+      expect(lands(peek, true, 'move')).toBe('drop')
+      expect(lands(peek, false, 'you')).toBe('drop')
+    }
+    // A low battery comes out even then, or waits for the island.
+    const low: Power = { kind: 'deviceLow', device: pad }
+    expect(lands(low, true, 'move')).toBe('show')
+    expect(lands(low, false, 'auto')).toBe('wait')
   })
 
   it("doesn't let the same device peek again within 30 min", () => {

@@ -95,6 +95,7 @@
     COMPACT,
     POWER_PEEK,
     fresh,
+    lands,
     items,
     lines,
     opens,
@@ -1008,9 +1009,7 @@
       listen<boolean>('island://moving', ({ payload }) => (payload ? tuckIn('move') : tucker === 'move' && untuck())),
       listen<number>('power://plugged', ({ payload }) => notice({ kind: 'plugged', percent: payload })),
       listen<Low>('power://low', ({ payload }) => notice({ kind: 'low', ...payload })),
-      listen<Device>('power://device', ({ payload }) => {
-        if (fresh(connects, payload.name, Date.now())) notice({ kind: 'device', device: payload })
-      }),
+      listen<Device>('power://device', ({ payload }) => notice({ kind: 'device', device: payload }, connects)),
       listen<Battery>('power://battery', ({ payload }) => (battery = payload)),
       listen<Device>('power://device-low', ({ payload }) => notice({ kind: 'deviceLow', device: payload })),
     ]
@@ -1911,14 +1910,17 @@
   // A low battery comes out and stays.
   let retuck: Tucker | undefined
 
-  function notice(next: Power) {
+  function notice(next: Power, heard?: Map<string, number>) {
     // Plugged in, a low battery that waited is no news.
     if (next.kind === 'plugged' && pending?.kind === 'low') pending = undefined
     const tucked = tuck === 'tucking' || tuck === 'tucked'
-    if (!free || (!waits(next) && tucked && tucker === 'move')) {
-      if (waits(next)) pending = next
+    const landing = lands(next, free, tucked ? tucker : undefined)
+    if (landing !== 'show') {
+      if (landing === 'wait') pending = next
       return
     }
+    // Only a device connecting that would show counts as its peek (fresh in power.ts). The demo's aren't counted.
+    if (next.kind === 'device' && heard && !fresh(heard, next.device.name, Date.now())) return
     retuck = waits(next) ? undefined : tucked ? tucker : retuck
     untuck()
     power = next

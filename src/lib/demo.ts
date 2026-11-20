@@ -186,8 +186,8 @@ const KEYS: Record<string, string> = {
  into the edge; a rest, a click, a scroll down or a pull down on the line brings it back. Y plugs the PC in ('plugged'),
  X runs its battery low ('low'), Q connects a speaker ('device'), and S opens the batteries panel ('batteries'), as the
  bar's `batterie` and Enter do; 'one', 'three' and 'five' give it that many rings, 'mains' and 'saver' turn those on,
- 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, and 'unknown'
- adds it to the panel.
+ 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, 'late' connects it with the level
+ it gives 8 s later, and 'unknown' adds it to the panel.
  */
 export function demo(island: {
   activities: Activity[]
@@ -261,6 +261,8 @@ export function demo(island: {
     device: () => island.power({ kind: 'device', device: DEVICES[2] }),
     'device-low': () => island.power({ kind: 'deviceLow', device: DEVICES[3] }),
     jbl: () => island.power({ kind: 'device', device: JBL }),
+    // As Rust tells it: a speaker's peek waits for the level Sumi asks it for.
+    late: () => setTimeout(() => island.power({ kind: 'device', device: { ...JBL, percent: 64 } }), 8000),
     batteries: island.batteries,
     ...Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, () => (island.battery = set)])),
     mains: () => island.battery && (island.battery = { ...island.battery, plugged: !island.battery.plugged, full: 50 }),

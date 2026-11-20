@@ -1,6 +1,7 @@
 import type { Lang } from './intent'
 import type { Axis } from './motion'
 import type { Size } from './shapes'
+import type { Tucker } from './tuck'
 
 /** What a device is, for its glyph and its place in the panel. Mirrored in src-tauri/src/power.rs. */
 export type Kind = 'headset' | 'speaker' | 'controller' | 'mouse' | 'keyboard' | 'other'
@@ -89,6 +90,17 @@ export const COMPACT = { width: 200, height: 34, ring: 18, stroke: 2.2 } as cons
  * connecting are dropped while the island can't show them, and come out of the line only for their peek.
  */
 export const waits = (power: Power): boolean => power.kind === 'low' || power.kind === 'deviceLow'
+
+/**
+ * What a battery peek does as it comes, early or late: shows, from the line too when the island is tucked by hand or
+ * by itself, which then comes out and goes back; waits for the island, a low battery only; or is dropped. `tucker` is
+ * who tucked the island, `undefined` while it is out. While a window is moved it stays tucked: Snap layouts has the
+ * top.
+ */
+export function lands(power: Power, free: boolean, tucker: Tucker | undefined): 'show' | 'wait' | 'drop' {
+  if (free && (waits(power) || tucker !== 'move')) return 'show'
+  return waits(power) ? 'wait' : 'drop'
+}
 
 /** A ring: one per device, `pc` for the PC's, which knows its supply, its time and energy saver. */
 export interface Item {
@@ -388,7 +400,8 @@ export function said(power: Power, lang: Lang): string {
 
 /**
  * Whether a device connecting may peek: not when it peeked less than `QUIET` ago, as a headset out of range for a
- * moment. Records the peek. The times live in memory only.
+ * moment. Records the peek, so ask only once it would show: one dropped in a game or under the bar doesn't count. The
+ * times live in memory only.
  */
 export function fresh(heard: Map<string, number>, name: string, now: number): boolean {
   const last = heard.get(name)
