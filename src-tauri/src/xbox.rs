@@ -150,6 +150,13 @@ mod win {
             return Ok(());
         };
         pads.remove(i);
+        // It leaves as a Bluetooth device does, then it's forgotten: it has no endpoint to keep.
+        power.send(Msg::Endpoint {
+            address: id.clone(),
+            name: None,
+            kind: None,
+            connected: Some(false),
+        })?;
         power.send(Msg::Gone(id))
     }
 

@@ -107,6 +107,7 @@
     type Device,
     type Item,
     type Low,
+    type Peeked,
     type Power,
   } from './lib/power'
   import { WORDS, announce, keysOf } from './lib/welcome'
@@ -195,7 +196,7 @@
   let panel = $state<'batteries'>()
   let grown = $state<string>()
   let focused = $state(false)
-  const connects = new Map<string, number>()
+  const connects = new Map<string, Peeked>()
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -1012,6 +1013,7 @@
       listen<Device>('power://device', ({ payload }) => notice({ kind: 'device', device: payload }, connects)),
       listen<Battery>('power://battery', ({ payload }) => (battery = payload)),
       listen<Device>('power://device-low', ({ payload }) => notice({ kind: 'deviceLow', device: payload })),
+      listen<Device>('power://device-gone', ({ payload }) => notice({ kind: 'deviceGone', device: payload }, connects)),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
@@ -1910,7 +1912,7 @@
   // A low battery comes out and stays.
   let retuck: Tucker | undefined
 
-  function notice(next: Power, heard?: Map<string, number>) {
+  function notice(next: Power, heard?: Map<string, Peeked>) {
     // Plugged in, a low battery that waited is no news.
     if (next.kind === 'plugged' && pending?.kind === 'low') pending = undefined
     const tucked = tuck === 'tucking' || tuck === 'tucked'
@@ -1919,8 +1921,10 @@
       if (landing === 'wait') pending = next
       return
     }
-    // Only a device connecting that would show counts as its peek (fresh in power.ts). The demo's aren't counted.
-    if (next.kind === 'device' && heard && !fresh(heard, next.device.name, Date.now())) return
+    // Only a device connecting or leaving that would show counts as its peek (fresh in power.ts). The demo's aren't
+    // counted.
+    const named = next.kind === 'device' || next.kind === 'deviceGone'
+    if (named && heard && !fresh(heard, next.device.name, Date.now(), next.kind === 'deviceGone')) return
     retuck = waits(next) ? undefined : tucked ? tucker : retuck
     untuck()
     power = next
@@ -2566,6 +2570,10 @@
           <Ring {it} stroke={(COMPACT.stroke * 44) / COMPACT.ring} drawn={false} wait={ENTER.delay + 2 * ENTER.stagger} {reduced} />
         </span>
       {/if}
+    {:else if parts.power?.kind === 'deviceGone'}
+      <!-- What left, dimmed, then a calm word. No ring: an empty one would read as a flat battery. -->
+      <span class="glyph gone" in:enter out:exit>{@render device(parts.power.device.kind)}</span>
+      <span class="level named muted" in:enter={{ step: 1 }} out:exit>{lines(parts.power, lang)[0]}</span>
     {:else if parts.power?.kind === 'deviceLow'}
       {@const it = { id: parts.power.device.name, ...parts.power.device }}
       {@const [first, second] = lines(parts.power, lang)}
@@ -2922,6 +2930,10 @@
   .gauge {
     display: grid;
     flex: none;
+  }
+
+  .glyph.gone svg {
+    stroke: rgb(255 255 255 / 0.45);
   }
 
   .glyph svg {

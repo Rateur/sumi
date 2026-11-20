@@ -1,7 +1,7 @@
 //! The battery: the laptop's, from Windows' power manager, and the level a Bluetooth device reports, as Windows shows
 //! it in its Bluetooth settings or as Sumi reads it where Windows doesn't (fastpair.rs, xbox.rs, pads.rs). Everything
 //! comes from events on a thread of its own, which sleeps in between: plugging in, the laptop running low, a device
-//! with a battery connecting or running low, and what the batteries panel shows. A JBL speaker, which gives Windows
+//! with a battery connecting, running low or leaving, and what the batteries panel shows. A JBL speaker, which gives Windows
 //! no level, is asked for its own: see jbl.rs. What it reads goes to the page and nowhere else: nothing is logged or
 //! stored.
 
@@ -26,6 +26,9 @@ const LOW: u8 = 20;
 /// A level that came this long before its device said it connected counts as read on the connection: the two
 /// watchers below don't keep each other's order.
 const FRESH: Duration = Duration::from_secs(5);
+
+/// Devices leave as the PC goes to sleep, and Windows may say so only as it wakes: none of that is news this long after.
+const WAKING: Duration = Duration::from_secs(30);
 
 /// The time to full shows once the PC has been on mains this long, while the charge rate settles.
 const SETTLE: Duration = Duration::from_secs(120);
@@ -79,13 +82,15 @@ pub struct Low {
     minutes: Option<u32>,
 }
 
-/// What a reading tells the page: power://plugged, power://low, power://device or power://device-low.
+/// What a reading tells the page: power://plugged, power://low, power://device, power://device-low or
+/// power://device-gone.
 #[derive(Debug, PartialEq)]
 enum Peek {
     Plugged(u8),
     Low(Low),
     Device(Device),
     DeviceLow(Device),
+    Gone(Device),
 }
 
 /// The connected devices with a battery as last read, and since when the PC has been on mains, `None` from before
@@ -245,13 +250,18 @@ impl Gadgets {
         let connected = connected?;
         let was = std::mem::replace(&mut g.connected, connected);
         if !connected || was {
+            // A headset, a speaker or a controller that leaves says so; a mouse or a keyboard sleeps all day.
+            let gone = (was && !connected && ready && g.shows_unknown())
+                .then(|| g.device())
+                .flatten()
+                .map(Peek::Gone);
             g.live &= connected;
             g.jbl &= connected;
             g.waiting = g.waiting.filter(|_| connected);
             g.ask = g.ask.filter(|_| connected);
             g.own &= connected;
             g.buds = g.buds.filter(|_| connected);
-            return None;
+            return gone;
         }
         let speaker = g.kind == Some(Kind::Speaker);
         g.ask = speaker.then_some(now);
@@ -477,6 +487,12 @@ fn kind(cod: Option<(u32, u32)>, appearance: Option<u32>, categories: &[String])
     )
 }
 
+/// Whether a device leaving is news: not while the PC goes to sleep, nor in the first `WAKING` after it woke, `woke`
+/// ago, `None` when it never slept.
+fn awake(asleep: bool, woke: Option<Duration>) -> bool {
+    !asleep && woke.is_none_or(|since| since >= WAKING)
+}
+
 /// Minutes from Windows' 100 ns ticks. Windows gives the largest value when it doesn't know.
 fn minutes(ticks: i64) -> Option<u32> {
     if ticks <= 0 || ticks == i64::MAX {
@@ -508,8 +524,11 @@ fn run(app: &AppHandle) {
 
 #[cfg(windows)]
 mod win {
+    use std::ffi::c_void;
+    use std::ptr::null_mut;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
-    use std::time::Instant;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use tauri::{AppHandle, Emitter, Manager};
     use windows::Devices::Enumeration::{
@@ -521,10 +540,63 @@ mod win {
     };
     use windows::core::{Array, HSTRING, IInspectable, Interface};
     use windows_collections::{IIterable, IMapView};
+    use windows_sys::Win32::System::Power::{
+        DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS, PowerRegisterSuspendResumeNotification,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DEVICE_NOTIFY_CALLBACK, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND, PBT_APMSUSPEND,
+    };
 
     use super::{
-        Battery, Buds, Gadgets, Kind, Laptop, Peek, Power, address, kind, minutes, to_full,
+        Battery, Buds, Gadgets, Kind, Laptop, Peek, Power, address, awake, kind, minutes, to_full,
     };
+
+    /// Whether the PC is going to sleep, and when it last woke, in ms since 1970, 0 until it first sleeps.
+    static ASLEEP: AtomicBool = AtomicBool::new(false);
+    static WOKE: AtomicU64 = AtomicU64::new(0);
+
+    fn ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(0))
+    }
+
+    /// Windows calls this, on a thread of its own, as the PC goes to sleep and as it wakes.
+    unsafe extern "system" fn slept(_: *const c_void, kind: u32, _: *const c_void) -> u32 {
+        match kind {
+            PBT_APMSUSPEND => ASLEEP.store(true, Ordering::Relaxed),
+            PBT_APMRESUMEAUTOMATIC | PBT_APMRESUMESUSPEND => {
+                WOKE.store(ms(), Ordering::Relaxed);
+                ASLEEP.store(false, Ordering::Relaxed);
+            }
+            _ => {}
+        }
+        0
+    }
+
+    /// Hears the PC sleep and wake for as long as Sumi runs. Without it, a device leaving always says so.
+    fn sleeps() {
+        let params = Box::leak(Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
+            Callback: Some(slept),
+            Context: null_mut(),
+        }));
+        let mut registration = null_mut();
+        // SAFETY: `params` is leaked, so it outlives the registration, which lasts as long as Sumi.
+        let _ = unsafe {
+            PowerRegisterSuspendResumeNotification(
+                DEVICE_NOTIFY_CALLBACK,
+                std::ptr::from_mut(params).cast(),
+                &mut registration,
+            )
+        };
+    }
+
+    /// Whether a device leaving is news now, from what `slept` heard.
+    fn news() -> bool {
+        let woke = WOKE.load(Ordering::Relaxed);
+        let since = (woke > 0).then(|| Duration::from_millis(ms().saturating_sub(woke)));
+        awake(ASLEEP.load(Ordering::Relaxed), since)
+    }
 
     /// The level Windows shows in its Bluetooth settings, on a device's own nodes.
     const LEVEL: &str = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
@@ -642,6 +714,7 @@ mod win {
         if watchers.is_err() && !heard {
             return;
         }
+        sleeps();
         // The levels Windows doesn't read, which Sumi reads itself.
         crate::fastpair::watch(&tx);
         crate::xbox::watch(&tx);
@@ -700,6 +773,7 @@ mod win {
             // After the message, so that a speaker that didn't answer as a JBL stops waiting at once.
             let mut peeks = gadgets.due(now);
             peeks.extend(peek);
+            peeks.retain(|p| !matches!(p, Peek::Gone(_)) || news());
             for address in gadgets.asks(now, panel) {
                 let tx = tx.clone();
                 std::thread::spawn(move || {
@@ -751,6 +825,7 @@ mod win {
             Peek::Low(low) => app.emit("power://low", low),
             Peek::Device(device) => app.emit("power://device", device),
             Peek::DeviceLow(device) => app.emit("power://device-low", device),
+            Peek::Gone(device) => app.emit("power://device-gone", device),
         };
     }
 
@@ -898,9 +973,62 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        ASKING, Buds, Device, EVERY, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind,
-        minutes, to_full,
+        ASKING, Buds, Device, EVERY, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, WAKING, address,
+        awake, kind, minutes, to_full,
     };
+
+    #[test]
+    fn a_headset_a_speaker_or_a_controller_that_leaves_says_so() {
+        for k in [Kind::Headset, Kind::Speaker, Kind::Controller] {
+            let (mut g, t) = listed(k, 90);
+            g.endpoint("A", None, None, Some(true), t);
+            g.level("A", 60, t);
+            assert_eq!(
+                g.endpoint("A", None, None, Some(false), t),
+                Some(Peek::Gone(device(k, 60)))
+            );
+            // Said once: the next update while away is no news.
+            assert_eq!(g.endpoint("A", None, None, Some(false), t), None);
+        }
+        // Without a level, it still says so.
+        let (mut g, t) = unheard(Kind::Speaker);
+        g.endpoint("A", None, None, Some(true), t);
+        assert_eq!(
+            g.endpoint("A", None, None, Some(false), t),
+            Some(Peek::Gone(unknown(Kind::Speaker)))
+        );
+    }
+
+    #[test]
+    fn a_mouse_a_keyboard_a_phone_or_what_left_before_launch_says_nothing() {
+        for k in [Kind::Mouse, Kind::Keyboard] {
+            let (mut g, t) = listed(k, 90);
+            g.endpoint("A", None, None, Some(true), t);
+            assert_eq!(g.endpoint("A", None, None, Some(false), t), None);
+        }
+        let mut g = Gadgets::default();
+        let t = Instant::now();
+        g.endpoint("P", Some("iPhone".into()), Some(None), Some(true), t);
+        g.endpoint(
+            "A",
+            Some("Casque".into()),
+            Some(Some(Kind::Headset)),
+            Some(true),
+            t,
+        );
+        // Still listing what was there at launch.
+        assert_eq!(g.endpoint("A", None, None, Some(false), t), None);
+        g.ready = true;
+        assert_eq!(g.endpoint("P", None, None, Some(false), t), None);
+    }
+
+    #[test]
+    fn a_device_leaving_is_no_news_around_sleep() {
+        assert!(awake(false, None));
+        assert!(!awake(true, None));
+        assert!(!awake(false, Some(WAKING - Duration::from_secs(1))));
+        assert!(awake(false, Some(WAKING)));
+    }
 
     #[test]
     fn plugging_in_peeks_and_unplugging_says_nothing() {

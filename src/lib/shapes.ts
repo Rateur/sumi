@@ -174,7 +174,7 @@ export function sizeOf(view: View): Size {
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]
   // Plugging in and a device connecting take the music's compact shape; a low battery, a song's peek.
-  if (view.name === 'power') return ['plugged', 'device'].includes(view.power.kind) ? COMPACT.music : PEEKED
+  if (view.name === 'power') return ['plugged', 'device', 'deviceGone'].includes(view.power.kind) ? COMPACT.music : PEEKED
   return SIZES[view.name]
 }
 
