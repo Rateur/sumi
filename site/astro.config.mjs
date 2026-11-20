@@ -3,8 +3,7 @@ import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
 export default defineConfig({
-	site: 'https://rateur.github.io',
-	base: '/sumi',
+	site: 'https://sumi.rateur.fr',
 	trailingSlash: 'always',
 	// Starlight 0.43 stopped forcing this: keeping it leaves every page's styles as they were built.
 	scopedStyleStrategy: 'where',
@@ -48,6 +47,8 @@ export default defineConfig({
 					items: [
 						'docs/time',
 						'docs/fullscreen',
+						'docs/tuck',
+						'docs/tray-icon',
 						'docs/music',
 						'docs/microphone-camera',
 						'docs/command-bar',

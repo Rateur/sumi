@@ -78,8 +78,10 @@
     raf ||= requestAnimationFrame(frame)
   }
 
-  function frame(t: number) {
+  // The page's own clock, as every spring starts on: in a frame, Chromium's rAF time can run seconds behind it.
+  function frame() {
     raf = 0
+    const t = performance.now()
     springs.forEach((s) => s.update(t))
     drawn = { width: width.value, nudge: nudge.value, slide: slide.value, scale: scale.value, moving: !width.resting }
     if (springs.some((s) => !s.resting)) raf = requestAnimationFrame(frame)

@@ -17,6 +17,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
+| Tucked | Line 132 × 4 px, caught over 132 × 12 px | Swiped away in any direction, from the tray, while a window is moved, or by itself at rest. See [Tuck](#tuck). |
 | Welcome | Greeting max(200, text + 80) × 56 px, shortcut row text + 48 × 56 px | Once, at the first launch. |
 
 The island sits 8 px below the top edge, centered on the chosen screen. Sizes are at 100 % scale and follow the display scale.
@@ -103,6 +104,7 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
 - While Windows says you're busy, such as a fullscreen app on another screen, news changes in place with no peek, and a new song doesn't swell. A call still peeks.
 - It sits under the top of the work area, so a taskbar at the top pushes it down. It checks once a second.
+- It tucks into a 4 px line under the top edge: when you swipe it away, by itself at rest when it shows only the time or a running timer, and while a window is moved, so Snap layouts has the top. See [Tuck](#tuck).
 - A frozen Sumi never leaves a "Not responding" copy at the top of the screen.
 
 ## Motion
@@ -112,11 +114,83 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - **Press** and the island gives a little; release and it opens with that speed. A new activity, a song change or a finished timer swell it for a moment.
 - **The bubble** splits off like a drop, joined to the island until they part, and merges back the same way.
 - **In fullscreen** the content leaves and the island slides up off the screen. It drops back down when the game or video ends.
+- **Tucking**, the island closes into a drop that the top edge draws in from the side it was swiped, and comes back as a bead that falls from the line. An open panel's ink drains up into the edge instead. See [Tuck](#tuck).
 - **Every start** the island drops in from above the screen the same way (from −66 px, a 0.5 s spring with 0.2 bounce), on the first frame after the fonts are ready, and its content comes in 60 % of the way down. It doesn't drop while something is fullscreen: it comes back with the return drop.
 - **Reduced motion** turned on in Windows: shapes change at once and the content crossfades. No blur, stretch, roll, press or goo.
-- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible.
+- **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible. Tucked, nothing runs but the clock and a timer's end; the wait before it tucks itself is one timeout.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
+
+## Tuck
+
+The island tucks into a line under the top edge, out of the way of tabs and title bars, and comes back when something needs it.
+
+| | |
+|---|---|
+| Line | 132 × 4 px, centred, flush with the top edge, whatever it tucked from. Square on top, 2 px radius below. Its bottom row is white at 20 % over the black, which sets it apart from a dark title bar. No shadow. |
+| Hit area | 132 × 12 px from the top edge, while tucked only. Everything else lets the cursor through. |
+| Tuck | A swipe, in any direction. Rest the cursor on the island for the Windows hover time, then scroll or swipe the touchpad: `deltaX` or `deltaY` summed over 200 ms past ±40. One wheel notch does it; a scroll before the rest does nothing. Or press the island and drag it out of an 8 px square: it follows with resistance, up to 24 px, and tucks from that side on release; released back inside, it springs back to its place, and a press that stays inside is a click. The open panel tucks the same way, from anywhere on it but the progress bar, where a drag seeks; its buttons still take a click. A left click on the tray icon, or its menu's "Tuck the island", does it too. |
+| Come back | Rest on the line for the hover time, click it, scroll down on it (+40 within 200 ms), or press on it and pull 12 px down. A left click on the tray icon or its menu's "Bring the island back", the command bar's shortcut (the bar opens from the line) and a kind that stays, below, as it arrives. It comes back to what it would show then, never to the hover view. |
+| Window moves | While a window is moved or resized, once the cursor has gone past Windows' drag distance, the island tucks so Snap layouts has the top. It comes back when the move ends, unless it was tucked already. |
+
+A cursor the scroll left on the line has to leave it once before a rest there brings the island back. While the microphone or camera dot shows, the island doesn't tuck.
+
+### Tucks itself
+
+What the island and its bubble show decides whether it stays or tucks itself after 10 s at rest: no cursor on it, nothing open, no welcome playing. A click elsewhere while it waits, or the one that closes its panel, makes that 1 s. After you bring it back by hand, the count starts again once the cursor leaves. A swipe still tucks any of them, except beside the microphone and camera dot.
+
+| Shows | At rest |
+|---|---|
+| Microphone or camera dot | Stays, and brings it back |
+| Call | Stays, and brings it back |
+| Command bar or its answer | Stays, and brings it back |
+| Welcome | Stays, and brings it back |
+| A timer's end peek or done pill | Stays, and brings it back |
+| Music, playing or paused | Stays, and brings it back |
+| Running timer | Tucks itself. Its end brings it back. |
+| Time alone | Tucks itself |
+
+With a bubble, both must tuck for the island to tuck. While Windows says you're busy, only a call and a timer's end bring it back. In fullscreen nothing does: what came meanwhile brings it back once the island shows.
+
+### Motion
+
+The island closes into a drop that the edge draws in, and the ink spreads along the edge. It comes back as the welcome's bead, mirrored: the line beads a drop, which falls and opens into the island. Times in ms:
+
+| ms | Tuck |
+|---|---|
+| 0 | The content leaves. Goo from σ 0 to 7 in 80 ms. Ink 24 px wide comes down from above the edge to the line's bottom (0.36 s, no bounce). |
+| 60 | The island closes into a 34 px drop (0.3 s, no bounce). A bubble merges back into it meanwhile. |
+| 180 | The drop is drawn up, its top to 50 px above its place, 16 × 40 px (0.36 s). |
+| 300 | The ink spreads along the edge to 132 px (0.4 s, no bounce). |
+| about 350 | The drop is inside the line: it goes, and the goo fades out in 120 ms. |
+| about 630 | The line is drawn, and its lighter row fades in over 120 ms. At rest by about 900. |
+
+| ms | Return |
+|---|---|
+| 0 | Goo σ 5 at once. A bead of radius 8, its centre 8 px inside the line's bottom, falls: its top to 8 px under the edge (0.5 s, bounce 0.3), 34 px wide and tall (0.4 s, bounce 0.25). The line gathers to 40 px; its lighter row fades out in 60 ms. |
+| 120 | The edge lets go: the ink goes back above the edge. |
+| 260 | The drop opens into the island as the panel does, and the content comes in. At rest by about 880, 1030 for the music. |
+
+**From each side.** A wheel swipe first pushes the island that way (240 px/s, with the press's release spring). Up is the tuck above. Left or right, it slides 40 px that way (0.36 s, no bounce), leaning with its speed, its top ahead, 10° at most: the neck forms off-centre and the drop is drawn up on a curve, then the ink spreads back to the centred line. Down, it first stretches 14 px longer and thinner like a rubber band (0.3 s), and every beat after comes 100 ms later, so it snaps up into the same neck.
+
+**From an open panel.** Its ink drains up into the edge, as into a nib, without closing into a drop first. The content leaves and the ink comes down as above. At 60 ms the panel pulls in toward the top centre: its corners round first, into a bell that hangs from the neck (0.3 s, no bounce), and its sides pull in to 16 px (0.3 s, no bounce) faster than its bottom rises to 40 px tall (0.34 s, no bounce). At 140 the body drains up through the neck, its top to 50 px above its place (0.36 s), while the ink spreads along the edge to 132 px (0.4 s, no bounce). It is inside the line by about 350, the line is drawn by about 480, and it is at rest by about 750. Sideways and down it moves as the island does, but anything taller than the drop, a panel first, leans less, so its bottom trails no more than the drop's.
+
+The ink runs 40 px above the screen's edge, so the goo keeps a full meniscus there. The shadow fades with how much of the island is still below the line. Called back mid-tuck, every spring heads back from where it is. With reduced motion, and in a contrast theme, the island and the line crossfade in 120 ms each way and nothing travels; in a contrast theme the line is outlined.
+
+## Tray icon
+
+Sumi's logo in the notification area, drawn at the taskbar's small icon size (16 px at 100 %, 20 at 125 %, 24 at 150 %, 32 at 200 %) so it stays sharp, and drawn again when the scale changes. It is the app icon's tile, with the mark 1.2 times larger so it still reads at 16 px. The bar's edges sit on whole pixels. The tile is opaque, so the icon is the same on a light or a dark taskbar.
+
+| The island has | Corner | Tooltip |
+|---|---|---|
+| An app using the camera | Green dot `#4ADE80` | Sumi · camera: Zoom |
+| An app using the microphone | Orange dot `#FB923C` | Sumi · microphone: Discord |
+| Music playing | Three bars of the mark's colour, as the equalizer stands | Sumi · title – artist |
+| Nothing of these | None | Sumi · the command bar's shortcut |
+
+The first row that applies wins, as on the island: green over orange, any dot over the music. A paused song shows nothing here. The corner sits around the tile's corner arc, as the island's disc holds its dot: a ring of the tile, as wide as the icon over 16, all around it. With several apps on the device, the tooltip names the first and counts the others. It is cut to the 127 characters Windows keeps.
+
+A left click tucks the island or brings it back; a right click opens the menu: "Tuck the island" or "Bring the island back", then "Quit Sumi", in the island's language. The icon and its tooltip change only when what they show changes.
 
 ## Welcome
 
@@ -130,7 +204,7 @@ Once, at the first launch after install or after an upgrade from 0.5, the island
 | 1700 | The island widens to the shortcut: "Barre de commande" or "Command bar" (14 px, 500, 60 % white), then flat keycaps (13 px, 600, 26 px tall, radius 7, 12 % white with a 16 % white line). The keys are the ones Sumi registered; on a French keyboard Shift is "Maj". |
 | 4900 | The island folds, as the panel closes, to the time, or to the music or the timer already there. At rest by about 5.6 s. |
 
-Without a shortcut there is no shortcut beat, and it folds at 2300. It counts as seen once the shortcut has shown for a second, or after a click on the island, which folds at once. It plays only while the island is shown: in fullscreen or while Windows says you're busy, it waits, and it stops and plays again later if that happens midway. A cursor resting on it holds the shortcut until 300 ms after it leaves; the bar's shortcut ends it and opens the bar; a new activity ends it and takes the island, and so does a timer that ends. A screen reader hears it once, with the real shortcut. The shortcut also stays in the tray icon's tooltip.
+Without a shortcut there is no shortcut beat, and it folds at 2300. It counts as seen once the shortcut has shown for a second, or after a click on the island, which folds at once. It plays only while the island is shown: in fullscreen or while Windows says you're busy, it waits, and it stops and plays again later if that happens midway. A cursor resting on it holds the shortcut until 300 ms after it leaves; the bar's shortcut ends it and opens the bar; a new activity ends it and takes the island, and so does a timer that ends. A screen reader hears it once, with the real shortcut. The shortcut also stays in the tray icon's tooltip, while nothing else is going on.
 
 With reduced motion, the island fades in where it is, already the logo, and each later beat fades the content out in the old shape, changes the shape, and fades the new content in. In a contrast theme there is no bead.
 

@@ -79,6 +79,61 @@ export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 230
 /** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
 export const INK = { r: 15.5, d: 21, goo: 7 } as const
 
+/** The bubble's drop springs, in split and merge, which the tuck's drop shares. */
+export const MERGE: Axis = [0.36, 0]
+export const SPLIT: { d: Axis; r: Axis } = { d: [0.5, 0.3], r: [0.4, 0.25] }
+
+/**
+ * The tuck: the line under the top edge, its hit height, and the gesture: deltas summed within `within` ms past
+ * `wheel`, or a pull.
+ */
+export const TUCK = { width: 132, height: 4, hit: 12, wheel: 40, within: 200, pull: 12 } as const
+
+/**
+ * Goutte, the tuck's motion, in ms from its start. In: the edge's ink, `ink` wide, comes down from `away` (its bottom
+ * edge, above the screen) while the island closes into a drop (`close`), is drawn up `rise` px above its place as a
+ * `thin` × `long` drop (`draw`), and the ink spreads along the edge (`spread`). The ink runs `above` px over the edge,
+ * so the goo keeps a full meniscus there. Out: a bead of radius `bead` hangs from the line, which gathers to `gather`,
+ * the edge lets it go (`release`), and the drop opens into the island (`open`).
+ */
+export const GOUTTE = {
+  ink: 24,
+  away: -12,
+  above: 40,
+  close: 60,
+  draw: 180,
+  thin: 16,
+  long: 40,
+  rise: 50,
+  spread: 300,
+  bead: 8,
+  gather: 40,
+  release: 120,
+  open: 260,
+} as const
+
+/**
+ * Drain, the tuck from an open panel, in ms from its start: the panel's ink is drawn back into the edge as into a nib.
+ * The content leaves and the edge's ink comes down as in Goutte. At `pull` the panel's sides and bottom pull in toward
+ * the top centre, its corners first, into a bell and then Goutte's `thin` × `long` drop under the neck. From `rise`
+ * the body drains up through the neck while the ink spreads along the edge.
+ */
+export const DRAIN = { pull: 60, rise: 140 } as const
+
+/** What the island shows tucks itself after this long at rest, in ms, when it is a kind that tucks (tuck.ts). */
+export const TUCK_AFTER = 10_000
+
+/** After a click elsewhere, it tucks itself this soon instead, in ms. */
+export const TUCK_AFTER_CLICK = 1000
+
+/**
+ * Swipes that tuck the island, in any direction. A press that moves past `drag` px is a swipe; while held, the island
+ * follows the pointer with resistance, up to `give` px. A wheel swipe pushes it at `push` px/s. Sideways, the island
+ * slides `side` px that way before it is drawn up; down, it first stretches `stretch` px longer and thinner, for
+ * `snap` ms.
+ */
+export const SWIPE = { drag: 8, give: 24, push: 240, side: 40, stretch: 14, snap: 100 } as const
+
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
   const at = (p1: number, p2: number, t: number) => 3 * p1 * t * (1 - t) ** 2 + 3 * p2 * (1 - t) * t * t + t ** 3
@@ -97,4 +152,9 @@ export function bezier(x1: number, y1: number, x2: number, y2: number): (x: numb
 /** Stretch along the width while it moves, as a share of the size: 0 at rest, 4 % at most. */
 export function squash(velocity: number): number {
   return Math.max(-0.04, Math.min(0.04, velocity * 4e-5))
+}
+
+/** Lean while it slides sideways, its top ahead, in degrees: 0 at rest, 10 at most. */
+export function lean(velocity: number): number {
+  return Math.max(-10, Math.min(10, velocity * 0.04))
 }

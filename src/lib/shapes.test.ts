@@ -3,6 +3,7 @@ import type { Activity } from './activities'
 import {
   TIMER,
   cardSize,
+  drip,
   layout,
   radius,
   resolveView,
@@ -157,6 +158,20 @@ describe('radius', () => {
     expect(radius(34)).toBe(17)
     expect(radius(56)).toBe(28)
     expect(radius(120)).toBe(28)
+  })
+})
+
+describe('drip', () => {
+  it("is the island's own corners before it tapers", () => {
+    expect(drip(280, 120, 0)).toBe('28.0px 28.0px 28.0px 28.0px / 28.0px 28.0px 28.0px 28.0px')
+  })
+
+  it('draws a panel out into a dome over its bottom corners', () => {
+    expect(drip(280, 120, 1)).toBe('140.0px 140.0px 28.0px 28.0px / 92.0px 92.0px 28.0px 28.0px')
+  })
+
+  it('ends as a drop: round below, drawn out above', () => {
+    expect(drip(16, 40, 1)).toBe('8.0px 8.0px 8.0px 8.0px / 32.0px 32.0px 8.0px 8.0px')
   })
 })
 

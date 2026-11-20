@@ -1,6 +1,7 @@
 //! Decides when the island hides or goes quiet. It hides for a borderless window over the whole primary screen,
 //! exclusive Direct3D or a presentation. A hook hears each change of app instead of polling; a check once a second
-//! still catches F11.
+//! still catches F11. Another hears a window start and end a move or a resize, so the island can tuck out of Snap
+//! layouts' way.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -98,14 +99,24 @@ pub fn switched() -> bool {
     SWITCHED.swap(false, Ordering::Relaxed)
 }
 
-/// Hears every change of foreground window. Out-of-context events arrive on the registering thread
-/// through its message loop, so this runs on Tauri's main thread, and the callback only sets a flag.
+/// Set by the move hook while a window is being moved or resized, read by the poll.
+static MOVING: AtomicBool = AtomicBool::new(false);
+
+/// Whether a window is being moved or resized right now.
+pub fn moving() -> bool {
+    MOVING.load(Ordering::Relaxed)
+}
+
+/// Hears every change of foreground window, and every window that starts or ends a move or a resize.
+/// Out-of-context events arrive on the registering thread through its message loop, so this runs on
+/// Tauri's main thread, and the callbacks only set a flag.
 #[cfg(windows)]
 pub fn watch_foreground() {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EVENT_SYSTEM_FOREGROUND, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
+        EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MOVESIZEEND, EVENT_SYSTEM_MOVESIZESTART,
+        WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS,
     };
 
     unsafe extern "system" fn on_foreground(
@@ -120,12 +131,33 @@ pub fn watch_foreground() {
         SWITCHED.store(true, Ordering::Relaxed);
     }
 
+    unsafe extern "system" fn on_move(
+        _: HWINEVENTHOOK,
+        event: u32,
+        _: HWND,
+        _: i32,
+        _: i32,
+        _: u32,
+        _: u32,
+    ) {
+        MOVING.store(event == EVENT_SYSTEM_MOVESIZESTART, Ordering::Relaxed);
+    }
+
     unsafe {
         SetWinEventHook(
             EVENT_SYSTEM_FOREGROUND,
             EVENT_SYSTEM_FOREGROUND,
             std::ptr::null_mut(),
             Some(on_foreground),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        );
+        SetWinEventHook(
+            EVENT_SYSTEM_MOVESIZESTART,
+            EVENT_SYSTEM_MOVESIZEEND,
+            std::ptr::null_mut(),
+            Some(on_move),
             0,
             0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,

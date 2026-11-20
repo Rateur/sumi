@@ -23,6 +23,7 @@ Cette page décrit l'île de la 1.0. Ce que fait déjà chaque version est dans 
 | Bulle | Cercle de 34 px | Une deuxième activité, ou l'heure, à 8 px à droite de l'île. Un clic la fait passer sur l'île. |
 | Disque de confidentialité | Cercle de 20 px, carte de 248 px de large | Une app utilise le micro ou la caméra, ou le micro est coupé. À 6 px à droite de tout le reste ; s'ouvre en carte sous le curseur. |
 | Masquée | — | Un jeu, une vidéo ou un diaporama occupe tout l'écran principal. Revient compacte. |
+| Rangée | Ligne de 132 × 4 px, captée sur 132 × 12 px | Balayée dans n'importe quel sens, depuis la zone de notification, pendant qu'une fenêtre est déplacée, ou toute seule au repos. Voir [Ranger l'île](#ranger-lîle). |
 | Bienvenue | Salutation max(200, texte + 80) × 56 px, ligne du raccourci texte + 48 × 56 px | Une fois, au premier lancement. |
 
 L'île se place à 8 px du bord supérieur, centrée sur l'écran choisi. Les tailles sont données à l'échelle 100 % et suivent celle de l'affichage.
@@ -109,6 +110,7 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - Elle se masque quand une fenêtre occupe tout l'écran principal, ou quand Windows signale un jeu en plein écran ou une présentation : elle remonte hors de l'écran, puis sa fenêtre se masque, et rien ne reste au-dessus du jeu. Un clic sur un autre écran la garde masquée. Elle revient sans prendre le focus.
 - Quand Windows indique que vous êtes occupé, par exemple avec une app en plein écran sur un autre écran, ce qui change s'affiche sur place, sans coup d'œil, et un nouveau morceau ne fait pas gonfler l'île. Un appel s'affiche quand même en coup d'œil.
 - Elle se place sous le haut de la zone de travail : une barre des tâches en haut la fait descendre. Elle vérifie une fois par seconde.
+- Elle se range dans une ligne de 4 px sous le bord supérieur : d'un balayage, toute seule au repos quand elle n'affiche que l'heure ou un minuteur en cours, et pendant qu'une fenêtre est déplacée, pour laisser le haut aux dispositions d'ancrage. Voir [Ranger l'île](#ranger-lîle).
 - Un Sumi figé ne laisse jamais de copie « Ne répond pas » en haut de l'écran.
 
 ## Mouvements
@@ -118,11 +120,83 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - **Appuyez** et l'île cède un peu ; relâchez et elle s'ouvre avec cet élan. Une nouvelle activité, un changement de morceau ou un minuteur fini la font gonfler un instant.
 - **La bulle** se détache comme une goutte, reliée à l'île jusqu'à ce qu'elles se séparent, et s'y fond de la même façon.
 - **En plein écran**, le contenu s'en va et l'île remonte hors de l'écran. Elle redescend quand le jeu ou la vidéo se termine.
+- **En se rangeant**, l'île se resserre en une goutte que le bord supérieur aspire du côté où on l'a balayée, et revient comme une perle qui tombe de la ligne. L'encre d'un panneau ouvert, elle, remonte dans le bord. Voir [Ranger l'île](#ranger-lîle).
 - **À chaque démarrage**, l'île descend du haut de l'écran de la même façon (depuis −66 px, un ressort de 0,5 s avec un rebond de 0,2), à la première image après le chargement des polices, et son contenu arrive aux 60 % de la descente. Elle ne descend pas tant que quelque chose est en plein écran : elle arrive avec la descente du retour.
 - **Avec les effets d'animation coupés** dans Windows, les formes changent d'un coup et le contenu passe en fondu enchaîné. Ni flou, ni étirement, ni défilement, ni enfoncement, ni fusion des formes.
-- **Au repos, rien ne tourne** : aucune image d'animation, aucun filtre, aucun message à Rust. L'horloge se réveille une fois par minute, un minuteur une fois par seconde quand l'île l'affiche, et sinon seulement pour sa fin et ses carillons, et l'égaliseur ne bouge que si la musique joue et que l'île est visible.
+- **Au repos, rien ne tourne** : aucune image d'animation, aucun filtre, aucun message à Rust. L'horloge se réveille une fois par minute, un minuteur une fois par seconde quand l'île l'affiche, et sinon seulement pour sa fin et ses carillons, et l'égaliseur ne bouge que si la musique joue et que l'île est visible. Rangée, rien ne tourne que l'horloge et la fin d'un minuteur ; l'attente avant qu'elle se range toute seule est un seul délai.
 - **Le premier survol est aussi fluide que les suivants** : une copie cachée de chaque taille de texte est mise en page au lancement, pour que les polices soient prêtes avant d'être utiles.
 - **Le site bouge de la même façon.** Ses îles utilisent des courbes CSS calculées à la construction du site à partir des ressorts et des durées de l'app (`src/lib/curves.ts`) : changer l'un change l'autre.
+
+## Ranger l'île
+
+L'île se range dans une ligne sous le bord supérieur, à l'écart des onglets et des barres de titre, et revient quand quelque chose a besoin d'elle.
+
+| | |
+|---|---|
+| Ligne | 132 × 4 px, centrée, collée au bord supérieur, quelle que soit la forme d'où elle vient. Angles droits en haut, rayon de 2 px en bas. Sa rangée du bas est blanche à 20 % sur le noir, ce qui la détache d'une barre de titre sombre. Pas d'ombre. |
+| Zone de capture | 132 × 12 px depuis le bord supérieur, seulement quand l'île est rangée. Partout ailleurs, le curseur passe. |
+| Ranger | Un balayage, dans n'importe quel sens. Posez le curseur sur l'île le temps du délai de survol de Windows, puis molette ou pavé tactile : `deltaX` ou `deltaY` additionné sur 200 ms au-delà de ±40. Un cran suffit ; une molette avant le délai ne fait rien. Ou appuyez sur l'île et faites-la glisser hors d'un carré de 8 px : elle suit avec de la résistance, jusqu'à 24 px, et se range de ce côté au relâchement ; relâchée de nouveau dans le carré, elle revient à sa place d'un ressort, et un appui qui y reste est un clic. Le panneau ouvert se range de la même façon, depuis n'importe où sauf la barre de progression, où un glissement change la position ; ses boutons prennent toujours un clic. Un clic gauche sur l'icône de la zone de notification, ou « Ranger l'île » dans son menu, aussi. |
+| Faire revenir | Posez le curseur sur la ligne le temps du délai de survol, cliquez dessus, molette vers le bas dessus (+40 en 200 ms), ou appuyez dessus et tirez de 12 px vers le bas. Un clic gauche sur l'icône de la zone de notification ou « Faire revenir l'île » dans son menu, le raccourci de la barre de commande (la barre s'ouvre depuis la ligne) et un type qui reste, ci-dessous, à son arrivée. Elle revient à ce qu'elle afficherait à ce moment-là, jamais à la vue du survol. |
+| Fenêtres déplacées | Pendant qu'une fenêtre est déplacée ou redimensionnée, une fois que le curseur a dépassé la distance de glissement de Windows, l'île se range pour laisser le haut aux dispositions d'ancrage. Elle revient à la fin du déplacement, sauf si elle était déjà rangée. |
+
+Un curseur que la molette a laissé sur la ligne doit la quitter une fois avant qu'une pause dessus fasse revenir l'île. Tant que le point du micro ou de la caméra s'affiche, l'île ne se range pas.
+
+### Se range toute seule
+
+Ce qu'affichent l'île et sa bulle décide si elle reste ou se range toute seule après 10 s au repos : sans curseur dessus, sans rien d'ouvert, sans accueil en cours. Un clic ailleurs pendant qu'elle attend, ou celui qui ferme son panneau, ramène ce délai à 1 s. Après l'avoir fait revenir à la main, le compte repart une fois que le curseur la quitte. Un balayage range toujours chacun d'eux, sauf à côté du point du micro et de la caméra.
+
+| Affiche | Au repos |
+|---|---|
+| Point du micro ou de la caméra | Reste, et la fait revenir |
+| Appel | Reste, et la fait revenir |
+| Barre de commande ou sa réponse | Reste, et la fait revenir |
+| Accueil | Reste, et la fait revenir |
+| Coup d'œil de fin ou pastille de fin d'un minuteur | Reste, et la fait revenir |
+| Musique, en lecture ou en pause | Reste, et la fait revenir |
+| Minuteur en cours | Se range toute seule. Sa fin la fait revenir. |
+| L'heure seule | Se range toute seule |
+
+Avec une bulle, les deux doivent se ranger pour que l'île se range. Quand Windows indique que vous êtes occupé, seuls un appel et la fin d'un minuteur la font revenir. En plein écran, rien ne la fait revenir : ce qui est arrivé entre-temps la fait revenir dès que l'île s'affiche.
+
+### Mouvement
+
+L'île se resserre en une goutte que le bord aspire, et l'encre s'étale le long du bord. Elle revient comme la perle de l'accueil, en miroir : la ligne perle une goutte, qui tombe et s'ouvre en île. Durées en ms :
+
+| ms | Ranger |
+|---|---|
+| 0 | Le contenu s'en va. Fusion de σ 0 à 7 en 80 ms. Une encre de 24 px de large descend d'au-dessus du bord jusqu'au bas de la ligne (0,36 s, sans rebond). |
+| 60 | L'île se resserre en une goutte de 34 px (0,3 s, sans rebond). Une bulle s'y fond en même temps. |
+| 180 | La goutte est aspirée, son haut jusqu'à 50 px au-dessus de sa place, en 16 × 40 px (0,36 s). |
+| 300 | L'encre s'étale le long du bord jusqu'à 132 px (0,4 s, sans rebond). |
+| vers 350 | La goutte est dans la ligne : elle disparaît, et la fusion s'efface en 120 ms. |
+| vers 630 | La ligne est dessinée, et sa rangée claire apparaît en fondu en 120 ms. Au repos vers 900. |
+
+| ms | Retour |
+|---|---|
+| 0 | Fusion à σ 5 d'un coup. Une perle de rayon 8, son centre à 8 px au-dessus du bas de la ligne, tombe : son haut jusqu'à 8 px sous le bord (0,5 s, rebond 0,3), 34 px de large et de haut (0,4 s, rebond 0,25). La ligne se resserre à 40 px ; sa rangée claire s'efface en 60 ms. |
+| 120 | Le bord la lâche : l'encre repart au-dessus du bord. |
+| 260 | La goutte s'ouvre en île comme le panneau, et le contenu arrive. Au repos vers 880, 1030 pour la musique. |
+
+**De chaque côté.** Un balayage à la molette pousse d'abord l'île dans ce sens (240 px/s, avec le ressort du relâchement d'un appui). Vers le haut, c'est le mouvement ci-dessus. À gauche ou à droite, elle glisse de 40 px de ce côté (0,36 s, sans rebond) en penchant avec sa vitesse, le haut en avant, 10° au plus : le col se forme décentré et la goutte est aspirée en courbe, puis l'encre s'étale jusqu'à la ligne centrée. Vers le bas, elle s'étire d'abord de 14 px, plus longue et plus fine, comme un élastique (0,3 s), et chaque temps suivant arrive 100 ms plus tard : elle remonte d'un coup dans le même col.
+
+**Depuis un panneau ouvert.** Son encre remonte dans le bord, comme dans une plume, sans se resserrer d'abord en goutte. Le contenu s'en va et l'encre descend comme ci-dessus. À 60 ms, le panneau se resserre vers le milieu de son haut : ses coins s'arrondissent d'abord, en une cloche qui pend au col (0,3 s, sans rebond), et ses côtés rentrent jusqu'à 16 px (0,3 s, sans rebond) plus vite que son bas ne remonte, jusqu'à 40 px de haut (0,34 s, sans rebond). À 140, le corps remonte par le col, son haut jusqu'à 50 px au-dessus de sa place (0,36 s), pendant que l'encre s'étale le long du bord jusqu'à 132 px (0,4 s, sans rebond). Il est dans la ligne vers 350, la ligne est dessinée vers 480, et tout est au repos vers 750. Sur le côté et vers le bas, il bouge comme l'île, mais tout ce qui est plus haut que la goutte, un panneau d'abord, penche moins : son bas ne traîne pas plus que celui de la goutte.
+
+L'encre monte 40 px au-dessus du bord de l'écran, pour que la fusion garde un ménisque entier contre le bord. L'ombre s'efface avec la part de l'île encore sous la ligne. Rappelée en cours de route, chaque ressort repart d'où il est. Avec les effets d'animation coupés, et avec un thème à contraste élevé, l'île et la ligne passent en fondu enchaîné en 120 ms dans chaque sens et rien ne se déplace ; avec un thème à contraste élevé, la ligne a un contour.
+
+## Icône de la zone de notification
+
+Le logo de Sumi dans la zone de notification, dessiné à la petite taille d'icône de la barre des tâches (16 px à 100 %, 20 à 125 %, 24 à 150 %, 32 à 200 %) pour rester net, et redessiné quand la mise à l'échelle change. C'est la tuile de l'icône de l'app, avec la marque 1,2 fois plus grande pour rester lisible à 16 px. Les bords de la barre tombent sur des pixels entiers. La tuile est opaque : l'icône est la même sur une barre des tâches claire ou sombre.
+
+| L'île a | Coin | Info-bulle |
+|---|---|---|
+| Une app qui utilise la caméra | Point vert `#4ADE80` | Sumi · caméra : Zoom |
+| Une app qui utilise le micro | Point orange `#FB923C` | Sumi · micro : Discord |
+| De la musique en lecture | Trois barres de la couleur de la marque, comme l'égaliseur | Sumi · titre – artiste |
+| Rien de tout cela | Rien | Sumi · le raccourci de la barre de commande |
+
+La première ligne qui s'applique l'emporte, comme sur l'île : le vert sur l'orange, n'importe quel point sur la musique. Un morceau en pause n'affiche rien ici. Le coin se place autour de l'arrondi de la tuile, comme le disque de l'île tient son point : un anneau de la tuile, large d'un seizième de l'icône, tout autour. Avec plusieurs apps sur l'appareil, l'info-bulle nomme la première et compte les autres. Elle est coupée aux 127 caractères que garde Windows.
+
+Un clic gauche range l'île ou la fait revenir ; un clic droit ouvre le menu : « Ranger l'île » ou « Faire revenir l'île », puis « Quitter Sumi », dans la langue de l'île. L'icône et son info-bulle ne changent que quand ce qu'elles montrent change.
 
 ## Bienvenue
 
@@ -136,7 +210,7 @@ Une fois, au premier lancement après l'installation ou après une mise à jour 
 | 1700 | L'île s'élargit jusqu'au raccourci : « Barre de commande » ou « Command bar » (14 px, 500, blanc à 60 %), puis des touches plates (13 px, 600, 26 px de haut, rayon 7, blanc à 12 % avec un contour blanc à 16 %). Les touches sont celles que Sumi a enregistrées ; sur un clavier français, Shift devient « Maj ». |
 | 4900 | L'île se replie, comme le panneau se referme, sur l'heure, ou sur la musique ou le minuteur déjà là. Au repos vers 5,6 s. |
 
-Sans raccourci, l'étape du raccourci saute, et l'île se replie à 2300. L'accueil compte comme vu une fois le raccourci affiché pendant une seconde, ou après un clic sur l'île, qui la replie aussitôt. Il ne se joue que si l'île est affichée : en plein écran ou quand Windows indique que vous êtes occupé, il attend, et si cela arrive en cours de route, il s'arrête et se rejoue plus tard. Un curseur posé dessus garde le raccourci jusqu'à 300 ms après son départ ; le raccourci de la barre y met fin et ouvre la barre ; une nouvelle activité y met fin et prend l'île, tout comme un minuteur qui finit. Un lecteur d'écran l'annonce une fois, avec le vrai raccourci. Le raccourci reste aussi dans l'info-bulle de l'icône de Sumi, dans la zone de notification.
+Sans raccourci, l'étape du raccourci saute, et l'île se replie à 2300. L'accueil compte comme vu une fois le raccourci affiché pendant une seconde, ou après un clic sur l'île, qui la replie aussitôt. Il ne se joue que si l'île est affichée : en plein écran ou quand Windows indique que vous êtes occupé, il attend, et si cela arrive en cours de route, il s'arrête et se rejoue plus tard. Un curseur posé dessus garde le raccourci jusqu'à 300 ms après son départ ; le raccourci de la barre y met fin et ouvre la barre ; une nouvelle activité y met fin et prend l'île, tout comme un minuteur qui finit. Un lecteur d'écran l'annonce une fois, avec le vrai raccourci. Le raccourci reste aussi dans l'info-bulle de l'icône de Sumi, dans la zone de notification, quand rien d'autre ne se passe.
 
 Avec les effets d'animation coupés, l'île apparaît en fondu à sa place, déjà en forme de logo, et chaque étape suivante efface le contenu en fondu dans l'ancienne forme, change la forme, puis fait apparaître le nouveau contenu en fondu. Avec un thème de contraste, il n'y a pas de perle.
 

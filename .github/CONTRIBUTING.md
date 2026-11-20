@@ -45,8 +45,9 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 ## How the code is laid out
 
 - `src-tauri/src/lib.rs` starts the app, one copy at a time: the tray icon, the list of commands the page can call, and each module's watcher.
-- `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, and closes the panel.
-- `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen.
+- `src-tauri/src/tray.rs` draws the tray icon at the taskbar's size with the corner the page asks for (the microphone or camera dot, or the music), sets its tooltip and its menu's words, and tucks the island on a left click.
+- `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, closes the panel, and tells the page when a window is dragged and of a click elsewhere while the island waits to tuck itself.
+- `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen, and hears a window start and end a move or a resize.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
@@ -54,7 +55,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
 - `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
@@ -65,6 +66,8 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `set_island_rects` | page → Rust | `rects: Vec<Rect>` (`island.rs`) | `{ x, y, width, height, radius }[]` |
 | `set_island_expanded` | page → Rust | `expanded: bool` | `boolean` |
 | `island_presence` | page → Rust | returns `Presence` (`fullscreen.rs`), as last decided | `Presence` (`src/lib/activities.ts`) |
+| `set_tray` | page → Rust | `tray: Tray` (`tray.rs`): the icon's corner, its tooltip and its menu's words | `Tray` (`src/lib/tray.ts`) |
+| `set_island_waiting` | page → Rust | `waiting: bool`, while the island waits to tuck itself | `boolean` |
 | `media_control` | page → Rust | `id: String`, `action: Action` (`media.rs`) | `'play'`, `'pause'`, `'next'` or `'previous'` |
 | `media_seek` | page → Rust | `id: String`, `ms: i64` | `number` |
 | `media_players` | page → Rust | returns `Snapshot` (`media.rs`) | `{ players: Player[]; artwork: Record<string, string> }` |
@@ -85,6 +88,9 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
 | `island://dismiss` | Rust → page | nothing | nothing |
+| `island://tuck` | Rust → page | nothing: a left click on the tray icon or its menu's tuck item, which tucks or brings back | nothing |
+| `island://moving` | Rust → page | `bool`: `true` once a window is dragged, `false` when the move ends | `boolean` |
+| `island://elsewhere` | Rust → page | nothing: a click outside the island while it waits to tuck itself | nothing |
 | `bar://toggle` | Rust → page | nothing | nothing |
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
