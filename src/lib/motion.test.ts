@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { CLOSE, OPEN, bezier, motion, squash } from './motion'
+import { CLOSE, OPEN, bezier, lean, motion, squash } from './motion'
 
 const music: Activity = { id: 'm', kind: 'music', title: '', artist: '', color: '#fff' }
 const timer: Activity = { id: 't', kind: 'timer', endsAt: 0, total: 60_000 }
@@ -58,5 +58,13 @@ describe('squash', () => {
     expect(squash(500)).toBeCloseTo(0.02)
     expect(squash(1e5)).toBe(0.04)
     expect(squash(-1e5)).toBe(-0.04)
+  })
+})
+
+describe('lean', () => {
+  it('is nothing at rest, follows the speed and stops at 10 degrees', () => {
+    expect(lean(0)).toBe(0)
+    expect(lean(200)).toBeCloseTo(8)
+    expect(lean(-1e4)).toBe(-10)
   })
 })

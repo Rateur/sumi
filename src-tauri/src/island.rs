@@ -1,12 +1,14 @@
 //! The island's window: kept at the top center of the primary screen, letting clicks through everywhere but the
-//! shapes the page draws, and closing the open panel on Esc, a click elsewhere or a change of app.
+//! shapes the page draws, closing the open panel on Esc, a click elsewhere or a change of app, and telling the page
+//! when a window is dragged, so the island tucks out of Snap layouts' way.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow};
+use tauri::menu::MenuItem;
+use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, WebviewWindow, Wry};
 
 use crate::fullscreen::{self, Presence};
 
@@ -61,12 +63,81 @@ pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bo
     state.0.store(expanded, Ordering::Relaxed);
 }
 
+/// Whether the island waits to tuck itself, so a click elsewhere is heard only then.
+#[derive(Default)]
+pub struct IslandWaiting(pub AtomicBool);
+
+#[tauri::command]
+pub fn set_island_waiting(state: tauri::State<'_, IslandWaiting>, waiting: bool) {
+    state.0.store(waiting, Ordering::Relaxed);
+}
+
 /// The presence the poll last decided, for a page that loads after `island://presence` was sent.
 pub struct IslandPresence(pub Mutex<Presence>);
 
 #[tauri::command]
 pub fn island_presence(state: tauri::State<'_, IslandPresence>) -> Presence {
     state.0.lock().map_or(Presence::Shown, |presence| *presence)
+}
+
+/// The tray menu's tuck item. The page gives it its words, in the island's language, as the island tucks and comes
+/// back.
+pub struct TuckItem(pub MenuItem<Wry>);
+
+#[tauri::command]
+pub fn set_tuck_label(app: AppHandle, label: String) {
+    // Before setup has made the item, the page sets it again at its next change.
+    if let Some(item) = app.try_state::<TuckItem>() {
+        let _ = item.0.set_text(label);
+    }
+}
+
+/// A window being moved or resized, as the poll follows it. It counts once the cursor leaves Windows' drag rectangle
+/// around where the move began: a click on a title bar starts a move too, and must leave the island alone.
+#[derive(Default)]
+struct Move {
+    /// Where the cursor was when the move began, while it lasts.
+    from: Option<(i32, i32)>,
+    /// What the page was last told.
+    told: bool,
+}
+
+impl Move {
+    /// One tick: whether Windows says a move is under way, the cursor, and how far it may go each way before it
+    /// drags. Returns what to tell the page when that changes.
+    fn step(&mut self, held: bool, cursor: (i32, i32), drag: (i32, i32)) -> Option<bool> {
+        let now = match (held, self.from) {
+            (false, _) => {
+                self.from = None;
+                false
+            }
+            (true, None) => {
+                self.from = Some(cursor);
+                false
+            }
+            (true, Some((x, y))) => {
+                self.told || (cursor.0 - x).abs() > drag.0 || (cursor.1 - y).abs() > drag.1
+            }
+        };
+        if now == self.told {
+            return None;
+        }
+        self.told = now;
+        Some(now)
+    }
+}
+
+/// How far the cursor goes each way, in pixels, before Windows calls it a drag.
+#[cfg(windows)]
+fn drag() -> (i32, i32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXDRAG, SM_CYDRAG};
+    // SAFETY: no pointer and no handle; a failed read returns 0, and any move then counts.
+    unsafe { (GetSystemMetrics(SM_CXDRAG), GetSystemMetrics(SM_CYDRAG)) }
+}
+
+#[cfg(not(windows))]
+fn drag() -> (i32, i32) {
+    (4, 4)
 }
 
 /// How long the cursor rests on the island before it grows: the Windows hover time, within reason.
@@ -97,8 +168,12 @@ const ESCAPE: u8 = 0b1000;
 /// Whether the keys read in two ticks in a row close the panel: Esc pressed anywhere,
 /// or a mouse button pressed outside the island. Only a new press counts, not one held down.
 pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
-    let pressed = now & !before;
-    pressed & ESCAPE != 0 || (!inside && pressed & MOUSE != 0)
+    (now & !before) & ESCAPE != 0 || elsewhere(before, now, inside)
+}
+
+/// Whether a mouse button was just pressed outside the island.
+pub fn elsewhere(before: u8, now: u8, inside: bool) -> bool {
+    !inside && (now & !before) & MOUSE != 0
 }
 
 /// Whether the island takes the cursor this tick. A button already held when the cursor arrives,
@@ -252,8 +327,9 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Lets clicks and drags through everywhere except over the island, tells the frontend when the cursor
-/// enters it, with the hover time to wait, or leaves it, and when the open panel should close, keeps the window
-/// in place when the resolution, the scale or the taskbar changes, and hides it while something is fullscreen.
+/// enters it, with the hover time to wait, or leaves it, when the open panel should close, when a window is
+/// dragged, and of a click elsewhere while the island waits to tuck itself, keeps the window in place when the
+/// resolution, the scale or the taskbar changes, and hides it while something is fullscreen.
 // shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
 // first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
 // on the press itself: switch when touch matters or profiling shows a cost.
@@ -277,7 +353,9 @@ pub fn follow_cursor(
         };
         let mut over = None;
         let mut before = None;
+        let mut clicked = None;
         let mut tick: u32 = 0;
+        let mut moves = Move::default();
         // Going, the island slides up off the screen and then the window hides. Coming back, the window
         // shows first and then the island drops down.
         let mut hide_at = None;
@@ -338,6 +416,9 @@ pub fn follow_cursor(
             if settle.step(screen(), checked, width_changed, second) {
                 let _ = place(&window);
             }
+            if let Some(moving) = moves.step(fullscreen::moving(), (x, y), drag()) {
+                let _ = app.emit("island://moving", moving);
+            }
             let (x, y) = (f64::from(x) / scale, f64::from(y) / scale);
             let inside = app
                 .state::<IslandRects>()
@@ -367,6 +448,16 @@ pub fn follow_cursor(
                 before = Some(now);
             } else {
                 before = None;
+            }
+            if app.state::<IslandWaiting>().0.load(Ordering::Relaxed) {
+                if clicked
+                    .is_some_and(|before| elsewhere(before, keys, inside || over == Some(true)))
+                {
+                    let _ = app.emit("island://elsewhere", ());
+                }
+                clicked = Some(keys);
+            } else {
+                clicked = None;
             }
         }
     });
@@ -425,6 +516,14 @@ mod tests {
         assert!(!dismisses(ESCAPE, ESCAPE, false));
         assert!(!dismisses(MOUSE, MOUSE, false));
         assert!(!dismisses(ESCAPE, 0, false));
+    }
+
+    #[test]
+    fn a_new_click_outside_is_elsewhere_but_not_esc_or_one_inside() {
+        assert!(elsewhere(0, 0b001, false));
+        assert!(!elsewhere(0, 0b001, true));
+        assert!(!elsewhere(0, ESCAPE, false));
+        assert!(!elsewhere(0b001, 0b001, false));
     }
 
     #[test]
@@ -494,6 +593,33 @@ mod tests {
         // A game that changes the resolution between two checks doesn't change the size to come back to.
         assert!(!settle.step(GAME, false, false, false));
         assert_eq!(settle.before, NATIVE);
+    }
+
+    #[test]
+    fn a_click_on_a_title_bar_is_no_move() {
+        let mut moves = Move::default();
+        assert_eq!(moves.step(true, (100, 100), (4, 4)), None);
+        assert_eq!(moves.step(true, (103, 96), (4, 4)), None);
+        assert_eq!(moves.step(false, (103, 96), (4, 4)), None);
+    }
+
+    #[test]
+    fn a_drag_past_the_drag_rectangle_is_a_move_until_it_ends() {
+        let mut moves = Move::default();
+        assert_eq!(moves.step(true, (100, 100), (4, 4)), None);
+        assert_eq!(moves.step(true, (100, 105), (4, 4)), Some(true));
+        // Back near where it began, it is still the same move.
+        assert_eq!(moves.step(true, (100, 100), (4, 4)), None);
+        assert_eq!(moves.step(false, (300, 20), (4, 4)), Some(false));
+    }
+
+    #[test]
+    fn each_move_starts_from_its_own_press() {
+        let mut moves = Move::default();
+        moves.step(true, (100, 100), (4, 4));
+        moves.step(false, (100, 100), (4, 4));
+        assert_eq!(moves.step(true, (500, 500), (4, 4)), None);
+        assert_eq!(moves.step(true, (506, 500), (4, 4)), Some(true));
     }
 
     #[test]
