@@ -50,12 +50,13 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen, and hears a window start and end a move or a resize.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
+- `src-tauri/src/power.rs` reads the laptop's battery and the level Bluetooth devices report, and tells the page when you plug in, when the battery runs low, and when a device with a battery connects or runs low.
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
 - `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
@@ -83,6 +84,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
 | `bar_focus` | page → Rust | `open: bool` | `boolean` |
 | `timer_chime` | page → Rust | nothing | nothing |
+| `battery` | page → Rust | returns `Battery` (`power.rs`) | `Battery` (`src/lib/power.ts`) |
 | `welcome_pending` | page → Rust | returns `bool` (`welcome.rs`) | `boolean` |
 | `welcome_done` | page → Rust | returns `Result<(), String>` | nothing, or an error |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
@@ -95,6 +97,10 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+| `power://plugged` | Rust → page | `u8`: the level, as the PC is plugged in | `number` |
+| `power://low` | Rust → page | `Low` (`power.rs`), once per discharge | `Low` (`src/lib/power.ts`) |
+| `power://device` | Rust → page | `Device` (`power.rs`), as it connects | `Device` (`src/lib/power.ts`) |
+| `power://device-low` | Rust → page | `Device`, once per discharge | `Device` |
 
 ## Before you push
 
