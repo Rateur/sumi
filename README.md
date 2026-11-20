@@ -11,12 +11,12 @@
   <p><b>English</b> · <a href="README.fr.md">Français</a></p>
 </div>
 
-![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, then the command bar starting a timer](.github/assets/demo.gif)
+![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, the command bar starting a timer, then the island swiped up into a line and brought back](.github/assets/demo.gif)
 
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.6.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, and opens a command bar for a timer, an app or a question. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.7.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app or a question, and tucks into a line at the top when you swipe it away or leave it at rest. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
@@ -34,7 +34,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] Music from any app Windows can control (Spotify, browsers, VLC…): artwork, previous, play/pause, next, progress; the time moves to a bubble beside it (0.4.0)
 - [x] An orange or green dot when an app uses your microphone or camera, with the app and a mute under the cursor (0.5.0)
 - [x] A command bar (`Win+Alt+S`): a timer, an app, a question for Claude, ChatGPT, Gemini, Perplexity or a search engine; timers on the island, from `25m` (0.6.0)
-- [ ] Tuck the island into a thin line at the top with a scroll up, and a live taskbar icon that tucks it or brings it back
+- [x] Tuck the island into a thin line at the top with a swipe, or by itself at rest; a live tray icon with the microphone, camera and music that tucks it or brings it back (0.7.0)
 - [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
 - [ ] Settings (screen, theme, language, shortcuts), automatic updates and a signed installer
 

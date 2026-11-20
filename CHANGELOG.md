@@ -4,6 +4,30 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-20
+
+Tuck the island into a line at the top, and a tray icon that shows what it has.
+
+### Added
+
+- Swipe the island away and it tucks into a thin line under the top edge: rest the cursor on it, then scroll or swipe the touchpad, in any direction. Or press it and drag it away. The edge draws it up as a drop of ink, which spreads into the line.
+- An open panel tucks the same way, its ink drained up into the edge. A drag on the music's progress bar still moves the song.
+- To bring it back, rest the cursor on the line, click it, scroll or pull down on it, or press the command bar's shortcut. Something new that stays brings it back too: music that starts, a call, a timer that ends, an app using the microphone or the camera.
+- Showing only the time or a running timer, the island tucks itself after 10 seconds at rest, or 1 second after a click elsewhere. A timer comes back out when it rings. Music, the microphone and camera dot, calls and the command bar keep it out.
+- While you move or resize a window, the island tucks so Snap layouts has the top of the screen, and comes back when you let go.
+- Sumi's tray icon shows what the island has: an orange dot for the microphone, a green one for the camera, three bars while music plays. Its tooltip names the app or the song. A left click tucks the island or brings it back, and the menu speaks the island's language.
+
+### Fixed
+
+- When the music or timer panel closes, its progress bar and buttons fade where they are instead of jumping.
+
+### Known limits
+
+- The scroll reaches the island through Windows' **Scroll inactive windows when I hover over them** setting, on by default. With it off, drag the island or use the tray icon.
+- The line catches the cursor 12 px down from the top edge, in the middle of the screen: a cursor resting over a maximized browser's middle tab brings the island back.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- The installer isn't signed yet: your browser may hold the download, and Windows warns about an unknown publisher.
+
 ## [0.6.0] - 2026-11-19
 
 A command bar for a timer, an app or a question, and timers on the island.
@@ -123,7 +147,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Rateur/sumi/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Rateur/sumi/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Rateur/sumi/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/Rateur/sumi/compare/v0.3.0...v0.4.0
