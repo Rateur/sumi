@@ -11,6 +11,7 @@ Appuyez sur `Win+Alt+S` et l'île devient une barre. Tapez, regardez la pastille
 - **Une app** : son nom tel que le menu Démarrer l'affiche, comme `Discord`, ses quatre premières lettres ou plus, comme `disc`, ou un verbe et son nom, comme `lance spotify` ou `ouvre les paramètres`. Un accent oublié ne gêne pas, et après un verbe, une faute de frappe non plus.
 - **L'heure ou la date** : `quelle heure est-il` ou `on est quel jour`. La pastille donne la réponse, et Entrée l'affiche dans l'île avec la date.
 - **La batterie** : `batterie`, `autonomie` ou `niveau de batterie`. La pastille donne le niveau, d'où vient le courant et vos appareils connectés, et Entrée ouvre le panneau des batteries. Voir [Batterie](../battery/).
+- **La météo** : `météo à Lyon`, `météo Lyon demain`, ou `météo` seul pour la ville trouvée pendant la session. La première fois après le lancement de Sumi, la barre demande avant que rien ne soit envoyé. Voir [Météo](../weather/).
 - **Une question** : tout le reste va à Claude. Nommez d'abord un assistant pour en choisir un autre : `demande à chatgpt …`, `gemini …`, `perplexity …`, ou `cherche …` pour le moteur de recherche.
 
 Écrivez comme vous parlez : autour d'un verbe, `stp`, `tu peux` ou `hey Sumi` ne changent rien, la ponctuation non plus. `tu peux ouvrir Spotify stp ?` ouvre Spotify. Un mot seul n'ouvre une app que si une seule app commence ainsi. Si deux le font, comme `disco` pour Discord et Disco Elysium, la pastille demande à Claude et Tab propose les deux. Un verbe à la forme négative, comme `n'ouvre pas Spotify`, est une question.
@@ -30,11 +31,11 @@ Après Entrée, l'île montre un instant ce qui s'ouvre. Si rien ne peut s'ouvri
 
 ## Confidentialité
 
-Sumi n'envoie rien. La liste des apps est lue dans le menu Démarrer et reste en mémoire. Ce que vous tapez n'est jamais enregistré, et la ligne est effacée quand la barre se ferme. Votre question ne quitte votre PC que par l'app ou le site que vous avez choisi, après Entrée.
+Sumi n'envoie rien, sauf la météo une fois que vous l'avez autorisée : la ville part vers Open-Meteo, voir [Météo](../weather/). La liste des apps est lue dans le menu Démarrer et reste en mémoire. Ce que vous tapez n'est jamais enregistré, et la ligne est effacée quand la barre se ferme. Votre question ne quitte votre PC que par l'app ou le site que vous avez choisi, après Entrée.
 
 ## Limites
 
-- Une seule chose par ligne : un minuteur, une app, l'heure, la batterie ou une question.
+- Une seule chose par ligne : un minuteur, une app, l'heure, la batterie, la météo ou une question.
 - Le début d'un mot qui peut encore devenir une question ou un mot de la barre, comme `expl` (« explique ») ou `what`, n'ouvre pas d'app seul. Tapez le nom entier : `explorateur`, `whatsapp`.
 - Une app installée il y a quelques minutes peut n'apparaître qu'à la prochaine ouverture de la barre.
 - Tant que l'île est masquée en plein écran, le raccourci ne fait rien.

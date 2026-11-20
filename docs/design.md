@@ -11,7 +11,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
 | Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date, or a timer's name. |
 | Compact | Call 144, timer 112 (128 from an hour), music 200 × 34 px* | An activity runs: content on the left and right ends. |
-| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s; plugging in 200 × 34 px*, 2 s, and a device connecting, 3 s; a low battery 300 × 56 px*, 3 s | Something just happened: timer ended, charger, low battery, a device with a battery connecting. A new song swells instead, see [Music](#music). The battery's are in [Battery](#battery). |
+| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s; plugging in 200 × 34 px*, 2 s, and a device connecting, 3 s; a low battery 300 × 56 px*, 3 s; the weather 300 × 56 px*, 4 s | Something just happened: timer ended, charger, low battery, a device with a battery connecting, the weather asked in the command bar. A new song swells instead, see [Music](#music). The battery's are in [Battery](#battery), the weather's in [Weather](#weather). |
 | Done | Timer 150 × 34 px* at least | A timer ended and waits for OK. |
 | Expanded | Clock and timer 280 × 120 px*, music 360 × 164 px*, batteries 280 or 360 × 120 px*, 164 tall with a ring grown, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. The batteries open from the command bar or a battery peek, see [Battery](#battery). |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
@@ -39,7 +39,7 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 
 What was picked from the bubble comes right after a timer that ended. Timers go by their end rather than by what is shown, so the island always holds the next one to ring.
 
-A battery peek shows over this order for a few seconds, and never covers a call or a timer's end peek. A low battery waits for them, and for the bar, an open panel, the welcome, fullscreen and while Windows says you're busy. Plugging in and a device connecting are dropped instead.
+The weather asked in the bar shows over all of it for 4 s, as the bar's answers do. A battery peek shows over this order for a few seconds, and never covers a call or a timer's end peek. A low battery waits for them, and for the bar, an open panel, the welcome, fullscreen and while Windows says you're busy. Plugging in and a device connecting are dropped instead.
 
 ## Music
 
@@ -106,6 +106,23 @@ One ring per device, the PC first, then by kind (headset, speaker, controller, m
 - The peeks move as a song's does; the bolt's stroke is new. **Reduced motion**: the content fades out in 120 ms, the shape and the rings change, the new content fades in over 120 ms; arcs are drawn at their level and the bolt is there at once. **Contrast theme**: the rings keep their own colours, as the dots do.
 - The laptop's battery is read once at launch: without one, nothing is listened to. Then only Windows' events come: the supply, the level and energy saver, and for devices the connection and the level. Nothing is logged or stored.
 
+## Weather
+
+Asked in the command bar only: no weather at rest, no alert and nothing at launch. It is Sumi's only network request, and it waits for a yes.
+
+- **Words**: `météo`, `meteo` or `weather` on a line of their own, with a city or not (`météo Lyon`, `météo à Lyon`, `weather in Paris`), ending with `demain` or `tomorrow` or not. A city is letters only, 4 words at most. `temps` is no weather word. The chip is worked out on the PC as you type: "Weather Paris", "Weather Paris tomorrow". These words come before an app's exact name, since Windows' own weather app is called "Weather"; Tab still offers it.
+- **No city typed**: the city found this session. Before one, the chip reads "Weather · type a city" and Enter does nothing.
+- **The yes**, on the first weather Enter of a session. Nothing is sent: the field becomes "Open-Meteo will get "Lyon" and your IP.", read-only and without a caret, taking the room the chip leaves, and the chip becomes "Allow ↵". A city of more than 11 characters is cut with "…" so the sentence ends inside the bar; a screen reader hears it whole. Enter is yes. Esc is no: the bar closes, and nothing is sent or kept. No new shape and no buttons.
+- **While Open-Meteo answers**, the bar folds into the launch shape, 200 × 34 px*, a cloud and "Weather Lyon".
+- **Peek**: 300 × 56 px* for 4 s, which always shows: you just asked. A 28 px glyph 16 px from the left, drawn white on 24 units with a 1.6 stroke, then 12 px further two lines: "Lyon · 14° · Cloudy", or "Lyon tomorrow · Showers", in white, and under it, at 60 %, the low and the high, "9° / 17°". For today, when an hour still to come has a rain chance of 50 % or more, the second line is "Rain around 4 pm" instead. In the bottom right corner, 18 px in and on the second line's baseline, "Open-Meteo" in 11 px 500, white at 40 %: a click opens open-meteo.com. The rest of the peek takes no click and doesn't give under a press.
+- **Six glyphs**: sun, moon (a clear sky at night, from `is_day`), cloud (fog too), rain, snow and storm. The chip and the launch shape show the cloud.
+- **Errors**, for 2 s in the launch shape: "City not found", and "No connection", which 8 s without an answer counts as too.
+- **Degrees**: Celsius, or Fahrenheit when the island's language has the US region (`en-US`).
+- **Requests**: the city to `geocoding-api.open-meteo.com/v1/search` (one result, in the island's language), then its coordinates, never yours, to `api.open-meteo.com/v1/forecast`. Both with `cache: 'no-store'`, so WebView2 writes nothing to disk, `credentials: 'omit'` and `referrerPolicy: 'no-referrer'`. The CSP allows these two hosts and no other. There is no forecast cache.
+- **Kept**: the yes and the city found, in memory for the session only. Quitting Sumi forgets both. Nothing is written to disk or a log.
+- The peek moves as a song's: glyph, first line, second line, then the credit. **Reduced motion** and **contrast theme**: as the battery's peeks.
+- Weather data by [Open-Meteo](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## Input
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
@@ -121,7 +138,7 @@ Known limits: with touch or a pen, the first tap on the island reaches the app u
 | `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, `battery` gives the batteries on the chip and opens their panel, and anything else is a question. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, `battery` gives the batteries on the chip and opens their panel, `weather in Paris` asks Open-Meteo after a yes, see [Weather](#weather), and anything else is a question. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
 
 The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
 
@@ -175,7 +192,7 @@ What the island and its bubble show decides whether it stays or tucks itself aft
 |---|---|
 | Microphone or camera dot | Stays, and brings it back |
 | Call | Stays, and brings it back |
-| Command bar or its answer | Stays, and brings it back |
+| Command bar or its answer, the weather's peek included | Stays, and brings it back |
 | Welcome | Stays, and brings it back |
 | A timer's end peek or done pill | Stays, and brings it back |
 | Low battery, the PC's or a device's | Stays, and brings it back |

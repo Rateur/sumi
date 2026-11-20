@@ -51,12 +51,12 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
 - `src-tauri/src/power.rs` reads the laptop's battery and the level Bluetooth devices report, and tells the page when you plug in, when the battery runs low, and when a device with a battery connects or runs low.
-- `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
+- `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, opens a question in an assistant or the search engine, and opens Open-Meteo's site from the weather peek's credit.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
-- `src/Island.svelte` draws the island. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/Island.svelte` draws the island, and asks Open-Meteo for the weather after the bar's yes: Sumi's only network request. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), the weather's links, glyphs and words (`weather.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
@@ -81,6 +81,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `app_icon` | page → Rust | `id: String`, returns `Option<Icon>` (`privacy.rs`) | `{ side, rgba }` or `null` |
 | `app_launch` | page → Rust | `id: String`, returns `bool` | `boolean` |
 | `assistant_open` | page → Rust | `target: Target` (`apps.rs`), `query: String`, returns `bool` | `Target` (`src/lib/intent.ts`), `string` |
+| `open_meteo` | page → Rust | returns `bool` (`apps.rs`): opens https://open-meteo.com | `boolean` |
 | `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
 | `bar_focus` | page → Rust | `open: bool` | `boolean` |
 | `timer_chime` | page → Rust | nothing | nothing |
