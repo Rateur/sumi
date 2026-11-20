@@ -275,6 +275,13 @@ export const corpus: Row[] = [
   ['batterie qui chauffe', 'fr', 'ask'],
   ['comment économiser la batterie', 'fr', 'ask'],
   ['acheter une batterie externe', 'fr', 'ask'],
+  // On its way: a word alone that starts one of the bar's own words.
+  ['batt', 'fr', 'battery', ''],
+  ['autono', 'fr', 'battery', ''],
+  ['heu', 'fr', 'clock', 'time'],
+  ['bateau', 'fr', 'ask'],
+  ['heureux', 'fr', 'ask'],
+  ['autoroute', 'fr', 'ask'],
 
   // --- French: timers ---
   ['met un minuteur de 10s', 'fr', 'timer', 10 * s],
@@ -697,6 +704,13 @@ export const corpus: Row[] = [
   ['battery saver tips', 'en', 'ask'],
   ['how to save battery on windows', 'en', 'ask'],
   ['best battery pack', 'en', 'ask'],
+  // On its way: a word alone that starts one of the bar's own words.
+  ['bat', 'en', 'battery', ''],
+  ['tim', 'en', 'clock', 'time'],
+  ['dat', 'en', 'clock', 'date'],
+  ['batman', 'en', 'ask'],
+  ['timeline', 'en', 'ask'],
+  ['database', 'en', 'ask'],
 
   // --- English: timers ---
   ['set a timer for 5 minutes', 'en', 'timer', 5 * min],

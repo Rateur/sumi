@@ -832,6 +832,29 @@ const DATE = new RegExp(
 // Whole lines only, as for the time: 'batterie faible que faire' stays a question.
 const BATTERY = /^(?:batterie|battery|battery level|autonomie|niveau de batterie)$/
 
+// --- The bar's own words, on their way ---
+
+// The words that answer alone, folded, by what they ask. A timer needs a length, so 'minuteur' and 'timer' aren't here.
+const OWN: [string, 'battery' | 'time' | 'date'][] = [
+  ['batterie', 'battery'],
+  ['battery', 'battery'],
+  ['autonomie', 'battery'],
+  ['heure', 'time'],
+  ['time', 'time'],
+  ['date', 'date'],
+]
+
+/**
+ * What a word alone on the line, 3 letters or more, asks for when it starts one of the bar's own words, and only
+ * words of one kind: 'bat' and 'batte' are the battery, 'heu' the time. Never inside a longer line, so 'batman' and
+ * 'time management' stay questions.
+ */
+export function own(text: string): 'battery' | 'time' | 'date' | undefined {
+  if (text.length < 3 || text.includes(' ')) return
+  const asks = new Set(OWN.filter(([word]) => word.startsWith(text)).map(([, what]) => what))
+  return asks.size === 1 ? [...asks][0] : undefined
+}
+
 // --- Assistants ---
 
 // A question opens in Claude's app when Windows knows its link, on the website otherwise.
@@ -985,14 +1008,22 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     // their way to 'stp'. A bare name keeps its politeness, so 'discord st' holds nothing.
     const tail = TAIL.exec(text)
     const cut = tail ? text.slice(0, tail.index) : ''
-    if (TIME.test(text) || TIME.test(cut)) {
-      return [{ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) }, typed]
-    }
-    if (DATE.test(text) || DATE.test(cut)) {
+    const time = (): Choice<A> => ({ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) })
+    const date = (): Choice<A> => {
       const day = formatLongDate(new Date(now), locale)
-      return [{ kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }, typed]
+      return { kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }
     }
-    if (BATTERY.test(text) || BATTERY.test(cut)) return [{ kind: 'battery', label: answer(options.battery, lang) }, typed]
+    const battery = (): Choice<A> => ({ kind: 'battery', label: answer(options.battery, lang) })
+    if (TIME.test(text) || TIME.test(cut)) return [time(), typed]
+    if (DATE.test(text) || DATE.test(cut)) return [date(), typed]
+    if (BATTERY.test(text) || BATTERY.test(cut)) return [battery(), typed]
+    // One of the bar's own words on its way comes first; an app the word also starts is one Tab away.
+    const asked = own(text)
+    if (asked) {
+      const app = starts(index, key(whole.text, true), tied)
+      if (app) tied.unshift(app)
+      return [asked === 'battery' ? battery() : asked === 'time' ? time() : date(), typed]
+    }
     const by = BY_NAME.exec(text)
     if (by) {
       const to: Target = by[1] === 'google' ? 'search' : by[1] === 'gpt' ? 'chatgpt' : (by[1] as Assistant)
