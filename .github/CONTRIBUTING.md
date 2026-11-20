@@ -99,7 +99,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
 | `power://plugged` | Rust → page | `u8`: the level, as the PC is plugged in | `number` |
 | `power://low` | Rust → page | `Low` (`power.rs`), once per discharge | `Low` (`src/lib/power.ts`) |
-| `power://device` | Rust → page | `Device` (`power.rs`), as it connects, but a mouse or a keyboard only when low | `Device` (`src/lib/power.ts`) |
+| `power://device` | Rust → page | `Device` (`power.rs`), as it connects, its level `None` when Windows gives none, but a mouse or a keyboard only when low | `Device` (`src/lib/power.ts`) |
 | `power://device-low` | Rust → page | `Device`, once per discharge | `Device` |
 | `power://battery` | Rust → page | `Battery` (`power.rs`), when what the batteries panel shows changed | `Battery` (`src/lib/power.ts`) |
 

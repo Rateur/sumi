@@ -33,12 +33,13 @@ pub struct Battery {
     devices: Vec<Device>,
 }
 
-/// A connected device's battery. Mirrored in src/lib/power.ts.
+/// A connected device's battery: `None` for a headset, a speaker or a controller Windows gives no level for.
+/// Mirrored in src/lib/power.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Device {
     name: String,
     kind: Kind,
-    percent: u8,
+    percent: Option<u8>,
 }
 
 /// What a device is, for its glyph and its place in the panel. Mirrored in src/lib/power.ts.
@@ -153,15 +154,26 @@ struct Gadget {
     told: bool,
     /// Whether the low warning came since the level was last above `LOW`.
     warned: bool,
+    /// Until when a level may still come after it connected: past that, it peeks without one.
+    waiting: Option<Instant>,
 }
 
 impl Gadget {
+    /// The device as the page shows it: with the level that came on this connection, or none.
     fn device(&self) -> Option<Device> {
         Some(Device {
             name: self.name.clone(),
             kind: self.kind?,
-            percent: self.percent?,
+            percent: self.percent.filter(|_| self.live),
         })
+    }
+
+    /// Shown without a level: a headset, a speaker or a controller. A mouse or a keyboard without one stays out.
+    fn shows_unknown(&self) -> bool {
+        matches!(
+            self.kind,
+            Some(Kind::Headset | Kind::Speaker | Kind::Controller)
+        )
     }
 }
 
@@ -194,16 +206,21 @@ impl Gadgets {
         let was = std::mem::replace(&mut g.connected, connected);
         if !connected || was {
             g.live &= connected;
+            g.waiting = g.waiting.filter(|_| connected);
             return None;
         }
-        // At launch the level Windows has is the one it shows; later, only a fresh one counts.
+        // At launch the level Windows has is the one it shows; later, only a fresh one counts, and one may still come.
         g.told = !ready;
         g.live = if ready {
             g.read.is_some_and(|at| now.duration_since(at) <= FRESH)
         } else {
             g.percent.is_some()
         };
-        if g.live { tell(g, ready) } else { None }
+        if g.live {
+            return tell(g, ready);
+        }
+        g.waiting = ready.then_some(now + FRESH);
+        None
     }
 
     /// A node's level. Windows keeps the last one of a device that left, so a level only counts while connected.
@@ -219,18 +236,59 @@ impl Gadgets {
             return None;
         }
         g.live = true;
+        g.waiting = None;
         tell(g, ready)
     }
 
-    /// The connected devices whose level came while connected. The page puts them in order.
+    /// When the next device that connected without a level stops waiting for one.
+    fn next(&self) -> Option<Instant> {
+        self.by_address.values().filter_map(|g| g.waiting).min()
+    }
+
+    /// The devices that connected without a level and waited long enough: a headset, a speaker or a controller peeks
+    /// without one, unless its other half, Bluetooth or Bluetooth LE, already has a level.
+    fn due(&mut self, now: Instant) -> Vec<Peek> {
+        let known: Vec<String> = self
+            .by_address
+            .values()
+            .filter(|g| g.connected && g.live)
+            .map(|g| g.name.clone())
+            .collect();
+        let mut peeks = Vec::new();
+        for g in self.by_address.values_mut() {
+            if g.waiting.is_none_or(|at| at > now) {
+                continue;
+            }
+            g.waiting = None;
+            let alone = !known.contains(&g.name);
+            if g.connected
+                && !g.live
+                && g.shows_unknown()
+                && alone
+                && !std::mem::replace(&mut g.told, true)
+            {
+                peeks.extend(g.device().map(Peek::Device));
+            }
+        }
+        peeks
+    }
+
+    /// The connected devices with the level that came while connected, and a headset, a speaker or a controller
+    /// without one. The page puts them in order.
     fn connected(&self) -> Vec<Device> {
         let mut devices: Vec<Device> = self
             .by_address
             .values()
-            .filter(|g| g.connected && g.live)
+            .filter(|g| g.connected && (g.live || g.shows_unknown()))
             .filter_map(Gadget::device)
             .collect();
-        devices.sort_by(|a, b| a.name.cmp(&b.name));
+        devices.sort_by(|a, b| {
+            a.name
+                .cmp(&b.name)
+                .then(b.percent.is_some().cmp(&a.percent.is_some()))
+        });
+        // A device's two halves, Bluetooth and Bluetooth LE, show once, with a level when one has it.
+        devices.dedup_by(|b, a| a.name == b.name);
         devices
     }
 }
@@ -240,7 +298,7 @@ impl Gadgets {
 /// once per discharge. Nothing for what was there at launch, nor for a phone or a computer.
 fn tell(g: &mut Gadget, ready: bool) -> Option<Peek> {
     let device = g.device().filter(|_| ready)?;
-    let low = device.percent <= LOW && !g.warned;
+    let low = device.percent? <= LOW && !g.warned;
     g.warned |= low;
     if !std::mem::replace(&mut g.told, true) {
         let quiet = matches!(device.kind, Kind::Mouse | Kind::Keyboard);
@@ -345,7 +403,7 @@ fn run(app: &AppHandle) {
 
 #[cfg(windows)]
 mod win {
-    use std::sync::mpsc::{Sender, channel};
+    use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
     use std::time::Instant;
 
     use tauri::{AppHandle, Emitter, Manager};
@@ -479,8 +537,25 @@ mod win {
         };
         let mut listed = 0;
         let mut shown = None;
-        while let Ok(msg) = rx.recv() {
+        loop {
+            // Asleep until Windows calls, or until a device that connected without a level stops waiting for one.
+            let msg = match gadgets.next() {
+                Some(at) => match rx.recv_timeout(at.saturating_duration_since(Instant::now())) {
+                    Ok(msg) => Some(msg),
+                    Err(RecvTimeoutError::Timeout) => None,
+                    Err(RecvTimeoutError::Disconnected) => break,
+                },
+                None => match rx.recv() {
+                    Ok(msg) => Some(msg),
+                    Err(_) => break,
+                },
+            };
             let now = Instant::now();
+            let mut peeks = gadgets.due(now);
+            let Some(msg) = msg else {
+                after(app, &power, &gadgets, &mut shown, peeks);
+                continue;
+            };
             let peek = match msg {
                 Msg::Laptop => read(&mut laptop, &power, now),
                 Msg::Endpoint {
@@ -500,19 +575,30 @@ mod win {
                     None
                 }
             };
-            if let Ok(mut devices) = power.devices.lock() {
-                *devices = gadgets.connected();
-            }
-            if let Some(peek) = peek {
-                emit(app, peek);
-            }
-            // What an open panel shows, sent only when it changed.
-            if gadgets.ready {
-                let now = Some(power.now());
-                if now != shown {
-                    let _ = app.emit("power://battery", &now);
-                    shown = now;
-                }
+            peeks.extend(peek);
+            after(app, &power, &gadgets, &mut shown, peeks);
+        }
+    }
+
+    /// Keeps the bar's list, tells the page, and sends what an open panel shows, only when it changed.
+    fn after(
+        app: &AppHandle,
+        power: &Power,
+        gadgets: &Gadgets,
+        shown: &mut Option<Battery>,
+        peeks: Vec<Peek>,
+    ) {
+        if let Ok(mut devices) = power.devices.lock() {
+            *devices = gadgets.connected();
+        }
+        for peek in peeks {
+            emit(app, peek);
+        }
+        if gadgets.ready {
+            let now = Some(power.now());
+            if now != *shown {
+                let _ = app.emit("power://battery", &now);
+                *shown = now;
             }
         }
     }
@@ -680,7 +766,9 @@ mod win {
 mod tests {
     use std::time::{Duration, Instant};
 
-    use super::{Device, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind, minutes, to_full};
+    use super::{
+        Device, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind, minutes, to_full,
+    };
 
     #[test]
     fn plugging_in_peeks_and_unplugging_says_nothing() {
@@ -812,7 +900,7 @@ mod tests {
         Device {
             name: "Casque".into(),
             kind,
-            percent,
+            percent: Some(percent),
         }
     }
 
@@ -829,9 +917,9 @@ mod tests {
     #[test]
     fn a_device_peeks_with_the_level_that_comes_after_it_connects() {
         let (mut g, t) = listed(Kind::Headset, 90);
-        // The level Windows kept from last time is no news.
+        // The level Windows kept from last time is no news: the headset shows without one until a fresh one comes.
         assert_eq!(g.endpoint("A", None, None, Some(true), t), None);
-        assert!(g.connected().is_empty());
+        assert_eq!(g.connected()[0].percent, None);
         let headset = |p| device(Kind::Headset, p);
         assert_eq!(g.level("A", 60, t), Some(Peek::Device(headset(60))));
         assert_eq!(g.level("A", 59, t), None);
@@ -914,6 +1002,70 @@ mod tests {
         g.ready = true;
         assert_eq!(g.connected(), vec![device(Kind::Headset, 70)]);
         assert_eq!(g.level("A", 69, t), None);
+    }
+
+    /// A device paired before launch that Windows never gave a level for, listed while away.
+    fn unheard(kind: Kind) -> (Gadgets, Instant) {
+        let mut g = Gadgets::default();
+        let t = Instant::now();
+        g.endpoint("A", Some("Casque".into()), Some(Some(kind)), Some(false), t);
+        g.ready = true;
+        (g, t)
+    }
+
+    #[test]
+    fn a_speaker_without_a_level_peeks_once_it_has_waited_for_one() {
+        let (mut g, t) = unheard(Kind::Speaker);
+        assert_eq!(g.endpoint("A", None, None, Some(true), t), None);
+        assert_eq!(g.next(), Some(t + FRESH));
+        assert!(g.due(t + Duration::from_secs(1)).is_empty());
+        let unknown = Device {
+            name: "Casque".into(),
+            kind: Kind::Speaker,
+            percent: None,
+        };
+        assert_eq!(g.due(t + FRESH), vec![Peek::Device(unknown.clone())]);
+        assert_eq!(g.next(), None);
+        assert_eq!(g.connected(), vec![unknown]);
+        // A level that comes later shows, without a second peek.
+        assert_eq!(g.level("A", 70, t + FRESH), None);
+        assert_eq!(g.connected(), vec![device(Kind::Speaker, 70)]);
+    }
+
+    #[test]
+    fn a_level_within_the_wait_peeks_with_it() {
+        let (mut g, t) = listed(Kind::Headset, 90);
+        g.endpoint("A", None, None, Some(true), t);
+        assert_eq!(
+            g.level("A", 60, t),
+            Some(Peek::Device(device(Kind::Headset, 60)))
+        );
+        assert_eq!(g.next(), None);
+        assert!(g.due(t + FRESH).is_empty());
+    }
+
+    #[test]
+    fn a_mouse_without_a_level_stays_out() {
+        let (mut g, t) = unheard(Kind::Mouse);
+        g.endpoint("A", None, None, Some(true), t);
+        assert!(g.due(t + FRESH).is_empty());
+        assert!(g.connected().is_empty());
+    }
+
+    #[test]
+    fn a_device_shows_once_with_its_level_when_one_half_has_it() {
+        let (mut g, t) = listed(Kind::Headset, 90);
+        g.endpoint("A", None, None, Some(true), t);
+        g.level("A", 60, t);
+        g.endpoint(
+            "B",
+            Some("Casque".into()),
+            Some(Some(Kind::Headset)),
+            Some(true),
+            t,
+        );
+        assert!(g.due(t + FRESH).is_empty());
+        assert_eq!(g.connected(), vec![device(Kind::Headset, 60)]);
     }
 
     #[test]

@@ -102,7 +102,7 @@ La page appelle Rust avec `invoke()` et écoute ses événements avec `listen()`
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
 | `power://plugged` | Rust → page | `u8` : le niveau, quand le PC est branché | `number` |
 | `power://low` | Rust → page | `Low` (`power.rs`), une fois par décharge | `Low` (`src/lib/power.ts`) |
-| `power://device` | Rust → page | `Device` (`power.rs`), à sa connexion, mais une souris ou un clavier seulement s'il est faible | `Device` (`src/lib/power.ts`) |
+| `power://device` | Rust → page | `Device` (`power.rs`), à sa connexion, son niveau à `None` quand Windows n'en donne pas, mais une souris ou un clavier seulement s'il est faible | `Device` (`src/lib/power.ts`) |
 | `power://device-low` | Rust → page | `Device`, une fois par décharge | `Device` |
 | `power://battery` | Rust → page | `Battery` (`power.rs`), quand ce que montre le panneau des batteries a changé | `Battery` (`src/lib/power.ts`) |
 
