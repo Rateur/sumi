@@ -1,6 +1,7 @@
 //! Sumi's Windows side. `island` polls the cursor on a thread of its own and emits island://pointer,
 //! island://presence, island://dismiss, island://moving and island://elsewhere; `fullscreen` hooks the foreground
-//! window and window moves on the main thread and only feeds that poll. The tray's tuck item emits island://tuck.
+//! window and window moves on the main thread and only feeds that poll. `tray` draws the tray icon as the page says
+//! and emits island://tuck from a left click or the menu's tuck item.
 //! `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread of its own
 //! that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads Start's list
 //! once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers` and `welcome`
@@ -13,13 +14,12 @@ mod island;
 mod media;
 mod privacy;
 mod timers;
+mod tray;
 mod welcome;
 
 use std::sync::Mutex;
 
-use tauri::menu::{Menu, MenuItem};
-use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 pub fn run() {
     // One Sumi at a time: a second copy would draw a second island and a second tray icon. A dev build uses its
@@ -53,7 +53,6 @@ pub fn run() {
             island::set_island_rects,
             island::set_island_expanded,
             island::island_presence,
-            island::set_tuck_label,
             island::set_island_waiting,
             apps::apps_list,
             apps::has_claude,
@@ -70,6 +69,7 @@ pub fn run() {
             privacy::privacy_settings,
             privacy::privacy_show,
             timers::timer_chime,
+            tray::set_tray,
             welcome::welcome_pending,
             welcome::welcome_done
         ])
@@ -83,30 +83,11 @@ pub fn run() {
             }
 
             bar::register(app.handle());
-            // Where the shortcut can still be found once the welcome has gone by. Given to the builder, which
-            // applies it again when Explorer restarts, rather than set later, which fails while the taskbar isn't up.
+            // Where the shortcut can still be found once the welcome has gone by.
             let tip = bar::bar_shortcut(app.state())
                 .map_or("Sumi".into(), |keys| format!("Sumi · {keys}"));
-
-            // The island has no title bar and no taskbar button: the tray icon is how you quit. Its first item tucks
-            // the island or brings it back; the page gives it its words, in the island's language.
-            let tuck = MenuItem::with_id(app, "tuck", "Tuck the island", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit Sumi", true, None::<&str>)?;
-            let mut tray = TrayIconBuilder::new()
-                .tooltip(tip)
-                .menu(&Menu::with_items(app, &[&tuck, &quit])?)
-                .on_menu_event(|app, event| match event.id().as_ref() {
-                    "tuck" => {
-                        let _ = app.emit("island://tuck", ());
-                    }
-                    "quit" => app.exit(0),
-                    _ => {}
-                });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
-            tray.build(app)?;
-            app.manage(island::TuckItem(tuck));
+            // The island has no title bar and no taskbar button: the tray icon is how you quit.
+            tray::build(app, tip)?;
 
             let window = app
                 .get_webview_window("island")

@@ -10,7 +10,7 @@ L'île peut se ranger dans une fine ligne sous le bord supérieur de votre écra
 - **Balayez-la, dans n'importe quel sens.** Posez le curseur sur l'île, puis molette ou balayage sur le pavé tactile : un cran suffit, et elle rentre dans la ligne de ce côté. Une molette sur un curseur qui ne fait que passer ne fait rien.
 - **Ou faites-la glisser.** Appuyez sur l'île et faites-la glisser dans n'importe quel sens : elle suit un peu, et se range quand vous lâchez. Ramenez-la à sa place pour changer d'avis.
 - **Même ouverte.** Le panneau de l'heure, de la musique ou d'un minuteur se range de la même façon, et son encre remonte dans le bord. Un glissement sur la barre de progression de la musique change toujours la position dans le morceau, et les boutons prennent toujours un clic.
-- **Dans le menu de l'icône de la zone de notification**, choisissez **Ranger l'île**.
+- **Cliquez sur l'icône de Sumi** dans la zone de notification, ou choisissez **Ranger l'île** dans son menu. Voir [Icône de la zone de notification](../tray-icon/).
 - **Déplacez une fenêtre.** Pendant que vous déplacez ou redimensionnez une fenêtre, l'île se range pour laisser le haut de l'écran aux dispositions d'ancrage, et revient quand vous lâchez. Si elle était déjà rangée, elle le reste.
 
 ## Elle se range toute seule
@@ -21,7 +21,7 @@ Quand l'île n'affiche que l'heure ou un minuteur en cours, elle se range toute 
 
 - **Posez le curseur sur la ligne**, cliquez dessus, molette vers le bas dessus, ou tirez-la vers le bas.
 - **Appuyez sur le raccourci de la barre de commande** : la barre s'ouvre depuis la ligne.
-- **Dans le menu de l'icône de la zone de notification**, choisissez **Faire revenir l'île**.
+- **Cliquez sur l'icône de Sumi** dans la zone de notification, ou choisissez **Faire revenir l'île** dans son menu.
 - **Du nouveau** la fait revenir : un appel, la musique qui démarre, un minuteur qui finit, une app qui utilise le micro ou la caméra.
 
 Elle revient à ce qu'elle afficherait à ce moment-là : l'heure, la musique ou le minuteur. Après l'avoir fait revenir à la main, les 10 secondes repartent une fois que le curseur l'a quittée.
