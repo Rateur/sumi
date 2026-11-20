@@ -1,9 +1,9 @@
 /**
  * Lines as people type them in the command bar, typos, missing accents and politeness included, each with the one
  * chip it must give: [line, language, kind, target]. The target is the app's name, the timer's length in ms, 'time'
- * or 'date', '' for the battery, or where a question goes; a question without one goes to the default assistant,
- * Claude. More than half are questions that must stay questions: acting wrongly costs more than not acting. Add every
- * bug report as a row.
+ * or 'date', '' for the battery, the city as typed or '' for the weather, or where a question goes; a question
+ * without one goes to the default assistant, Claude. More than half are questions that must stay questions: acting
+ * wrongly costs more than not acting. Add every bug report as a row.
  */
 
 import type { Choice } from './intent'
@@ -275,6 +275,20 @@ export const corpus: Row[] = [
   ['batterie qui chauffe', 'fr', 'ask'],
   ['comment économiser la batterie', 'fr', 'ask'],
   ['acheter une batterie externe', 'fr', 'ask'],
+
+  // --- French: the weather ---
+  ['météo', 'fr', 'weather', ''],
+  ['météo Lyon', 'fr', 'weather', 'Lyon'],
+  ['météo à Lyon', 'fr', 'weather', 'Lyon'],
+  ['meteo lyon demain', 'fr', 'weather', 'lyon'],
+  ['météo Saint-Étienne stp', 'fr', 'weather', 'Saint-Étienne'],
+  ['météo demain', 'fr', 'weather', ''],
+  ['quel temps fait-il à Lyon', 'fr', 'ask'],
+  ['temps à Lyon', 'fr', 'ask'],
+  ['météo de la semaine', 'fr', 'ask'],
+  ['la météo se trompe souvent', 'fr', 'ask'],
+  ['prévisions météo Lyon', 'fr', 'ask'],
+  ['météo dans 10 minutes', 'fr', 'ask'],
 
   // --- French: timers ---
   ['met un minuteur de 10s', 'fr', 'timer', 10 * s],
@@ -697,6 +711,20 @@ export const corpus: Row[] = [
   ['battery saver tips', 'en', 'ask'],
   ['how to save battery on windows', 'en', 'ask'],
   ['best battery pack', 'en', 'ask'],
+
+  // --- English: the weather ---
+  ['weather', 'en', 'weather', ''],
+  ['weather Paris', 'en', 'weather', 'Paris'],
+  ['weather in Paris', 'en', 'weather', 'Paris'],
+  ['weather in New York tomorrow', 'en', 'weather', 'New York'],
+  ['Weather London please', 'en', 'weather', 'London'],
+  ['weather today', 'en', 'weather', ''],
+  ['weather forecast for next week', 'en', 'ask'],
+  ['weather in 10 minutes', 'en', 'ask'],
+  ['what is the weather like in Rome', 'en', 'ask'],
+  ['is the weather nice today', 'en', 'ask'],
+  ['weather like in Rome', 'en', 'ask'],
+  ['weather radar', 'en', 'ask'],
 
   // --- English: timers ---
   ['set a timer for 5 minutes', 'en', 'timer', 5 * min],
