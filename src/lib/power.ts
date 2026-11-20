@@ -45,6 +45,7 @@ export const waits = (power: Power): boolean => power.kind === 'low' || power.ki
 const WORDS = {
   fr: {
     title: 'Batterie',
+    mains: 'Sur secteur',
     about: (t: string) => `environ ${t}`,
     left: (t: string) => `Environ ${t}`,
     battery: 'sur batterie',
@@ -55,6 +56,7 @@ const WORDS = {
   },
   en: {
     title: 'Battery',
+    mains: 'Plugged in',
     about: (t: string) => `about ${t} left`,
     left: (t: string) => `About ${t} left`,
     battery: 'on battery',
@@ -107,6 +109,15 @@ export function lines(power: Power, lang: Lang): string[] {
   return power.kind === 'device' ? [name, percent(level)] : [percent(level), name]
 }
 
+/** What a screen reader hears as a peek shows: its lines, after what they are about when they don't say it. */
+export function spoken(power: Power, lang: Lang): string {
+  const words = WORDS[lang]
+  const said = lines(power, lang)
+  if (power.kind === 'plugged') said.unshift(words.mains)
+  if (power.kind === 'deviceLow' || (power.kind === 'low' && power.minutes)) said.unshift(words.low)
+  return said.join(' · ')
+}
+
 /** The level a peek fills its battery to, from 0 to 1. */
-export const level = (power: Power): number =>
+export const charge = (power: Power): number =>
   Math.min(1, Math.max(0, ('device' in power ? power.device.percent : power.percent) / 100))

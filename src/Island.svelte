@@ -90,6 +90,18 @@
     type Timer,
   } from './lib/timers'
   import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
+  import {
+    BOLT,
+    POWER_PEEK,
+    charge,
+    lines,
+    spoken as speak,
+    waits,
+    type Battery,
+    type Device,
+    type Low,
+    type Power,
+  } from './lib/power'
   import { WORDS, announce, keysOf } from './lib/welcome'
   import {
     DRAINS,
@@ -163,6 +175,12 @@
   let launchTimer: ReturnType<typeof setTimeout> | undefined
   // The time asked in the bar: the hover view shows it with the date, then the previous view comes back.
   let telling = $state(false)
+  // A battery peek over whatever has the island, a low battery that waits for it, and the battery the bar read from
+  // Rust as it opened.
+  let power = $state<Power>()
+  let powerTimer: ReturnType<typeof setTimeout> | undefined
+  let pending = $state<Power>()
+  let battery = $state<Battery>()
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -219,6 +237,7 @@
       timer: fit,
       welcome,
       blank,
+      power,
     }),
   )
   // While the bar and its answer hold the island, what had it waits in the bubble. The welcome keeps the island
@@ -241,6 +260,7 @@
           claudeApp,
           timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
           now: now.getTime(),
+          battery,
         })
       : ([] as Choice<Listed>[]),
   )
@@ -271,6 +291,7 @@
       bar: name === 'bar',
       launch: name === 'launch' ? launch : undefined,
       welcome: name && view.name === 'welcome' ? view.step : undefined,
+      power: name && view.name === 'power' ? view.power : undefined,
     }
   })
 
@@ -869,6 +890,7 @@
       expanded = false
       hovered = false
       peeking = undefined
+      power = undefined
       closeBar()
     }
     const t = performance.now()
@@ -956,6 +978,10 @@
       listen('island://elsewhere', elsewhere),
       // A window moved or resized: the island makes room for Snap layouts, and comes back unless it was tucked.
       listen<boolean>('island://moving', ({ payload }) => (payload ? tuckIn('move') : tucker === 'move' && untuck())),
+      listen<number>('power://plugged', ({ payload }) => notice({ kind: 'plugged', percent: payload })),
+      listen<Low>('power://low', ({ payload }) => notice({ kind: 'low', ...payload })),
+      listen<Device>('power://device', ({ payload }) => notice({ kind: 'device', device: payload })),
+      listen<Device>('power://device-low', ({ payload }) => notice({ kind: 'deviceLow', device: payload })),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
@@ -1682,6 +1708,7 @@
         bar: barOpen || !!launch || telling,
         welcome: greeting === 'playing',
         peeking,
+        peek: !!power,
       },
       now.getTime(),
     ),
@@ -1735,6 +1762,7 @@
     clearTimeout(launchTimer)
     launch = undefined
     telling = false
+    power = undefined
     barOpen = true
     // From the line, the island comes back as the bar.
     untuck()
@@ -1746,6 +1774,9 @@
       .catch(console.error)
     invoke<boolean>('has_claude')
       .then((known) => (claudeApp = known))
+      .catch(console.error)
+    invoke<Battery>('battery')
+      .then((read) => (battery = read))
       .catch(console.error)
   }
 
@@ -1818,6 +1849,51 @@
         })
     }
   }
+
+  // --- Battery ---
+
+  // A battery peek shows over whatever has the island for a moment (POWER_PEEK in power.ts), never over a call, a
+  // timer's end peek, the bar, an open panel or the welcome. A low battery waits for those, for fullscreen and while
+  // Windows says you're busy, and brings the island back from its line; plugging in and a device connecting show only
+  // while the island is out, and are dropped otherwise.
+  const free = $derived(
+    launched &&
+      presence === 'shown' &&
+      !hidden &&
+      !barOpen &&
+      !launch &&
+      !telling &&
+      !expanded &&
+      greeting !== 'playing' &&
+      arrangement.island?.kind !== 'call' &&
+      !(isTimer(arrangement.island) && arrangement.island.id === peeking),
+  )
+
+  function notice(next: Power) {
+    // Plugged in, a low battery that waited is no news.
+    if (next.kind === 'plugged' && pending?.kind === 'low') pending = undefined
+    if (!free || (!waits(next) && tuck !== 'shown')) {
+      if (waits(next)) pending = next
+      return
+    }
+    untuck()
+    power = next
+    spoken = speak(next, lang)
+    clearTimeout(powerTimer)
+    powerTimer = setTimeout(() => {
+      power = undefined
+      spoken = ''
+    }, POWER_PEEK[next.kind])
+  }
+
+  $effect(() => {
+    const next = free ? pending : undefined
+    if (!next) return
+    untrack(() => {
+      pending = undefined
+      notice(next)
+    })
+  })
 
   // --- Bubble swap and seek ---
 
@@ -1922,6 +1998,13 @@
         welcome: replay,
         tuck: toggleTuck,
         swipe: (way: Direction) => tuckIn('you', way, true),
+        power: notice,
+        get battery() {
+          return battery
+        },
+        set battery(next) {
+          battery = next
+        },
         set shortcut(next: string | undefined) {
           shortcut = next
         },
@@ -2013,6 +2096,27 @@
 {#snippet dots(call: Extract<Activity, { kind: 'call' }>)}
   {#if call.mic}<span class="dot mic"></span>{/if}
   {#if call.camera}<span class="dot camera"></span>{/if}
+{/snippet}
+
+<!-- A battery peek's glyph: what the device is, or a battery filled to its level, red when it runs low. -->
+{#snippet cell(p: Power)}
+  {@const glyph = p.kind === 'device' ? p.device.glyph : 'other'}
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    {#if glyph === 'headset'}
+      <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+      <rect x="3.5" y="14" width="4.5" height="6.5" rx="1.5" /><rect x="16" y="14" width="4.5" height="6.5" rx="1.5" />
+    {:else if glyph === 'mouse'}
+      <rect x="6.5" y="3" width="11" height="18" rx="5.5" /><path d="M12 7v3.5" />
+    {:else if glyph === 'controller'}
+      <path
+        d="M7.5 7.5h9a4.5 4.5 0 0 1 4.4 3.6l.9 4.6a2.6 2.6 0 0 1-4.6 2.1L15.5 16h-7l-1.7 1.8a2.6 2.6 0 0 1-4.6-2.1l.9-4.6a4.5 4.5 0 0 1 4.4-3.6Z"
+      />
+      <path d="M8 10.5v3M6.5 12h3M15.5 11h.01M17 13h.01" />
+    {:else}
+      <rect x="2" y="7" width="17.5" height="10" rx="3" /><path d="M22 10.5v3" />
+      <rect class="fill" x="4" y="9" width={13.5 * charge(p)} height="6" rx="1.5" />
+    {/if}
+  </svg>
 {/snippet}
 
 <!-- The timer's ring, full at the start and empty at the end. -->
@@ -2350,6 +2454,21 @@
       </span>
       <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
     {/if}
+    <!-- One block level each: a nested block would skip its content's entrance. -->
+    {#if parts.power?.kind === 'plugged'}
+      <!-- The bolt draws itself, then the level comes in. -->
+      <span class="bolt" style="--draw:{BOLT}ms;--wait:{ENTER.delay}ms" out:exit>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path pathLength="1" d="M9.5 1.5 3.5 9H8l-1.5 5.5L12.5 7H8z" /></svg>
+      </span>
+      <span in:enter={{ step: Math.ceil(BOLT / ENTER.stagger) }} out:exit>{lines(parts.power, lang)[0]}</span>
+    {:else if parts.power}
+      {@const [first, second] = lines(parts.power, lang)}
+      <span class="cell" class:low={waits(parts.power)} in:enter out:exit>{@render cell(parts.power)}</span>
+      <span class="track" out:exit>
+        <span in:enter={{ step: 1 }}>{first}</span>
+        <span class="muted" in:enter={{ step: 2 }}>{second}</span>
+      </span>
+    {/if}
     {#if parts.welcome === 'hello'}
       <span class="greet" in:enter out:exit>{WORDS[lang].hello}</span>
     {:else if parts.welcome === 'keys' && keys}
@@ -2400,7 +2519,7 @@
   {/if}
 </span>
 
-<!-- The welcome, read once to a screen reader with the real shortcut, then cleared. -->
+<!-- The welcome, read once to a screen reader with the real shortcut, then cleared, and so is a battery peek. -->
 <span class="spoken" role="status">{spoken}</span>
 
 {#if geometry.dot}
@@ -2654,6 +2773,58 @@
   .launch .mark canvas {
     width: 100%;
     height: 100%;
+  }
+
+  /* A battery peek: plugging in, the bolt at the left end and the level at the right; the rest, a glyph and two
+     lines. */
+  .power {
+    justify-content: space-between;
+    padding: 0 14px;
+  }
+
+  .power:has(.track) {
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 18px 0 16px;
+  }
+
+  .bolt,
+  .cell {
+    display: grid;
+    flex: none;
+  }
+
+  .bolt svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1.6;
+    stroke-linejoin: round;
+  }
+
+  .bolt path {
+    stroke-dasharray: 1;
+    animation: draw var(--draw) var(--wait) cubic-bezier(0.2, 0, 0, 1) backwards;
+  }
+
+  .cell svg {
+    width: 28px;
+    height: 28px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .cell.low {
+    color: #f87171;
+  }
+
+  .cell .fill {
+    fill: currentColor;
+    stroke: none;
   }
 
   .launched {
@@ -3136,7 +3307,8 @@
       transition: none;
     }
 
-    .crossed .slash {
+    .crossed .slash,
+    .bolt path {
       animation: none;
     }
   }

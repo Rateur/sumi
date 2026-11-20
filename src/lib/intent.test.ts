@@ -414,6 +414,20 @@ describe('natural phrasing', () => {
         expect(choices(line.slice(0, n), options)[0], line.slice(0, n)).toMatchObject({ kind: 'clock', what })
   })
 
+  it.each(['batterie', 'battery', 'autonomie', 'niveau de batterie', 'battery level'])(
+    'answers %s with the battery on the chip',
+    (line) => {
+      const battery = { percent: 47, plugged: true, minutes: null, devices: [] }
+      expect(choices(line, { ...options, battery })[0]).toEqual({ kind: 'battery', label: '47 % · sur secteur' })
+      expect(choices(line, { ...options, battery, lang: 'en' })[0].label).toBe('47 % · plugged in')
+    },
+  )
+
+  it('names the battery until Rust answers, and keeps its questions', () => {
+    expect(choices('batterie', options)[0].label).toBe('Batterie')
+    expect(choices('batterie faible que faire', options)[0].kind).toBe('ask')
+  })
+
   it('holds an app or the time while a tail is typed after it', () => {
     for (const [line, from] of [
       ['ouvre spotify maintenant', 'ouvre spotify'],

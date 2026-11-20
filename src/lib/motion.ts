@@ -19,8 +19,9 @@ export interface Motion {
 export function motion(from: View, to: View): Motion {
   const [a, b] = [sizeOf(from), sizeOf(to)]
   const grows = b.width * b.height >= a.width * a.height
-  // Back from the panel, the command bar or the welcome, what was there before comes back without a swell.
-  const back = from.name === 'expanded' || from.name === 'bar' || from.name === 'launch' || from.name === 'welcome'
+  // Back from the panel, the command bar, the welcome or a battery peek, what was there before comes back without a
+  // swell.
+  const back = ['expanded', 'bar', 'launch', 'welcome', 'power'].includes(from.name)
   const pulse = to.name === 'compact' && !back && !('activity' in from && from.activity?.id === to.activity.id)
   // The welcome opens and folds as the panel; from its greeting to its shortcut, it only widens.
   const opens = to.name === 'welcome' && from.name !== 'welcome'
@@ -34,9 +35,9 @@ export function motion(from: View, to: View): Motion {
           ? [[0.4, 0.25], [0.34, 0.15]]
           : from.name === 'hover' && to.name === 'idle'
             ? [[0.34, 0], [0.3, 0]]
-            : to.name === 'peek' || to.name === 'launch'
+            : to.name === 'peek' || to.name === 'launch' || to.name === 'power'
               ? [[0.44, 0.28], [0.48, 0.2]]
-              : from.name === 'peek' || from.name === 'launch'
+              : from.name === 'peek' || from.name === 'launch' || from.name === 'power'
                 ? [[0.38, 0], [0.32, 0]]
                 : [grows ? [0.44, 0.28] : [0.36, 0], [0.3, 0]]
   // An axis that shrinks never bounces, even when the shape as a whole grows.

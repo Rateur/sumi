@@ -3,6 +3,7 @@ import type { Listed } from '../CommandBar.svelte'
 import { langOf } from './intent'
 import type { Activity } from './activities'
 import type { Player } from './music'
+import type { Battery, Device, Power } from './power'
 import type { Privacy, PrivacyApp } from './privacy'
 import { ended, isTimer, order, pause, resume } from './timers'
 
@@ -83,6 +84,10 @@ const APPS: Listed[] = [
   { name: 'Mail', color: '#0A66C2' },
 ]
 
+// A headset that reports its battery, for the device peek and the bar's answer.
+const HEADSET: Device = { name: fr ? 'Casque Bluetooth' : 'Bluetooth headphones', glyph: 'headset', percent: 80 }
+const BATTERY: Battery = { percent: 47, plugged: true, minutes: null, devices: [HEADSET] }
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000, total: 25 * 60_000 }),
@@ -146,6 +151,9 @@ const KEYS: Record<string, string> = {
   z: 'pause',
   w: 'welcome',
   r: 'tuck',
+  y: 'plugged',
+  x: 'low',
+  q: 'device',
 }
 
 /**
@@ -161,7 +169,9 @@ const KEYS: Record<string, string> = {
  * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
  edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
  'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does, and drains the open panel (E) up
- into the edge; a rest, a click, a scroll down or a pull down on the line brings it back.
+ into the edge; a rest, a click, a scroll down or a pull down on the line brings it back. Y plugs the PC in ('plugged'),
+ X runs its battery low ('low'), and Q connects a headset ('device'); the bar answers `batterie` with 47 % on mains
+ and the headset.
  */
 export function demo(island: {
   activities: Activity[]
@@ -177,6 +187,8 @@ export function demo(island: {
   welcome: () => void
   tuck: () => void
   swipe: (way: 'up' | 'down' | 'left' | 'right') => void
+  power: (power: Power) => void
+  battery: Battery | undefined
   shortcut: string | undefined
   apps: Listed[]
   claudeApp: boolean
@@ -227,6 +239,9 @@ export function demo(island: {
     'tuck-down': () => island.swipe('down'),
     'tuck-left': () => island.swipe('left'),
     'tuck-right': () => island.swipe('right'),
+    plugged: () => island.power({ kind: 'plugged', percent: 47 }),
+    low: () => island.power({ kind: 'low', percent: 20, minutes: 65 }),
+    device: () => island.power({ kind: 'device', device: HEADSET }),
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
       island.claudeApp = !island.claudeApp
@@ -237,6 +252,7 @@ export function demo(island: {
   if (!isTauri()) {
     island.apps = APPS
     island.claudeApp = true
+    island.battery = BATTERY
     island.shortcut = (new URLSearchParams(location.search).get('shortcut') ?? 'Win+Alt+S') || undefined
   }
   addEventListener('keydown', (event) => {

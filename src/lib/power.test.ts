@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { answer, duration, level, lines, percent, waits, type Battery, type Device } from './power'
+import { answer, charge, duration, lines, percent, spoken, waits, type Battery, type Device } from './power'
 
 const headset: Device = { name: 'WH-1000XM4', glyph: 'headset', percent: 80 }
 const laptop = (more: Partial<Battery> = {}): Battery => ({ percent: 47, plugged: true, minutes: null, devices: [], ...more })
@@ -56,9 +56,18 @@ describe('peeks', () => {
     expect(lines({ kind: 'deviceLow', device: { ...headset, percent: 15 } }, 'en')).toEqual([percent(15), 'WH-1000XM4'])
   })
 
+  it('tells a screen reader what each peek is about', () => {
+    expect(spoken({ kind: 'plugged', percent: 47 }, 'fr')).toBe(`Sur secteur · ${percent(47)}`)
+    expect(spoken({ kind: 'low', percent: 20, minutes: 65 }, 'en')).toBe(`Low battery · ${percent(20)} · About 1 h 05 left`)
+    expect(spoken({ kind: 'low', percent: 18, minutes: null }, 'en')).toBe(`${percent(18)} · Low battery`)
+    expect(spoken({ kind: 'deviceLow', device: { ...headset, percent: 15 } }, 'fr')).toBe(
+      `Batterie faible · ${percent(15)} · WH-1000XM4`,
+    )
+  })
+
   it('fills the battery to its level', () => {
-    expect(level({ kind: 'low', percent: 20, minutes: null })).toBe(0.2)
-    expect(level({ kind: 'device', device: headset })).toBe(0.8)
+    expect(charge({ kind: 'low', percent: 20, minutes: null })).toBe(0.2)
+    expect(charge({ kind: 'device', device: headset })).toBe(0.8)
   })
 
   it('lets a low battery wait, and drops the rest', () => {

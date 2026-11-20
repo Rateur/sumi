@@ -8,6 +8,7 @@
  */
 
 import { formatLongDate, formatTime } from './clock'
+import { answer, type Battery } from './power'
 
 export type Lang = 'fr' | 'en'
 
@@ -41,6 +42,8 @@ export type Choice<A extends App = App> = { label: string } & (
   | { kind: 'app'; app: A }
   // The answer is the label itself: 'Il est 11:27' or 'Jeudi 19 novembre'.
   | { kind: 'clock'; what: 'time' | 'date' }
+  // The answer is the label too: « 47 % · sur secteur ».
+  | { kind: 'battery' }
   // `peek` is what the island shows after Enter: 'Claude', or 'Claude · navigateur' when it opens on the web.
   | { kind: 'ask'; to: Target; question: string; web: boolean; peek: string }
 )
@@ -56,6 +59,8 @@ export interface Options<A extends App> {
   locale?: string
   /** The default target first, then the others in the user's order. The search engine always comes last. */
   order?: readonly Assistant[]
+  /** The battery, read from Rust as the bar opened. */
+  battery?: Battery
 }
 
 /**
@@ -822,6 +827,11 @@ const DATE = new RegExp(
     `(?: (?:${half(["d' aujourd'hui", "d' aujourdhui", "aujourd'hui", 'aujourdhui', 'ajd', 'today'])}))?$`,
 )
 
+// --- The battery ---
+
+// Whole lines only, as for the time: 'batterie faible que faire' stays a question.
+const BATTERY = /^(?:batterie|battery|battery level|autonomie|niveau de batterie)$/
+
 // --- Assistants ---
 
 // A question opens in Claude's app when Windows knows its link, on the website otherwise.
@@ -878,6 +888,7 @@ const BARE = [...OPEN, ...SETS, ...KEYWORDS, ...ORDER, 'gpt', 'google', 'affiche
   .concat(['quand', 'explique', 'expliquer', 'traduis', 'traduire', 'resumer', 'ecris', 'ecrire', 'aide', 'aider'])
   .concat(['donne', 'donner', 'peux', 'pourrais', 'what', 'whats', 'which', 'where', 'when', 'explain', 'translate'])
   .concat(['summarize', 'summarise', 'write', 'help', 'give', 'could', 'would', 'should', 'please'])
+  .concat(['batterie', 'battery', 'autonomie', 'niveau'])
 // The first group opens what it names, or says no app aloud. 'montre', 'show' or 'run' takes an exact name: without
 // one it is just a question, so 'show the ti' is no Time Doctor. "m'ouvrir" and 'mouvrir' are 'open for me', and
 // 'open up', 'fire up' and 'boot up' a verb with its particle. 'show me' is 'montre-moi'. A trailing 'now' or 'ok'
@@ -981,6 +992,7 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
       const day = formatLongDate(new Date(now), locale)
       return [{ kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }, typed]
     }
+    if (BATTERY.test(text) || BATTERY.test(cut)) return [{ kind: 'battery', label: answer(options.battery, lang) }, typed]
     const by = BY_NAME.exec(text)
     if (by) {
       const to: Target = by[1] === 'google' ? 'search' : by[1] === 'gpt' ? 'chatgpt' : (by[1] as Assistant)

@@ -1,8 +1,9 @@
 /**
  * Lines as people type them in the command bar, typos, missing accents and politeness included, each with the one
  * chip it must give: [line, language, kind, target]. The target is the app's name, the timer's length in ms, 'time'
- * or 'date', or where a question goes; a question without one goes to the default assistant, Claude. More than half
- * are questions that must stay questions: acting wrongly costs more than not acting. Add every bug report as a row.
+ * or 'date', '' for the battery, or where a question goes; a question without one goes to the default assistant,
+ * Claude. More than half are questions that must stay questions: acting wrongly costs more than not acting. Add every
+ * bug report as a row.
  */
 
 import type { Choice } from './intent'
@@ -264,6 +265,16 @@ export const corpus: Row[] = [
   ['on est quelle date', 'fr', 'clock', 'date'],
   ['on est quelle date ajd', 'fr', 'clock', 'date'],
   ['cest quelle date', 'fr', 'clock', 'date'],
+
+  // --- French: the battery ---
+  ['batterie', 'fr', 'battery', ''],
+  ['autonomie', 'fr', 'battery', ''],
+  ['niveau de batterie', 'fr', 'battery', ''],
+  ['batterie stp', 'fr', 'battery', ''],
+  ['pourquoi ma batterie se vide si vite', 'fr', 'ask'],
+  ['batterie qui chauffe', 'fr', 'ask'],
+  ['comment économiser la batterie', 'fr', 'ask'],
+  ['acheter une batterie externe', 'fr', 'ask'],
 
   // --- French: timers ---
   ['met un minuteur de 10s', 'fr', 'timer', 10 * s],
@@ -676,6 +687,16 @@ export const corpus: Row[] = [
   ["what's the date t", 'en', 'clock', 'date'],
   ["what's the time pls ty", 'en', 'clock', 'time'],
   ["what's the time ty", 'en', 'clock', 'time'],
+
+  // --- English: the battery ---
+  ['battery', 'en', 'battery', ''],
+  ['battery level', 'en', 'battery', ''],
+  ['Battery', 'en', 'battery', ''],
+  ['battery level pls', 'en', 'battery', ''],
+  ['why does my battery drain so fast', 'en', 'ask'],
+  ['battery saver tips', 'en', 'ask'],
+  ['how to save battery on windows', 'en', 'ask'],
+  ['best battery pack', 'en', 'ask'],
 
   // --- English: timers ---
   ['set a timer for 5 minutes', 'en', 'timer', 5 * min],
