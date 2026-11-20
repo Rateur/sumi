@@ -67,6 +67,7 @@ pub fn run() {
             media::media_seek,
             media::media_players,
             power::battery,
+            power::battery_ask,
             privacy::privacy_state,
             privacy::privacy_mute,
             privacy::privacy_settings,

@@ -29,6 +29,9 @@ tauri-plugin-log = "2"
 # base64, windows and windows-sys already come with Tauri: Sumi only turns on the parts it reads.
 base64 = "0.23"
 windows = { version = "0.62", features = [
+  "Devices_Bluetooth",
+  "Devices_Bluetooth_Advertisement",
+  "Devices_Bluetooth_GenericAttributeProfile",
   "Devices_Enumeration",
   "Devices_Power",
   "Media_Control",

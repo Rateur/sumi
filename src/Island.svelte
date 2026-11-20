@@ -1944,10 +1944,12 @@
     panel = 'batteries'
     expanded = true
     if (battery) spoken = readOut(items(battery, lang), lang)
-    if (tauri)
-      invoke<Battery>('battery')
-        .then((read) => (battery = read))
-        .catch(console.error)
+    if (!tauri) return
+    invoke<Battery>('battery')
+      .then((read) => (battery = read))
+      .catch(console.error)
+    // A JBL speaker is asked for its own level, which comes on power://battery.
+    invoke('battery_ask').catch(console.error)
   }
 
   // A click on a ring grows it to its detail; on the grown one, or Esc, it goes back. "+N" is no button.
