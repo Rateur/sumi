@@ -129,8 +129,8 @@ The island tucks into a line under the top edge, out of the way of tabs and titl
 |---|---|
 | Line | 132 × 4 px, centred, flush with the top edge, whatever it tucked from. Square on top, 2 px radius below. Its bottom row is white at 20 % over the black, which sets it apart from a dark title bar. No shadow. |
 | Hit area | 132 × 12 px from the top edge, while tucked only. Everything else lets the cursor through. |
-| Tuck | A swipe, in any direction. Rest the cursor on the island for the Windows hover time, then scroll or swipe the touchpad: `deltaX` or `deltaY` summed over 200 ms past ±40. One wheel notch does it; a scroll before the rest does nothing. Or press the island and drag it out of an 8 px square: it follows with resistance, up to 24 px, and tucks from that side on release; released back inside, it springs back to its place, and a press that stays inside is a click. The open panel tucks the same way, from anywhere on it but the progress bar, where a drag seeks; its buttons still take a click. The tray menu's "Tuck the island" does it too. |
-| Come back | Rest on the line for the hover time, click it, scroll down on it (+40 within 200 ms), or press on it and pull 12 px down. The tray menu's "Bring the island back", the command bar's shortcut (the bar opens from the line) and a kind that stays, below, as it arrives. It comes back to what it would show then, never to the hover view. |
+| Tuck | A swipe, in any direction. Rest the cursor on the island for the Windows hover time, then scroll or swipe the touchpad: `deltaX` or `deltaY` summed over 200 ms past ±40. One wheel notch does it; a scroll before the rest does nothing. Or press the island and drag it out of an 8 px square: it follows with resistance, up to 24 px, and tucks from that side on release; released back inside, it springs back to its place, and a press that stays inside is a click. The open panel tucks the same way, from anywhere on it but the progress bar, where a drag seeks; its buttons still take a click. A left click on the tray icon, or its menu's "Tuck the island", does it too. |
+| Come back | Rest on the line for the hover time, click it, scroll down on it (+40 within 200 ms), or press on it and pull 12 px down. A left click on the tray icon or its menu's "Bring the island back", the command bar's shortcut (the bar opens from the line) and a kind that stays, below, as it arrives. It comes back to what it would show then, never to the hover view. |
 | Window moves | While a window is moved or resized, once the cursor has gone past Windows' drag distance, the island tucks so Snap layouts has the top. It comes back when the move ends, unless it was tucked already. |
 
 A cursor the scroll left on the line has to leave it once before a rest there brings the island back. While the microphone or camera dot shows, the island doesn't tuck.
@@ -177,6 +177,21 @@ The island closes into a drop that the edge draws in, and the ink spreads along 
 
 The ink runs 40 px above the screen's edge, so the goo keeps a full meniscus there. The shadow fades with how much of the island is still below the line. Called back mid-tuck, every spring heads back from where it is. With reduced motion, and in a contrast theme, the island and the line crossfade in 120 ms each way and nothing travels; in a contrast theme the line is outlined.
 
+## Tray icon
+
+Sumi's logo in the notification area, drawn at the taskbar's small icon size (16 px at 100 %, 20 at 125 %, 24 at 150 %, 32 at 200 %) so it stays sharp, and drawn again when the scale changes. It is the app icon's tile, with the mark 1.2 times larger so it still reads at 16 px. The bar's edges sit on whole pixels. The tile is opaque, so the icon is the same on a light or a dark taskbar.
+
+| The island has | Corner | Tooltip |
+|---|---|---|
+| An app using the camera | Green dot `#4ADE80` | Sumi · camera: Zoom |
+| An app using the microphone | Orange dot `#FB923C` | Sumi · microphone: Discord |
+| Music playing | Three bars of the mark's colour, as the equalizer stands | Sumi · title – artist |
+| Nothing of these | None | Sumi · the command bar's shortcut |
+
+The first row that applies wins, as on the island: green over orange, any dot over the music. A paused song shows nothing here. The corner sits around the tile's corner arc, as the island's disc holds its dot: a ring of the tile, as wide as the icon over 16, all around it. With several apps on the device, the tooltip names the first and counts the others. It is cut to the 127 characters Windows keeps.
+
+A left click tucks the island or brings it back; a right click opens the menu: "Tuck the island" or "Bring the island back", then "Quit Sumi", in the island's language. The icon and its tooltip change only when what they show changes.
+
 ## Welcome
 
 Once, at the first launch after install or after an upgrade from 0.5, the island says hello and shows the command bar's shortcut. Nothing waits for a click and nothing takes focus. Times are in ms from the start of the drop:
@@ -189,7 +204,7 @@ Once, at the first launch after install or after an upgrade from 0.5, the island
 | 1700 | The island widens to the shortcut: "Barre de commande" or "Command bar" (14 px, 500, 60 % white), then flat keycaps (13 px, 600, 26 px tall, radius 7, 12 % white with a 16 % white line). The keys are the ones Sumi registered; on a French keyboard Shift is "Maj". |
 | 4900 | The island folds, as the panel closes, to the time, or to the music or the timer already there. At rest by about 5.6 s. |
 
-Without a shortcut there is no shortcut beat, and it folds at 2300. It counts as seen once the shortcut has shown for a second, or after a click on the island, which folds at once. It plays only while the island is shown: in fullscreen or while Windows says you're busy, it waits, and it stops and plays again later if that happens midway. A cursor resting on it holds the shortcut until 300 ms after it leaves; the bar's shortcut ends it and opens the bar; a new activity ends it and takes the island, and so does a timer that ends. A screen reader hears it once, with the real shortcut. The shortcut also stays in the tray icon's tooltip.
+Without a shortcut there is no shortcut beat, and it folds at 2300. It counts as seen once the shortcut has shown for a second, or after a click on the island, which folds at once. It plays only while the island is shown: in fullscreen or while Windows says you're busy, it waits, and it stops and plays again later if that happens midway. A cursor resting on it holds the shortcut until 300 ms after it leaves; the bar's shortcut ends it and opens the bar; a new activity ends it and takes the island, and so does a timer that ends. A screen reader hears it once, with the real shortcut. The shortcut also stays in the tray icon's tooltip, while nothing else is going on.
 
 With reduced motion, the island fades in where it is, already the logo, and each later beat fades the content out in the old shape, changes the shape, and fades the new content in. In a contrast theme there is no bead.
 

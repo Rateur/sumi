@@ -93,7 +93,6 @@
   import { WORDS, announce, keysOf } from './lib/welcome'
   import {
     DRAINS,
-    TRAY,
     drag,
     kinds,
     marks,
@@ -106,6 +105,7 @@
     type Notch,
     type Tucker,
   } from './lib/tuck'
+  import { TRAY, badge, tip, type Tray } from './lib/tray'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
 
@@ -1710,10 +1710,14 @@
     if (tauri) invoke('set_island_waiting', { waiting }).catch(console.error)
   })
 
-  // The tray menu's item says what a click on it will do, in the island's language.
+  // The tray icon shows what the island has, and its menu's item what a click on it will do, in the island's
+  // language. Each part is derived on its own, so Rust hears from it only when one of them changes.
+  const trayBadge = $derived(badge(privacy, music))
+  const trayTip = $derived(tip(privacy, music, keys, lang))
+  const trayTuck = $derived(TRAY[lang][away() ? 'back' : 'tuck'])
   $effect(() => {
-    const label = TRAY[lang][away() ? 'back' : 'tuck']
-    if (tauri) invoke('set_tuck_label', { label }).catch(console.error)
+    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, quit: TRAY[lang].quit }
+    if (tauri) invoke('set_tray', { tray }).catch(console.error)
   })
 
   // --- Command bar ---

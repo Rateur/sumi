@@ -1,5 +1,4 @@
 import { peeks, type Activity, type Presence } from './activities'
-import type { Lang } from './intent'
 import {
   CLOSE,
   DRAIN,
@@ -154,9 +153,3 @@ export const DRAINS: readonly Beat[] = [
   { at: DRAIN.rise, part: 'lineW', to: TUCK.width, axis: CLOSE.width },
   { at: DRAIN.rise, part: 'lineX', to: 0, axis: CLOSE.width },
 ]
-
-/** The tray menu's item, as the island is or is about to be. */
-export const TRAY = {
-  fr: { tuck: "Ranger l'île", back: "Faire revenir l'île" },
-  en: { tuck: 'Tuck the island', back: 'Bring the island back' },
-} satisfies Record<Lang, Record<string, string>>
