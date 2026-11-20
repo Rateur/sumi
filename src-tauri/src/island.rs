@@ -63,6 +63,15 @@ pub fn set_island_expanded(state: tauri::State<'_, IslandExpanded>, expanded: bo
     state.0.store(expanded, Ordering::Relaxed);
 }
 
+/// Whether the island waits to tuck itself, so a click elsewhere is heard only then.
+#[derive(Default)]
+pub struct IslandWaiting(pub AtomicBool);
+
+#[tauri::command]
+pub fn set_island_waiting(state: tauri::State<'_, IslandWaiting>, waiting: bool) {
+    state.0.store(waiting, Ordering::Relaxed);
+}
+
 /// The presence the poll last decided, for a page that loads after `island://presence` was sent.
 pub struct IslandPresence(pub Mutex<Presence>);
 
@@ -159,8 +168,12 @@ const ESCAPE: u8 = 0b1000;
 /// Whether the keys read in two ticks in a row close the panel: Esc pressed anywhere,
 /// or a mouse button pressed outside the island. Only a new press counts, not one held down.
 pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
-    let pressed = now & !before;
-    pressed & ESCAPE != 0 || (!inside && pressed & MOUSE != 0)
+    (now & !before) & ESCAPE != 0 || elsewhere(before, now, inside)
+}
+
+/// Whether a mouse button was just pressed outside the island.
+pub fn elsewhere(before: u8, now: u8, inside: bool) -> bool {
+    !inside && (now & !before) & MOUSE != 0
 }
 
 /// Whether the island takes the cursor this tick. A button already held when the cursor arrives,
@@ -314,9 +327,9 @@ pub fn place(window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Lets clicks and drags through everywhere except over the island, tells the frontend when the cursor
-/// enters it, with the hover time to wait, or leaves it, when the open panel should close, and when a window is
-/// dragged, keeps the window in place when the resolution, the scale or the taskbar changes, and hides it while
-/// something is fullscreen.
+/// enters it, with the hover time to wait, or leaves it, when the open panel should close, when a window is
+/// dragged, and of a click elsewhere while the island waits to tuck itself, keeps the window in place when the
+/// resolution, the scale or the taskbar changes, and hides it while something is fullscreen.
 // shortcut: polls the cursor 30 times a second, so a press is judged where the cursor is at the next tick, and the
 // first touch or pen tap on the island reaches the app underneath. A window region built from the rects would decide
 // on the press itself: switch when touch matters or profiling shows a cost.
@@ -340,6 +353,7 @@ pub fn follow_cursor(
         };
         let mut over = None;
         let mut before = None;
+        let mut clicked = None;
         let mut tick: u32 = 0;
         let mut moves = Move::default();
         // Going, the island slides up off the screen and then the window hides. Coming back, the window
@@ -435,6 +449,16 @@ pub fn follow_cursor(
             } else {
                 before = None;
             }
+            if app.state::<IslandWaiting>().0.load(Ordering::Relaxed) {
+                if clicked
+                    .is_some_and(|before| elsewhere(before, keys, inside || over == Some(true)))
+                {
+                    let _ = app.emit("island://elsewhere", ());
+                }
+                clicked = Some(keys);
+            } else {
+                clicked = None;
+            }
         }
     });
 }
@@ -492,6 +516,14 @@ mod tests {
         assert!(!dismisses(ESCAPE, ESCAPE, false));
         assert!(!dismisses(MOUSE, MOUSE, false));
         assert!(!dismisses(ESCAPE, 0, false));
+    }
+
+    #[test]
+    fn a_new_click_outside_is_elsewhere_but_not_esc_or_one_inside() {
+        assert!(elsewhere(0, 0b001, false));
+        assert!(!elsewhere(0, 0b001, true));
+        assert!(!elsewhere(0, ESCAPE, false));
+        assert!(!elsewhere(0b001, 0b001, false));
     }
 
     #[test]

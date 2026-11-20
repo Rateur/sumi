@@ -1,9 +1,10 @@
 //! Sumi's Windows side. `island` polls the cursor on a thread of its own and emits island://pointer,
-//! island://presence, island://dismiss and island://moving; `fullscreen` hooks the foreground window and window moves
-//! on the main thread and only feeds that poll. The tray's tuck item emits island://tuck. `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread
-//! of its own that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads
-//! Start's list once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers`
-//! and `welcome` only answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
+//! island://presence, island://dismiss, island://moving and island://elsewhere; `fullscreen` hooks the foreground
+//! window and window moves on the main thread and only feeds that poll. The tray's tuck item emits island://tuck.
+//! `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread of its own
+//! that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads Start's list
+//! once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers` and `welcome`
+//! only answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
 
 mod apps;
 mod bar;
@@ -45,6 +46,7 @@ pub fn run() {
         // media::watch and privacy::watch manage their own state.
         .manage(island::IslandRects::default())
         .manage(island::IslandExpanded::default())
+        .manage(island::IslandWaiting::default())
         .manage(apps::Apps::default())
         .manage(bar::Bar::default())
         .invoke_handler(tauri::generate_handler![
@@ -52,6 +54,7 @@ pub fn run() {
             island::set_island_expanded,
             island::island_presence,
             island::set_tuck_label,
+            island::set_island_waiting,
             apps::apps_list,
             apps::has_claude,
             apps::app_icon,
