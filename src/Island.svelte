@@ -769,6 +769,9 @@
         // Folding, the box rides the shape's middle: the old row starts where it was drawn.
         top: `${r.top - c.top - (folding ? (c.height - size.height) / 2 : 0)}px`,
         width: `${node.offsetWidth}px`,
+        // Its size as drawn: a piece styled for the panel, such as the artwork, would take the closed view's.
+        height: `${node.offsetHeight}px`,
+        boxSizing: 'border-box',
         margin: '0',
         transform: '',
       })
@@ -2172,7 +2175,7 @@
         {@const p = parts.player.player}
         {#if playback && playback.endMs > 0}
           {@const at = position(playback, tick)}
-          <span class="progress muted" in:enter={{ step: 2 }} out:exit>
+          <span class="progress muted" in:enter={{ step: 2 }} out:exit|global>
             <span>{clockTime(at)}</span>
             <span
               class="scrub"
@@ -2205,7 +2208,7 @@
             <span>-{clockTime(playback.endMs - at)}</span>
           </span>
         {/if}
-        <span class="controls" in:enter={{ step: 3 }} out:exit>
+        <span class="controls" in:enter={{ step: 3 }} out:exit|global>
           <button type="button" aria-label="Previous" disabled={!p.canPrevious} onclick={() => control('previous')}>
             {@render icon('previous')}
           </button>
@@ -2252,12 +2255,12 @@
       {#if view.name === 'expanded'}
         <!-- The panel: the name, the digits and the end, then pause or resume, and cancel. -->
         {@const others = timers.filter((o) => o.id !== t.id && !ended(o, at)).length}
-        <span class="timing" in:enter out:exit>
+        <span class="timing" in:enter out:exit|global>
           <span class="muted">{name ?? said.timer}{#if others}<span class="others">+{others}</span>{/if}</span>
           <span class="big countdown" class:paused class:long={long(t, at)}>{@render digits(formatLeft(t, at))}</span>
           <span class="muted">{paused ? said.paused : said.ends(formatTime(new Date(endOf(t, at))))}</span>
         </span>
-        <span class="round" in:enter={{ step: 1 }} out:exit>
+        <span class="round" in:enter={{ step: 1 }} out:exit|global>
           <button
             type="button"
             class="main"
