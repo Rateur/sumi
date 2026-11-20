@@ -1,30 +1,42 @@
 ---
 title: Batterie
-description: Un coup d'œil au branchement, quand la batterie faiblit, et quand un casque se connecte.
+description: Toutes les batteries dans un panneau, et un coup d'œil au branchement, quand la batterie faiblit, et quand un casque se connecte.
 ---
 
-Sur un portable, l'île vous prévient quand vous branchez le chargeur et quand la batterie faiblit. Les appareils Bluetooth qui donnent leur batterie à Windows, comme les casques, les souris et les manettes, ont droit à la même chose : un coup d'œil à leur connexion, et une alerte quand ils faiblissent.
+L'île affiche la batterie de votre portable et celle des appareils Bluetooth qui la donnent à Windows, comme les casques, les enceintes, les manettes, les souris et les claviers. Rien de nouveau ne s'y installe au repos : les batteries s'ouvrent quand vous le demandez, et un coup d'œil arrive quand il se passe quelque chose.
 
-## Ce que vous voyez
+## Le panneau des batteries
 
-- **Vous branchez le chargeur** : un éclair blanc se dessine, puis le niveau, `47 %`, pendant 2 secondes. Seulement quand l'île est sortie : rangée, en jeu ou pendant un appel, rien ne s'affiche.
+- **Ouvrez-le** depuis la barre de commande : tapez `batterie` et appuyez sur Entrée. Un clic sur n'importe quel coup d'œil de la batterie l'ouvre aussi.
+- **Un anneau par appareil**, le PC d'abord, puis par sorte et par nom, pour que la rangée ne bouge jamais. L'anneau se remplit jusqu'au niveau, écrit dessous.
+- **Vert**, tout va bien. **Rouge**, 20 % ou moins sur batterie, même en économiseur d'énergie. **Ambre**, l'économiseur d'énergie au-dessus. Un petit éclair sur l'anneau du PC veut dire qu'il est branché.
+- **Cliquez sur un anneau** pour voir son détail : le nom et le niveau de l'appareil, et pour le PC s'il charge, économise l'énergie ou faiblit, avec le temps restant ou avant la charge complète. Cliquez de nouveau, ou appuyez sur Échap, pour revenir.
+- **Cinq anneaux au plus** : au-delà, le dernier compte les autres, `+3`. Un appareil à 20 % ou moins garde toujours son anneau.
+- Avec un seul appareil, le panneau montre directement son détail.
+- **Depuis la barre de commande**, les flèches passent d'un anneau à l'autre, Entrée montre le détail d'un anneau, et Échap revient, puis referme.
+
+## Coups d'œil
+
+- **Vous branchez le chargeur** : un éclair blanc se dessine, puis le niveau et une petite batterie verte, pendant 2 secondes. Seulement quand l'île est sortie : rangée, en jeu ou pendant un appel, rien ne s'affiche.
 - **À 20 %** : une batterie rouge, le niveau, et le temps restant quand Windows le connaît, sinon « Batterie faible », pendant 3 secondes. Une fois par décharge. Pendant un jeu, un appel ou quand Windows vous dit occupé, elle attend, et s'affiche dès que l'île revient si vous êtes toujours sur batterie. Elle fait revenir l'île rangée.
-- **Un appareil se connecte** : ce qu'il est (un casque, une souris ou une manette), son nom et son niveau. À 20 %, la batterie rouge avec son nom, une fois jusqu'à sa prochaine recharge.
+- **Un casque, une enceinte ou une manette se connecte** : ce que c'est, son niveau et un anneau, pendant 3 secondes. En rouge à 20 % ou moins, et cela vaut alerte de batterie faible. Le même appareil ne s'affiche pas de nouveau avant 30 minutes.
+- **Un appareil à 20 %** : un anneau rouge, son niveau et son nom. Une souris ou un clavier ne s'affiche qu'alors : ils se reconnectent à chaque réveil.
 
 Rien ne s'affiche quand vous débranchez, quand la batterie est pleine, ni en mode économie d'énergie.
 
 ## Dans la barre de commande
 
-Tapez `batterie`, `autonomie` ou `niveau de batterie`, ou en anglais `battery` ou `battery level`. La pastille est la réponse : `47 % · sur secteur`, `47 % · environ 2 h 10` ou `47 % · sur batterie`, puis chaque appareil connecté, comme `Casque 80 %`. Entrée referme la barre. Sur un PC sans batterie ni appareil de ce genre, elle dit « Pas de batterie sur ce PC ».
+Tapez `batterie`, `autonomie` ou `niveau de batterie`, ou en anglais `battery` ou `battery level`. La pastille est la réponse : `64 % · environ 3 h 10`, `64 % · sur secteur` ou `64 % · sur batterie`, puis chaque appareil, comme `Casque 80 %`. Entrée ouvre le panneau. Sur un PC sans batterie ni appareil de ce genre, la pastille dit « Pas de batterie sur ce PC » et Entrée ne fait rien.
 
 ## Limites
 
 - Le niveau d'un appareil est celui que Windows affiche dans Paramètres > Bluetooth et appareils. Un appareil qui ne donne pas son niveau à Windows n'affiche rien.
-- Un appareil s'affiche avec le premier niveau que Windows lit après sa connexion. Un niveau gardé de la dernière fois ne s'affiche jamais.
+- Le niveau d'un appareil ne s'affiche qu'une fois lu par Windows après sa connexion. Un niveau gardé de la dernière fois ne s'affiche jamais.
 - Les téléphones et les ordinateurs sont laissés de côté : ils affichent leur propre batterie.
-- « Sur secteur » ne dit pas si la batterie charge : chaque fabricant de PC l'indique à sa façon.
+- Windows ne dit pas si un appareil Bluetooth charge : seul le PC a l'éclair.
+- « Plein dans » s'affiche après 2 minutes sur secteur, arrondi aux 10 minutes supérieures. Avant, ou si Windows ne donne pas de vitesse de charge, le panneau dit « Sur secteur ».
 - L'alerte arrive à 20 %. Les paramètres, en 0.9, vous laisseront choisir.
 
 ## Confidentialité
 
-Les niveaux viennent de Windows quand ils changent, et restent sur votre PC. Rien n'est écrit dans un journal, stocké ni envoyé.
+Les niveaux viennent de Windows quand ils changent, et restent sur votre PC. Rien n'est écrit dans un journal, stocké ni envoyé. Le moment où chaque appareil s'est affiché pour la dernière fois n'est gardé qu'en mémoire, et oublié quand Sumi se ferme.
