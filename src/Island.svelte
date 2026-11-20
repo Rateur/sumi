@@ -3017,7 +3017,7 @@
     padding: 0;
     border: 0;
     background: none;
-    color: rgb(255 255 255 / 0.4);
+    color: rgb(255 255 255 / 0.5);
     font: inherit;
     font-size: 11px;
     font-weight: 500;
