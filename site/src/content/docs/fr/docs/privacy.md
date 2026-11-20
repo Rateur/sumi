@@ -10,7 +10,7 @@ Les fonctions qui en auront besoin resteront désactivées tant que vous ne les 
 - **La météo** demande à [Open-Meteo](https://open-meteo.com) les prévisions de la ville que vous indiquez.
 - **Les mises à jour** demandent à GitHub la dernière version.
 
-Ce que l'île affiche de votre PC n'est jamais écrit dans un journal ou un fichier. Les niveaux de batterie sont lus quand Windows dit qu'ils ont changé, et ne sont jamais gardés.
+Ce que l'île affiche de votre PC n'est jamais écrit dans un journal ou un fichier. Les niveaux de batterie sont lus quand Windows dit qu'ils ont changé, et ne sont jamais gardés. Les quelques-uns que Sumi lit lui-même, d'écouteurs Fast Pair et de manettes, ne passent qu'en Bluetooth ou par l'adaptateur Xbox, entre l'appareil et votre PC.
 
 La barre de commande ouvre l'app ou le site que vous choisissez avec votre question ; Sumi ne l'envoie nulle part, et la liste des apps reste en mémoire.
 

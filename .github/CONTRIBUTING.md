@@ -51,6 +51,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
 - `src-tauri/src/power.rs` reads the laptop's battery and the level Bluetooth devices report, and tells the page when you plug in, when the battery runs low, and when a device with a battery connects or runs low.
+- `src-tauri/src/fastpair.rs` reads earbuds' levels from Google's Fast Pair stream, `src-tauri/src/xbox.rs` Xbox controllers' on the Xbox Wireless Adapter from Windows' game input, and `src-tauri/src/pads.rs` the Switch Pro Controller's and PlayStation controllers' from their HID reports. Each hands `power.rs` the levels Windows doesn't read.
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.

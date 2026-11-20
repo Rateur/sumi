@@ -54,6 +54,7 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 - `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
 - `src-tauri/src/privacy.rs` trouve les apps qui utilisent le micro ou la caméra, et coupe le micro.
 - `src-tauri/src/power.rs` lit la batterie du portable et le niveau que donnent les appareils Bluetooth, et prévient la page quand vous branchez le chargeur, quand la batterie faiblit, et quand un appareil avec une batterie se connecte ou faiblit.
+- `src-tauri/src/fastpair.rs` lit le niveau des écouteurs dans le canal Fast Pair de Google, `src-tauri/src/xbox.rs` celui des manettes Xbox sur l'adaptateur sans fil Xbox par les entrées de jeu de Windows, et `src-tauri/src/pads.rs` celui de la manette Switch Pro et des manettes PlayStation dans leurs rapports HID. Chacun passe à `power.rs` les niveaux que Windows ne lit pas.
 - `src-tauri/src/apps.rs` lit les apps du menu Démarrer, ouvre celle choisie dans la barre de commande, et ouvre une question dans un assistant ou le moteur de recherche.
 - `src-tauri/src/bar.rs` enregistre le raccourci de la barre de commande, et donne le focus à la barre puis le rend.
 - `src-tauri/src/timers.rs` joue le carillon des minuteurs. Les minuteurs eux-mêmes ne vivent que dans la mémoire de la page.

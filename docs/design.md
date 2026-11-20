@@ -104,6 +104,7 @@ One ring per device, the PC first, then by kind (headset, speaker, controller, m
 - **A click on any battery peek** opens the batteries panel.
 - **Nothing** on unplugging, a full charge or energy saver.
 - Only a level read after a device connects counts: Windows keeps the last one of a device that left. Windows gives no level for many speakers, which report theirs only to their maker's app over a protocol of its own, such as the JBL Go 4. A mouse or a keyboard without one shows nothing. Phones and computers are left out: they show their own battery.
+- Some levels Sumi reads itself, where Windows has none or a coarser one: Fast Pair earbuds, Xbox controllers on the Xbox adapter, and the Switch Pro, DualShock 4 and DualSense on Bluetooth. They show and peek as Windows' do, and go over Windows' own for the same device.
 - The peeks move as a song's does; the bolt's stroke is new. **Reduced motion**: the content fades out in 120 ms, the shape and the rings change, the new content fades in over 120 ms; arcs are drawn at their level and the bolt is there at once. **Contrast theme**: the rings keep their own colours, as the dots do.
 - The laptop's battery is read once at launch: without one, nothing is listened to. Then only Windows' events come: the supply, the level and energy saver, and for devices the connection and the level. Nothing is logged or stored.
 

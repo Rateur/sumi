@@ -5,6 +5,8 @@ description: Toutes les batteries dans un panneau, et un coup d'œil au branchem
 
 L'île affiche la batterie de votre portable et celle des appareils Bluetooth qui la donnent à Windows, comme les casques, les enceintes, les manettes, les souris et les claviers. Rien de nouveau ne s'y installe au repos : les batteries s'ouvrent quand vous le demandez, et un coup d'œil arrive quand il se passe quelque chose.
 
+Certains appareils ne donnent aucun niveau à Windows : Sumi en lit quelques-uns lui-même, voir [Au-delà de Windows](#au-delà-de-windows).
+
 ## Le panneau des batteries
 
 - **Ouvrez-le** depuis la barre de commande : tapez `batterie` et appuyez sur Entrée. Un clic sur n'importe quel coup d'œil de la batterie l'ouvre aussi.
@@ -28,6 +30,17 @@ Rien ne s'affiche quand vous débranchez, quand la batterie est pleine, ni en mo
 ## Dans la barre de commande
 
 Tapez `batterie`, ou juste `bat`, `autonomie` ou `niveau de batterie`, ou en anglais `battery` ou `battery level`. La pastille est la réponse : `64 % · environ 3 h 10`, `64 % · sur secteur` ou `64 % · sur batterie`, puis chaque appareil, comme `Casque 80 %`. Entrée ouvre le panneau. Sur un PC sans batterie ni appareil de ce genre, la pastille dit « Pas de batterie sur ce PC » et Entrée ne fait rien.
+
+## Au-delà de Windows
+
+Windows ne lit une batterie que par les deux voies standard : le profil mains libres, et le service de batterie du Bluetooth LE. Beaucoup d'appareils n'utilisent ni l'une ni l'autre. Sumi lit lui-même ceux-ci :
+
+- **Les écouteurs et les casques avec Google Fast Pair**, de Sony, Nothing et CMF, OnePlus, JBL, Google et bien d'autres. À la connexion, Sumi ouvre leur canal Fast Pair, dont le son de Windows ne se sert pas, et écoute : l'appareil envoie le niveau de chaque écouteur et celui du boîtier à la connexion et à chaque changement. L'anneau montre l'écouteur le plus bas. Sumi ne renvoie rien, et le son n'est pas touché. Ce niveau passe devant celui que lit Windows, qui vient souvent d'un seul écouteur, par pas de 10 %.
+- **Les manettes Xbox sur l'adaptateur sans fil Xbox**, par les entrées de jeu de Windows, à la connexion puis toutes les 5 minutes. En Bluetooth, une manette Xbox donne son niveau à Windows.
+- **La manette Switch Pro en Bluetooth** : à la connexion puis toutes les 5 minutes, Sumi lui demande ses informations, dont la réponse porte son niveau en quatre crans, affichés 100, 75, 50 et 20 %. Rien d'autre n'est envoyé : elle reste comme les jeux et Steam l'ont réglée.
+- **La DualShock 4 et la DualSense en Bluetooth** : Sumi lit leur niveau dans ce qu'elles envoient déjà, à la connexion puis toutes les 5 minutes, et ne leur envoie rien. Le niveau n'est que dans les rapports complets qu'active Steam ou un jeu : sans eux, la manette s'affiche sans niveau.
+
+Une manette branchée par câble n'est pas lue : elle charge. Rien de tout cela ne passe par Internet : cela reste entre l'appareil et votre PC, en Bluetooth ou par l'adaptateur.
 
 ## Limites
 

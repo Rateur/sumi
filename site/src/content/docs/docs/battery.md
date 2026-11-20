@@ -5,6 +5,8 @@ description: Every battery in one panel, and a peek as you plug in, when the bat
 
 The island shows your laptop's battery and the Bluetooth devices that report theirs to Windows, such as headsets, speakers, controllers, mice and keyboards. Nothing new sits on it at rest: the batteries open when you ask, and a peek comes when something happens.
 
+Some devices give Windows no level: Sumi reads a few of them itself, see [Beyond Windows](#beyond-windows).
+
 ## The batteries panel
 
 - **Open it** from the command bar: type `battery` and press Enter. A click on any battery peek opens it too.
@@ -28,6 +30,17 @@ Nothing shows when you unplug, when the battery is full, or in energy saver.
 ## In the command bar
 
 Type `battery`, or just `bat`, or `battery level`, or in French `batterie`, `autonomie` or `niveau de batterie`. The chip is the answer: `64 % · about 3 h 10 left`, `64 % · plugged in` or `64 % · on battery`, then each device, such as `Headset 80 %`. Enter opens the panel. On a PC without a battery or such a device, the chip says "This PC has no battery" and Enter does nothing.
+
+## Beyond Windows
+
+Windows reads a battery only through the two standard channels: the hands-free profile, and Bluetooth LE's battery service. Many devices use neither. Sumi reads these ones itself:
+
+- **Earbuds and headphones with Google Fast Pair**, from Sony, Nothing and CMF, OnePlus, JBL, Google and many more. As one connects, Sumi opens its Fast Pair channel, which Windows' sound doesn't use, and listens: the device sends each bud's level and the case's as it connects and whenever one changes. The ring shows the lower bud. Sumi sends nothing back, and the sound isn't touched. This level goes over the one Windows reads, which often comes from one bud, in steps of 10 %.
+- **Xbox controllers on the Xbox Wireless Adapter**, from Windows' game input, as one connects and every 5 minutes. On Bluetooth, an Xbox controller gives Windows its level.
+- **The Switch Pro Controller on Bluetooth**: as it connects and every 5 minutes, Sumi asks for its device info, whose reply carries its level in four steps, shown as 100, 75, 50 and 20 %. Nothing else is sent, so it stays as games and Steam set it.
+- **The DualShock 4 and the DualSense on Bluetooth**: Sumi reads their level in what they already send, as one connects and every 5 minutes, and sends them nothing. The level is only in the full reports that Steam or a game turns on: without one running, the controller shows without a level.
+
+A controller on a cable isn't read: it's charging. None of this goes online: it stays between the device and your PC, over Bluetooth or the adapter.
 
 ## Limits
 

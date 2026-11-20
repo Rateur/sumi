@@ -4,9 +4,10 @@
 //! and emits island://tuck from a left click or the menu's tuck item.
 //! `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread of its own
 //! that sleeps until Windows calls back; media's also wakes to read a late artwork again. `power` emits power://plugged,
-//! power://low, power://device, power://device-low and power://battery the same way. `apps` reads Start's list
-//! once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers` and `welcome`
-//! only answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
+//! power://low, power://device, power://device-low and power://battery the same way, with the levels `fastpair`, `xbox`
+//! and `pads` read where Windows doesn't. `apps` reads Start's list once on a thread that then ends, and `bar` hears
+//! the command bar's shortcut through Windows. `timers` and `welcome` only answer the page: one plays the timers'
+//! chime, the other keeps the first-launch welcome's flag.
 
 mod apps;
 mod bar;
