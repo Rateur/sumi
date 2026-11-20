@@ -241,7 +241,7 @@ describe('peeks', () => {
     expect(lands(low, false, 'auto')).toBe('wait')
   })
 
-  it("doesn't let the same device peek again within 30 min", () => {
+  it("doesn't let the same device peek again within 2 min", () => {
     const heard = new Map<string, number>()
     expect(fresh(heard, head.name, 0)).toBe(true)
     expect(fresh(heard, head.name, QUIET - 1)).toBe(false)

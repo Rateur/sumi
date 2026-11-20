@@ -22,7 +22,7 @@ Some devices give Windows no level: Sumi reads several of them itself, from JBL 
 
 - **Plug in**: a white bolt draws itself, then the level and a small green battery, for 2 seconds. Tucked, the island comes out for it and tucks again after, unless you used it meanwhile. In a game or during a call, nothing shows.
 - **At 20 %**: a red battery, the level, and the time left when Windows knows it, otherwise "Low battery", for 3 seconds. Once per discharge. During a game, a call or while Windows says you're busy, it waits, and shows once the island is back if you're still on battery. It brings a tucked island back.
-- **A headset, a speaker or a controller connects**: what it is, its level and a ring, for 3 seconds, out of the line and back as for plugging in. Red at 20 % or less, and that's its low warning. If Windows gives no level for it, its name instead. The same device doesn't peek again within 30 minutes.
+- **A headset, a speaker or a controller connects**: what it is, its level and a ring, for 3 seconds, out of the line and back as for plugging in. Red at 20 % or less, and that's its low warning. If Windows gives no level for it, its name instead. The same device doesn't peek again within 2 minutes.
 - **A device at 20 %**: a red ring, its level and its name. A mouse or a keyboard peeks only then: they reconnect each time they wake.
 
 Nothing shows when you unplug, when the battery is full, or in energy saver.

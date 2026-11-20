@@ -60,7 +60,7 @@ export const BOLT = 180
 export const LOW = 20
 
 /** The same device doesn't peek again this soon after its last peek, in ms: a headset out of range for a moment. */
-export const QUIET = 30 * 60_000
+export const QUIET = 2 * 60_000
 
 /** The ring colours: the camera's green, the timer's amber for energy saver, the low battery's red. */
 export const COLOR = { green: '#4ade80', amber: '#fbbf24', red: '#f87171' } as const

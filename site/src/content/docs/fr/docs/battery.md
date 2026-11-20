@@ -22,7 +22,7 @@ Certains appareils ne donnent aucun niveau à Windows : Sumi en lit plusieurs lu
 
 - **Vous branchez le chargeur** : un éclair blanc se dessine, puis le niveau et une petite batterie verte, pendant 2 secondes. Rangée, l'île sort pour lui et se range de nouveau après, sauf si vous vous en êtes servi entre-temps. En jeu ou pendant un appel, rien ne s'affiche.
 - **À 20 %** : une batterie rouge, le niveau, et le temps restant quand Windows le connaît, sinon « Batterie faible », pendant 3 secondes. Une fois par décharge. Pendant un jeu, un appel ou quand Windows vous dit occupé, elle attend, et s'affiche dès que l'île revient si vous êtes toujours sur batterie. Elle fait revenir l'île rangée.
-- **Un casque, une enceinte ou une manette se connecte** : ce que c'est, son niveau et un anneau, pendant 3 secondes, en sortant de la ligne puis en y revenant comme pour le chargeur. En rouge à 20 % ou moins, et cela vaut alerte de batterie faible. Si Windows ne donne pas son niveau, son nom à la place. Le même appareil ne s'affiche pas de nouveau avant 30 minutes.
+- **Un casque, une enceinte ou une manette se connecte** : ce que c'est, son niveau et un anneau, pendant 3 secondes, en sortant de la ligne puis en y revenant comme pour le chargeur. En rouge à 20 % ou moins, et cela vaut alerte de batterie faible. Si Windows ne donne pas son niveau, son nom à la place. Le même appareil ne s'affiche pas de nouveau avant 2 minutes.
 - **Un appareil à 20 %** : un anneau rouge, son niveau et son nom. Une souris ou un clavier ne s'affiche qu'alors : ils se reconnectent à chaque réveil.
 
 Rien ne s'affiche quand vous débranchez, quand la batterie est pleine, ni en mode économie d'énergie.
