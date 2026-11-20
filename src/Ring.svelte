@@ -37,7 +37,7 @@
   let own = $state(0)
   $effect(() => {
     if (fill !== undefined) return
-    const level = it.percent
+    const level = it.percent ?? 0
     if (reduced) return void (own = level)
     const spring = new Spring(untrack(() => own))
     let raf = 0

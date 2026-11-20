@@ -191,7 +191,7 @@
     }
     const added: Live[] = []
     for (const spec of cells) {
-      const level = spec.more ? 0 : spec.it.percent
+      const level = spec.more ? 0 : (spec.it.percent ?? 0)
       const labelAt = enterAt(t, m.delay, spec.step + 1)
       const c = current.find((o) => o.id === spec.id && keep.includes(o.id))
       if (c) {
@@ -423,6 +423,14 @@
     color: rgb(255 255 255 / 0.6);
     font-size: 13px;
     font-weight: 500;
+  }
+
+  /* Why a device has no level: two lines at most, in the room the level would take. */
+  .note {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 16px;
+    white-space: normal;
   }
 
   .big {

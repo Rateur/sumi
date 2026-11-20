@@ -423,6 +423,47 @@ describe('natural phrasing', () => {
     },
   )
 
+  it.each([
+    ['bat', 'battery'],
+    ['batte', 'battery'],
+    ['autono', 'battery'],
+    ['heu', 'clock'],
+    ['tim', 'clock'],
+    ['dat', 'clock'],
+    ['mét', 'weather'],
+    ['mete', 'weather'],
+    ['météo', 'weather'],
+    ['meteo', 'weather'],
+    ['weat', 'weather'],
+  ] as const)('offers what %s is on its way to', (line, kind) => {
+    expect(choices(line, options)[0].kind).toBe(kind)
+  })
+
+  it("offers the weather on its way, in the session's city or asking for one, but not « met »", () => {
+    expect(choices('mét', options)[0]).toEqual({ kind: 'weather', day: 0, label: 'Météo · tapez une ville' })
+    expect(choices('weat', { ...options, lang: 'en', city: 'Paris' })[0].label).toBe('Weather Paris')
+    expect(choices('met', options)[0].kind).toBe('ask')
+    expect(choices('met un minuteur de 10s', options)[0].kind).toBe('timer')
+    const apps = [{ name: 'Météo' }]
+    expect(choices('mete', { ...options, apps }).map((c) => c.label).slice(0, 2)).toEqual([
+      'Météo · tapez une ville',
+      'Ouvrir Météo',
+    ])
+  })
+
+  it('puts the bar first, and an app the word also starts one Tab away', () => {
+    const list = { ...options, apps: [{ name: 'Battle.net' }] }
+    const shown = choices('batt', list).map((c) => (c.kind === 'app' ? c.app.name : c.kind))
+    expect(shown.slice(0, 2)).toEqual(['battery', 'Battle.net'])
+    expect(choices('battl', list)[0]).toMatchObject({ kind: 'app' })
+  })
+
+  it('keeps a longer word, a line or two letters a question', () => {
+    for (const line of ['batman', 'timeline', 'ba', 'bat signal', 'database']) {
+      expect(choices(line, options)[0].kind, line).toBe('ask')
+    }
+  })
+
   it('names the battery until Rust answers, and keeps its questions', () => {
     expect(choices('batterie', options)[0].label).toBe('Batterie')
     expect(choices('batterie faible que faire', options)[0].kind).toBe('ask')
@@ -641,13 +682,13 @@ describe('corpus', () => {
   })
 
   // While a command is typed, each prefix of 3 letters or more shows its chip or a question: never another app, nor
-  // a timer of another length once the right one has shown. The time may show, as it runs nothing: 'time' is on
-  // the way to 'timer'.
+  // a timer of another length once the right one has shown. The time and the battery may show, as they only answer:
+  // 'time' is on the way to 'timer', 'batt' to 'Battle.net'.
   it.each(corpus.filter(([, , kind]) => kind !== 'ask'))('stays put while %s is typed', (line, _, kind, to) => {
     let shown = false
     for (let n = 3; n <= line.length; n++) {
       const c = read(line.slice(0, n))
-      if (c.kind === 'ask' || (c.kind === 'clock' && kind !== 'clock')) continue
+      if (c.kind === 'ask' || ((c.kind === 'clock' || c.kind === 'battery') && kind !== c.kind)) continue
       const where = `${line.slice(0, n)} → ${c.kind} ${target(c)}`
       expect(c.kind, where).toBe(kind)
       if (kind === 'timer' && !shown) shown = target(c) === to

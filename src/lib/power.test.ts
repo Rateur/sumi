@@ -142,6 +142,31 @@ describe('the rings', () => {
   })
 })
 
+describe('a device Windows gives no level for', () => {
+  const jbl: Device = { name: 'JBL Go 4', kind: 'speaker', percent: null }
+
+  it('comes after the devices with a level, white, with a dash for its level', () => {
+    const all = items(pc({ devices: [jbl, mouse, head] }), 'fr')
+    expect(all.map((it) => it.name)).toEqual(['Ce PC', 'Casque UGREEN HiTune Max5', 'Souris MX Master 3S', 'JBL Go 4'])
+    expect(colorOf(all[3])).toBe('#fff')
+    expect(percent(all[3].percent)).toBe('—')
+    expect(answer(pc({ devices: [jbl] }), 'fr')).toBe(`${p(64)} · environ 3 h 10 · Enceinte —`)
+  })
+
+  it('says its level is unknown, and why in its detail', () => {
+    const all = items(pc({ devices: [jbl] }), 'fr')
+    expect(spoken(all[1], 'fr')).toBe('JBL Go 4, niveau inconnu')
+    expect(spoken(all[1], 'en')).toBe('JBL Go 4, level unknown')
+    expect(layout(all, all[1].id, 'fr').lines.map((l) => l.text)).toEqual(['JBL Go 4', 'Windows ne donne pas sa batterie'])
+    expect(layout(items(pc({ devices: [jbl] }), 'en'), all[1].id, 'en').lines[1].text).toBe("Windows doesn't report its battery")
+  })
+
+  it('peeks with its name as it connects', () => {
+    expect(lines({ kind: 'device', device: jbl }, 'fr')).toEqual(['JBL Go 4'])
+    expect(said({ kind: 'device', device: jbl }, 'fr')).toBe('JBL Go 4 vient de se connecter')
+  })
+})
+
 describe('the words', () => {
   const first = (b: Battery) => items(b, 'fr')[0]
 

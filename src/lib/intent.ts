@@ -854,6 +854,36 @@ const NOT_CITY = new RegExp(
     'tonight|matin|morning|hier|yesterday|radar|app|appli|application)(?= |$)',
 )
 
+// --- The bar's own words, on their way ---
+
+// The words that answer alone, folded, by what they ask. A timer needs a length, so 'minuteur' and 'timer' aren't here.
+type Own = 'battery' | 'time' | 'date' | 'weather'
+const OWN: [string, Own][] = [
+  ['batterie', 'battery'],
+  ['battery', 'battery'],
+  ['autonomie', 'battery'],
+  ['heure', 'time'],
+  ['time', 'time'],
+  ['date', 'date'],
+  ['meteo', 'weather'],
+  ['weather', 'weather'],
+]
+
+/**
+ * What a word alone on the line, 3 letters or more, asks for when it starts one of the bar's own words, and only
+ * words of one kind: 'bat' and 'batte' are the battery, 'heu' the time, 'mét' and 'weat' the weather. Never inside a
+ * longer line, so 'batman' and 'time management' stay questions. `raw` is the word as typed: the weather takes 4
+ * letters, or 'mét' with its accent, as 'met' is French for « puts » ('met un minuteur').
+ */
+export function own(text: string, raw = text): Own | undefined {
+  if (text.length < 3 || text.includes(' ')) return
+  const short = text.length < 4 && !/é/i.test(raw)
+  const asks = new Set(
+    OWN.filter(([word, what]) => word.startsWith(text) && !(short && what === 'weather')).map(([, what]) => what),
+  )
+  return asks.size === 1 ? [...asks][0] : undefined
+}
+
 // --- Assistants ---
 
 // A question opens in Claude's app when Windows knows its link, on the website otherwise.
@@ -1002,6 +1032,12 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     // 'chrome'. Politeness stays on for it: 'merci claude' and 'sumi claude' are questions.
     const named = exactly(index, whole.text)
     // The weather comes first: Windows' own weather app is called « Météo » or "Weather". Tab still reaches it.
+    const sky = (city?: string, day: 0 | 1 = 0): Choice<A> => ({
+      kind: 'weather',
+      city,
+      day,
+      label: chip(city ?? options.city, day, lang),
+    })
     const weather = WEATHER.exec(text)
     const place = weather?.[2] ?? ''
     if (weather && !NOT_CITY.test(place) && place.split(' ').length <= 4) {
@@ -1009,7 +1045,7 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
       const city = place ? typed.slice(read.at[from], read.at[to - 1] + 1) : undefined
       const day = /^(?:demain|tomorrow)$/.test(weather[1] ?? weather[3] ?? '') ? 1 : 0
       if (named) tied.push(named)
-      return [{ kind: 'weather', city, day, label: chip(city ?? options.city, day, lang) }, typed]
+      return [sky(city, day), typed]
     }
     if (named) return [open(named), typed]
     if (NEGATION.test(text)) return [ask(order[0], typed, claudeApp, lang), typed]
@@ -1017,14 +1053,23 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     // their way to 'stp'. A bare name keeps its politeness, so 'discord st' holds nothing.
     const tail = TAIL.exec(text)
     const cut = tail ? text.slice(0, tail.index) : ''
-    if (TIME.test(text) || TIME.test(cut)) {
-      return [{ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) }, typed]
-    }
-    if (DATE.test(text) || DATE.test(cut)) {
+    const time = (): Choice<A> => ({ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) })
+    const date = (): Choice<A> => {
       const day = formatLongDate(new Date(now), locale)
-      return [{ kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }, typed]
+      return { kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }
     }
-    if (BATTERY.test(text) || BATTERY.test(cut)) return [{ kind: 'battery', label: answer(options.battery, lang) }, typed]
+    const battery = (): Choice<A> => ({ kind: 'battery', label: answer(options.battery, lang) })
+    if (TIME.test(text) || TIME.test(cut)) return [time(), typed]
+    if (DATE.test(text) || DATE.test(cut)) return [date(), typed]
+    if (BATTERY.test(text) || BATTERY.test(cut)) return [battery(), typed]
+    // One of the bar's own words on its way comes first; an app the word also starts is one Tab away.
+    const asked = own(text, read.raw)
+    if (asked) {
+      const app = starts(index, key(whole.text, true), tied)
+      if (app) tied.unshift(app)
+      const answers = { battery, time, date, weather: () => sky() }
+      return [answers[asked](), typed]
+    }
     const by = BY_NAME.exec(text)
     if (by) {
       const to: Target = by[1] === 'google' ? 'search' : by[1] === 'gpt' ? 'chatgpt' : (by[1] as Assistant)

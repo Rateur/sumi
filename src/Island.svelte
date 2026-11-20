@@ -980,6 +980,8 @@
   function point(inside: boolean) {
     pointer = inside
     rest = undefined
+    // A cursor on it keeps it out after a battery peek.
+    if (inside) retuck = undefined
     clearTimeout(hoverTimer)
     if (tuck === 'tucking' || tuck === 'tucked') {
       // On the line a rest brings the island back, once a cursor the tuck left there has gone.
@@ -1460,7 +1462,10 @@
   let swiped = false
 
   const away = () => tuck === 'tucking' || tuck === 'tucked'
-  const toggleTuck = () => (away() ? untuck() : tuckIn('you'))
+  const toggleTuck = () => {
+    retuck = undefined
+    return away() ? untuck() : tuckIn('you')
+  }
 
   /** Tucks the island into its line, drawn in from `way`, after a push that way for a wheel swipe. Never beside the
    * privacy tag, which always brings it back. */
@@ -1815,6 +1820,7 @@
 
   // It opens from whatever the island shows, and gives that view back on Esc or when its answer is done.
   function toggleBar() {
+    retuck = undefined
     if (barOpen) return closeBar()
     if (hidden) return
     if (greeting === 'playing') end()
@@ -1988,8 +1994,8 @@
 
   // A battery peek shows over whatever has the island for a moment (POWER_PEEK in power.ts), never over a call, a
   // timer's end peek, the bar, an open panel or the welcome. A low battery waits for those, for fullscreen and while
-  // Windows says you're busy, and brings the island back from its line; plugging in and a device connecting show only
-  // while the island is out, and are dropped otherwise.
+  // Windows says you're busy, and brings the island back from its line; plugging in and a device connecting are
+  // dropped then.
   const free = $derived(
     launched &&
       presence === 'shown' &&
@@ -2004,13 +2010,20 @@
       !(isTimer(arrangement.island) && arrangement.island.id === peeking),
   )
 
+  // Tucked by hand or by itself, the island comes out for plugging in or a device connecting, and goes back as the
+  // peek ends, unless you did something meanwhile. While a window is moved it stays tucked: Snap layouts has the top.
+  // A low battery comes out and stays.
+  let retuck: Tucker | undefined
+
   function notice(next: Power) {
     // Plugged in, a low battery that waited is no news.
     if (next.kind === 'plugged' && pending?.kind === 'low') pending = undefined
-    if (!free || (!waits(next) && tuck !== 'shown')) {
+    const tucked = tuck === 'tucking' || tuck === 'tucked'
+    if (!free || (!waits(next) && tucked && tucker === 'move')) {
       if (waits(next)) pending = next
       return
     }
+    retuck = waits(next) ? undefined : tucked ? tucker : retuck
     untuck()
     power = next
     spoken = speak(next, lang)
@@ -2018,6 +2031,9 @@
     powerTimer = setTimeout(() => {
       power = undefined
       spoken = ''
+      const by = retuck
+      retuck = undefined
+      if (by && tuck === 'shown' && !hidden && !pointer && !expanded && !barOpen && !card) tuckIn(by)
     }, POWER_PEEK[next.kind])
   }
 
@@ -2025,6 +2041,7 @@
   // island. Opened from the bar, it keeps the focus for the arrows, and gives it back as it closes.
   function openBatteries(keys: boolean) {
     clearTimeout(powerTimer)
+    retuck = undefined
     power = undefined
     grown = undefined
     focused = keys
@@ -2651,12 +2668,22 @@
       </span>
     {:else if parts.power?.kind === 'device'}
       {@const it = { id: parts.power.device.name, ...parts.power.device }}
-      <!-- What connected, its level, then its ring filling to it. Red at 20 % or less: its low warning. -->
+      <!-- What connected, its level, then its ring filling to it. Red at 20 % or less: its low warning. Without a
+           level, its name instead. -->
       <span class="glyph" in:enter out:exit>{@render device(it.kind)}</span>
-      <span class="level" in:enter={{ step: 1 }} out:exit>{lines(parts.power, lang)[0]}</span>
-      <span class="gauge" style:width="{COMPACT.ring}px" style:height="{COMPACT.ring}px" in:enter={{ step: 2 }} out:exit>
-        <Ring {it} stroke={(COMPACT.stroke * 44) / COMPACT.ring} drawn={false} wait={ENTER.delay + 2 * ENTER.stagger} {reduced} />
-      </span>
+      <span class="level" class:named={it.percent === null} in:enter={{ step: 1 }} out:exit>{lines(parts.power, lang)[0]}</span>
+      {#if it.percent !== null}
+        <!-- Global: it comes and goes with the peek around it. -->
+        <span
+          class="gauge"
+          style:width="{COMPACT.ring}px"
+          style:height="{COMPACT.ring}px"
+          in:enter|global={{ step: 2 }}
+          out:exit|global
+        >
+          <Ring {it} stroke={(COMPACT.stroke * 44) / COMPACT.ring} drawn={false} wait={ENTER.delay + 2 * ENTER.stagger} {reduced} />
+        </span>
+      {/if}
     {:else if parts.power?.kind === 'deviceLow'}
       {@const it = { id: parts.power.device.name, ...parts.power.device }}
       {@const [first, second] = lines(parts.power, lang)}
@@ -3033,6 +3060,12 @@
 
   .power .level {
     margin-left: auto;
+  }
+
+  .power .named {
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
   }
 
   .power:has(.track) {

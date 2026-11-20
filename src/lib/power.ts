@@ -5,11 +5,14 @@ import type { Size } from './shapes'
 /** What a device is, for its glyph and its place in the panel. Mirrored in src-tauri/src/power.rs. */
 export type Kind = 'headset' | 'speaker' | 'controller' | 'mouse' | 'keyboard' | 'other'
 
-/** A connected device's battery. Mirrored in src-tauri/src/power.rs. */
+/**
+ * A connected device's battery: null for a headset, a speaker or a controller Windows gives no level for. Mirrored in
+ * src-tauri/src/power.rs.
+ */
 export interface Device {
   name: string
   kind: Kind
-  percent: number
+  percent: number | null
 }
 
 /**
@@ -74,8 +77,8 @@ export const ASIDE: Axis = [0.34, 0]
 export const COMPACT = { width: 200, height: 34, ring: 18, stroke: 2.2 } as const
 
 /**
- * A low battery waits until the island can show it, and brings it back from its line. Plugging in and a device
- * connecting show only while the island is out, and are dropped otherwise.
+ * A low battery waits until the island can show it, and brings it back from its line to stay. Plugging in and a device
+ * connecting are dropped while the island can't show them, and come out of the line only for their peek.
  */
 export const waits = (power: Power): boolean => power.kind === 'low' || power.kind === 'deviceLow'
 
@@ -84,7 +87,8 @@ export interface Item {
   id: string
   name: string
   kind: Kind | 'laptop'
-  percent: number
+  /** Null when Windows gives none. */
+  percent: number | null
   pc?: boolean
   plugged?: boolean
   saver?: boolean
@@ -108,6 +112,8 @@ const WORDS = {
     state: { charging: 'en charge', low: 'faible', saver: 'économiseur' },
     saver: "économiseur d'énergie",
     connected: (name: string) => `${name} vient de se connecter`,
+    unknown: 'niveau inconnu',
+    unreported: 'Windows ne donne pas sa batterie',
     others: (n: number) => `${n} autres : `,
     and: ' ; ',
     kind: { headset: 'Casque', speaker: 'Enceinte', controller: 'Manette', mouse: 'Souris', keyboard: 'Clavier', other: 'Appareil' },
@@ -127,6 +133,8 @@ const WORDS = {
     state: { charging: 'charging', low: 'low', saver: 'energy saver' },
     saver: 'energy saver',
     connected: (name: string) => `${name} connected`,
+    unknown: 'level unknown',
+    unreported: "Windows doesn't report its battery",
     others: (n: number) => `${n} more: `,
     and: '; ',
     kind: { headset: 'Headset', speaker: 'Speaker', controller: 'Controller', mouse: 'Mouse', keyboard: 'Keyboard', other: 'Device' },
@@ -135,8 +143,8 @@ const WORDS = {
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
-/** A level, with a narrow no-break space before the sign, so it never wraps. */
-export const percent = (n: number): string => `${Math.round(n)}\u202f%`
+/** A level, with a narrow no-break space before the sign, so it never wraps, or a dash when Windows gives none. */
+export const percent = (n: number | null): string => (n === null ? '—' : `${Math.round(n)}\u202f%`)
 
 /** Minutes as the island says them: 1 h 05, or 45 min under an hour. */
 export function duration(minutes: number): string {
@@ -147,7 +155,8 @@ export function duration(minutes: number): string {
 // The PC, then by kind, then by name: waking up or reconnecting never reshuffles the row, and levels never reorder it.
 const ORDER: Item['kind'][] = ['laptop', 'headset', 'speaker', 'controller', 'mouse', 'keyboard', 'other']
 
-/** The rings, in order. A device's id is its kind and name, numbered when two share them. */
+/** The rings, in order, the devices Windows gives no level for last. A device's id is its kind and name, numbered
+ * when two share them. */
 export function items(battery: Battery, lang: Lang): Item[] {
   const { percent: level, plugged, saver, minutes, full } = battery
   const pc: Item[] =
@@ -156,7 +165,12 @@ export function items(battery: Battery, lang: Lang): Item[] {
       : [{ id: 'pc', name: WORDS[lang].pc, kind: 'laptop', percent: level, pc: true, plugged, saver, minutes, full }]
   const seen = new Map<string, number>()
   const devices = battery.devices
-    .toSorted((a, b) => ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) || a.name.localeCompare(b.name, lang))
+    .toSorted(
+      (a, b) =>
+        +(a.percent === null) - +(b.percent === null) ||
+        ORDER.indexOf(a.kind) - ORDER.indexOf(b.kind) ||
+        a.name.localeCompare(b.name, lang),
+    )
     .map((d): Item => {
       const key = `${d.kind}:${d.name}`
       const n = (seen.get(key) ?? 0) + 1
@@ -167,11 +181,12 @@ export function items(battery: Battery, lang: Lang): Item[] {
 }
 
 /** At `LOW` or under on battery, even with energy saver on, which Windows turns on by itself at 20 %. */
-export const low = (it: Pick<Item, 'percent' | 'plugged'>): boolean => it.percent <= LOW && !it.plugged
+export const low = (it: Pick<Item, 'percent' | 'plugged'>): boolean =>
+  it.percent !== null && it.percent <= LOW && !it.plugged
 
-/** Red when low, amber while energy saver is on above that, green otherwise. */
+/** Red when low, amber while energy saver is on above that, green otherwise, and white without a level. */
 export const colorOf = (it: Pick<Item, 'percent' | 'plugged' | 'saver'>): string =>
-  low(it) ? COLOR.red : it.saver ? COLOR.amber : COLOR.green
+  it.percent === null ? '#fff' : low(it) ? COLOR.red : it.saver ? COLOR.amber : COLOR.green
 
 /** Five slots at most: past them, the last one counts the rest. A device at `LOW` or under swaps in for the last shown. */
 export function row(all: readonly Item[]): { shown: Item[]; hidden: Item[] } {
@@ -206,7 +221,8 @@ export interface Cell {
 /** A line of the detail: its text, its look, its centre `y` from the top and its left `x` from the centre. */
 export interface Line {
   text: string
-  cls: 'muted' | 'big'
+  /** `note` wraps onto a second line. */
+  cls: 'muted' | 'big' | 'note'
   x: number
   y: number
   step: number
@@ -226,10 +242,15 @@ function detail(it: Item, width: number, cy: number, lang: Lang): { cell: Cell; 
         [percent(it.percent), 'big', 0],
         [info(it, lang), 'muted', 32],
       ]
-    : [
-        [it.name, 'muted', -16],
-        [percent(it.percent), 'big', 16],
-      ]
+    : it.percent === null
+      ? [
+          [it.name, 'muted', -16],
+          [WORDS[lang].unreported, 'note', 14],
+        ]
+      : [
+          [it.name, 'muted', -16],
+          [percent(it.percent), 'big', 16],
+        ]
   return {
     cell: { id: it.id, it, cx: -width / 2 + GROWN.pad + GROWN.ring / 2, cy, d: GROWN.ring, label: false, step: 0 },
     lines: texts.map(([text, cls, dy], i) => ({ text, cls, x, y: cy + dy, step: i + 1, max: cls === 'big' ? undefined : max })),
@@ -292,7 +313,7 @@ export function info(it: Item, lang: Lang): string {
 /** A ring's spoken name: its name and level, then for the PC its time, energy saver and a low battery. */
 export function spoken(it: Item, lang: Lang): string {
   const words = WORDS[lang]
-  const parts = [it.name, percent(it.percent)]
+  const parts = [it.name, it.percent === null ? words.unknown : percent(it.percent)]
   if (it.pc && it.plugged) parts.push(it.full ? words.charging(duration(it.full)) : words.plugged)
   else if (it.pc) parts.push(it.minutes ? words.remaining(duration(it.minutes)) : words.battery)
   if (it.saver) parts.push(words.saver)
@@ -302,7 +323,8 @@ export function spoken(it: Item, lang: Lang): string {
 
 /** "+N"'s spoken name: each device it stands for. */
 export const others = (hidden: readonly Item[], lang: Lang): string =>
-  WORDS[lang].others(hidden.length) + hidden.map((d) => `${d.name}, ${percent(d.percent)}`).join(WORDS[lang].and)
+  WORDS[lang].others(hidden.length) +
+  hidden.map((d) => `${d.name}, ${d.percent === null ? WORDS[lang].unknown : percent(d.percent)}`).join(WORDS[lang].and)
 
 /** What a screen reader hears as the panel opens: every device, hidden ones too. */
 export const readOut = (all: readonly Item[], lang: Lang): string =>
@@ -337,6 +359,8 @@ export function lines(power: Power, lang: Lang): string[] {
   if (power.kind === 'plugged') return [percent(power.percent)]
   if (power.kind === 'low') return [percent(power.percent), power.minutes ? words.left(duration(power.minutes)) : words.low]
   const { name, percent: level } = power.device
+  // Without a level, a device connecting shows its name instead.
+  if (level === null) return [name]
   return power.kind === 'device' ? [percent(level)] : [percent(level), name]
 }
 
@@ -350,6 +374,7 @@ export function said(power: Power, lang: Lang): string {
   }
   const { name, percent: level } = power.device
   if (power.kind === 'deviceLow') return `${words.low}, ${name}, ${percent(level)}`
+  if (level === null) return words.connected(name)
   return `${words.connected(name)}, ${percent(level)}${level <= LOW ? `, ${words.low.toLowerCase()}` : ''}`
 }
 

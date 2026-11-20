@@ -275,6 +275,13 @@ export const corpus: Row[] = [
   ['batterie qui chauffe', 'fr', 'ask'],
   ['comment économiser la batterie', 'fr', 'ask'],
   ['acheter une batterie externe', 'fr', 'ask'],
+  // On its way: a word alone that starts one of the bar's own words.
+  ['batt', 'fr', 'battery', ''],
+  ['autono', 'fr', 'battery', ''],
+  ['heu', 'fr', 'clock', 'time'],
+  ['bateau', 'fr', 'ask'],
+  ['heureux', 'fr', 'ask'],
+  ['autoroute', 'fr', 'ask'],
 
   // --- French: the weather ---
   ['météo', 'fr', 'weather', ''],
@@ -283,6 +290,8 @@ export const corpus: Row[] = [
   ['meteo lyon demain', 'fr', 'weather', 'lyon'],
   ['météo Saint-Étienne stp', 'fr', 'weather', 'Saint-Étienne'],
   ['météo demain', 'fr', 'weather', ''],
+  ['mété', 'fr', 'weather', ''],
+  ['meteorite', 'fr', 'ask'],
   ['quel temps fait-il à Lyon', 'fr', 'ask'],
   ['temps à Lyon', 'fr', 'ask'],
   ['météo de la semaine', 'fr', 'ask'],
@@ -711,6 +720,13 @@ export const corpus: Row[] = [
   ['battery saver tips', 'en', 'ask'],
   ['how to save battery on windows', 'en', 'ask'],
   ['best battery pack', 'en', 'ask'],
+  // On its way: a word alone that starts one of the bar's own words.
+  ['bat', 'en', 'battery', ''],
+  ['tim', 'en', 'clock', 'time'],
+  ['dat', 'en', 'clock', 'date'],
+  ['batman', 'en', 'ask'],
+  ['timeline', 'en', 'ask'],
+  ['database', 'en', 'ask'],
 
   // --- English: the weather ---
   ['weather', 'en', 'weather', ''],
@@ -719,6 +735,8 @@ export const corpus: Row[] = [
   ['weather in New York tomorrow', 'en', 'weather', 'New York'],
   ['Weather London please', 'en', 'weather', 'London'],
   ['weather today', 'en', 'weather', ''],
+  ['weath', 'en', 'weather', ''],
+  ['weathering steel', 'en', 'ask'],
   ['weather forecast for next week', 'en', 'ask'],
   ['weather in 10 minutes', 'en', 'ask'],
   ['what is the weather like in Rome', 'en', 'ask'],
