@@ -101,14 +101,15 @@ struct Laptop {
 
 impl Laptop {
     /// Plugging in peeks, and the next discharge may warn again. On battery, the first reading at or under `LOW`
-    /// warns, never only an exact match, since some PCs step by more than 1 %. Unplugging says nothing.
+    /// warns, never only an exact match, since some PCs step by more than 1 %. Unplugging says nothing, even low:
+    /// the next level does.
     fn read(&mut self, percent: u8, plugged: bool, minutes: Option<u32>) -> Option<Peek> {
         let was = std::mem::replace(&mut self.plugged, plugged);
         if plugged {
             self.warned = false;
             return (!was).then_some(Peek::Plugged(percent));
         }
-        if percent > LOW || self.warned {
+        if was || percent > LOW || self.warned {
             return None;
         }
         self.warned = true;
@@ -582,10 +583,21 @@ mod tests {
         assert_eq!(laptop.read(LOW - 3, false, Some(50)), None);
         // Plugging in starts a new discharge.
         laptop.read(LOW - 3, true, None);
+        laptop.read(LOW - 3, false, None);
         assert!(matches!(
-            laptop.read(LOW - 3, false, None),
+            laptop.read(LOW - 4, false, None),
             Some(Peek::Low(_))
         ));
+    }
+
+    #[test]
+    fn unplugging_low_says_nothing_until_the_next_level() {
+        let mut laptop = Laptop {
+            plugged: true,
+            warned: false,
+        };
+        assert_eq!(laptop.read(15, false, None), None);
+        assert!(matches!(laptop.read(14, false, None), Some(Peek::Low(_))));
     }
 
     #[test]
