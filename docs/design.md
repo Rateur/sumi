@@ -11,7 +11,7 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
 | Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date, or a timer's name. |
 | Compact | Call 144, timer 112 (128 from an hour), music 200 × 34 px* | An activity runs: content on the left and right ends. |
-| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s | Something just happened: timer ended, charger, low battery. A new song swells instead, see [Music](#music). |
+| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s; plugging in 200 × 34 px*, 2 s; a low battery or a device 300 × 56 px*, 3 s | Something just happened: timer ended, charger, low battery, a device with a battery connecting. A new song swells instead, see [Music](#music). The battery's are in [Battery](#battery). |
 | Done | Timer 150 × 34 px* at least | A timer ended and waits for OK. |
 | Expanded | Clock and timer 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
@@ -38,6 +38,8 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 6. Time or weather
 
 What was picked from the bubble comes right after a timer that ended. Timers go by their end rather than by what is shown, so the island always holds the next one to ring.
+
+A battery peek shows over this order for a few seconds, and never covers a call or a timer's end peek. A low battery waits for them, and for the bar, an open panel, the welcome, fullscreen and while Windows says you're busy. Plugging in and a device connecting are dropped instead.
 
 ## Music
 
@@ -74,6 +76,15 @@ What was picked from the bubble comes right after a timer that ended. Timers go 
 - Mute is Windows' own mute of the default microphones and of every microphone an app is capturing from at that moment, never an idle one. It counts as on only when all of those are muted. Unmute turns back on only the ones Sumi muted, or all of them when Sumi muted none. While it's on, a crossed microphone stays in the disc, even when no app listens.
 - Media Foundation is loaded at run time: Windows N editions ship without it, and Sumi must still start there, with the microphone alone.
 
+## Battery
+
+- **Plugging in**: the music's compact shape, 200 × 34 px*, for 2 s. A white bolt draws itself in 180 ms at the left end, then the level comes in at the right end: "47 %". Only while the island is out: tucked, in fullscreen, while you're busy or over a call, it is dropped.
+- **At 20 %**: a 300 × 56 px* peek for 3 s. A red `#F87171` battery outline filled to the level, then "20 %" and, below, "About 1 h 05 left" when Windows knows the time, otherwise "Low battery". Once per discharge: on the first reading at or under 20 %, never only an exact match, since some PCs step by more than 1 %. Plugging in starts a new discharge. It waits, and shows once the island is free if you're still on battery. It brings a tucked island back.
+- **A device with a battery**, such as a Bluetooth headset, mouse or controller, with the level Windows shows in its Bluetooth settings: as it connects, a 300 × 56 px* peek for 3 s with its glyph (a headset, a mouse, a controller, otherwise a battery filled to the level), its name, cut with an ellipsis, and its level, shown as plugging in is. At 20 %, its own low peek, its name under the level, once per discharge. Only a level read after it connects counts: Windows keeps the last one of a device that left. A device that never gives one shows nothing. Phones and computers are left out: they show their own battery.
+- **Nothing** on unplugging, a full charge or energy saver.
+- The motion is a song's peek; the bolt's stroke is the only new one. With reduced motion the bolt is there at once.
+- The laptop's battery is read once at launch: without one, nothing is listened to. Then only Windows' events come: the supply and the level, and for devices the connection and the level. Nothing is logged or stored.
+
 ## Input
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
@@ -89,7 +100,7 @@ Known limits: with touch or a pen, the first tap on the island reaches the app u
 | `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, and anything else is a question. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, `battery` gives the battery's level on the chip, and anything else is a question. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
 
 The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
 
@@ -146,6 +157,8 @@ What the island and its bubble show decides whether it stays or tucks itself aft
 | Command bar or its answer | Stays, and brings it back |
 | Welcome | Stays, and brings it back |
 | A timer's end peek or done pill | Stays, and brings it back |
+| Low battery, the PC's or a device's | Stays, and brings it back |
+| Plugging in, or a device connecting | Shows only while the island is out, and never brings it back |
 | Music, playing or paused | Stays, and brings it back |
 | Running timer | Tucks itself. Its end brings it back. |
 | Time alone | Tucks itself |

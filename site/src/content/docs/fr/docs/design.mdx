@@ -17,7 +17,7 @@ Cette page décrit l'île de la 1.0. Ce que fait déjà chaque version est dans 
 | Au repos | 132 × 34 px | Rien ne se passe. Affiche l'heure, ou la météo si elle est choisie. |
 | Survol | 152 × 36 px | Le curseur s'est posé un instant sur l'île. Ajoute la date, ou le nom d'un minuteur. |
 | Compacte | Appel 144, minuteur 112 (128 à partir d'une heure), musique 200 × 34 px* | Une activité est en cours : son contenu se place à gauche et à droite. |
-| Coup d'œil | Musique 300 × 56 px*, 3 s au plus ; minuteur fini 300 × 56 px*, 6 s | Il vient de se passer quelque chose : un minuteur a fini, le chargeur est branché, la batterie est faible. Un nouveau morceau fait plutôt gonfler l'île, voir [Musique](#musique). |
+| Coup d'œil | Musique 300 × 56 px*, 3 s au plus ; minuteur fini 300 × 56 px*, 6 s ; chargeur branché 200 × 34 px*, 2 s ; batterie faible ou appareil 300 × 56 px*, 3 s | Il vient de se passer quelque chose : un minuteur a fini, le chargeur est branché, la batterie est faible, un appareil avec une batterie se connecte. Un nouveau morceau fait plutôt gonfler l'île, voir [Musique](#musique). Ceux de la batterie sont dans [Batterie](#batterie). |
 | Pastille de fin | Minuteur 150 × 34 px* au moins | Un minuteur a fini et attend un OK. |
 | Ouverte | Horloge et minuteur 280 × 120 px*, musique 360 × 164 px*, panneaux jusqu'à 560 px de large | Un clic. Se referme avec Échap ou un clic ailleurs. La musique affiche la pochette, le titre et l'artiste, la progression, et précédent, lecture ou pause, et suivant. |
 | Bulle | Cercle de 34 px | Une deuxième activité, ou l'heure, à 8 px à droite de l'île. Un clic la fait passer sur l'île. |
@@ -44,6 +44,8 @@ L'heure passe en dernier : elle a l'île quand rien ne tourne, et la bulle quand
 6. Heure ou météo
 
 Ce qui a été choisi depuis la bulle passe juste après un minuteur fini. Les minuteurs sont classés par leur fin, pas par ce qui est affiché : l'île garde toujours le prochain qui va sonner.
+
+Un coup d'œil de la batterie passe par-dessus cet ordre quelques secondes, et ne couvre jamais un appel ni le coup d'œil de fin d'un minuteur. Une batterie faible les attend, et attend aussi la barre, un panneau ouvert, l'accueil, la fin du plein écran et que Windows ne vous dise plus occupé. Le chargeur branché et un appareil qui se connecte sont abandonnés à la place.
 
 ## Musique
 
@@ -80,6 +82,15 @@ Ce qui a été choisi depuis la bulle passe juste après un minuteur fini. Les m
 - Le muet est celui de Windows, sur les micros par défaut, pour toutes les apps. Il ne compte comme activé que si tous les micros par défaut sont coupés. Tant qu'il l'est, un micro barré reste dans le disque, même si aucune app n'écoute.
 - Media Foundation est chargé à l'exécution : les éditions N de Windows en sont privées, et Sumi doit quand même y démarrer, avec le micro seul.
 
+## Batterie
+
+- **Chargeur branché** : la forme compacte de la musique, 200 × 34 px*, pendant 2 s. Un éclair blanc se dessine en 180 ms à gauche, puis le niveau arrive à droite : « 47 % ». Seulement quand l'île est sortie : rangée, en plein écran, quand vous êtes occupé ou par-dessus un appel, il est abandonné.
+- **À 20 %** : un coup d'œil de 300 × 56 px* pendant 3 s. Le contour d'une batterie rouge `#F87171` rempli jusqu'au niveau, puis « 20 % » et, dessous, « Environ 1 h 05 » quand Windows connaît la durée, sinon « Batterie faible ». Une fois par décharge : à la première mesure à 20 % ou moins, jamais seulement à 20 % pile, car certains PC descendent de plus de 1 % à la fois. Brancher le chargeur ouvre une nouvelle décharge. Il attend, et s'affiche dès que l'île est libre si vous êtes toujours sur batterie. Il fait revenir l'île rangée.
+- **Un appareil avec une batterie**, comme un casque, une souris ou une manette Bluetooth, avec le niveau que Windows affiche dans ses paramètres Bluetooth : à sa connexion, un coup d'œil de 300 × 56 px* pendant 3 s avec son pictogramme (un casque, une souris, une manette, sinon une batterie remplie jusqu'au niveau), son nom, coupé par des points de suspension, et son niveau, affiché comme le chargeur branché. À 20 %, son propre coup d'œil de batterie faible, son nom sous le niveau, une fois par décharge. Seul compte un niveau lu après sa connexion : Windows garde le dernier d'un appareil parti. Un appareil qui n'en donne jamais n'affiche rien. Les téléphones et les ordinateurs sont laissés de côté : ils affichent leur propre batterie.
+- **Rien** quand on débranche, quand la charge est complète ni en mode économie d'énergie.
+- Le mouvement est celui du coup d'œil d'un morceau ; le tracé de l'éclair est le seul nouveau. Avec les animations réduites, l'éclair est là d'emblée.
+- La batterie du portable est lue une fois au lancement : sans batterie, rien n'est écouté. Ensuite, seuls arrivent les événements de Windows : l'alimentation et le niveau, et pour les appareils la connexion et le niveau. Rien n'est écrit dans un journal ni stocké.
+
 ## Interactions
 
 Les clics hors de l'île atteignent la fenêtre en dessous. L'île ne prend jamais le focus, sauf quand la barre de commande est ouverte : un jeu ou un appel le garde.
@@ -95,7 +106,7 @@ Limites connues : au toucher ou au stylet, le premier appui sur l'île atteint l
 | `Tab` / `Maj+Tab` | Cible suivante / précédente |
 | `Échap` | Fermer |
 
-Dans la barre de commande, `25m`, `90s` ou `1h30` est un minuteur, le nom d'une app l'ouvre, `quelle heure est-il` affiche l'heure, et tout le reste est une question. La ligne est lue sans la ponctuation, les formules de politesse ne comptent qu'autour d'un verbe, et un verbe compte pareil sous toutes ses formes (`ouvre`, `ouvrir`, `lance`, `open`). Un mot seul de quatre lettres ou plus ouvre l'app dont le nom, ou un mot de ce nom, commence ainsi, s'il n'y en a qu'une : `disc` ouvre Discord, mais jamais tant que le mot peut encore devenir un mot de la barre ou une question. Dans le doute, la ligne est une question : des apps à égalité ou un verbe à la forme négative n'ouvrent rien. La pastille dit ce que fera Entrée, et Tab la fait passer à la cible suivante : les apps à égalité, l'assistant par défaut, les autres assistants, puis le moteur de recherche. Sur une ligne vide, Entrée ne fait rien.
+Dans la barre de commande, `25m`, `90s` ou `1h30` est un minuteur, le nom d'une app l'ouvre, `quelle heure est-il` affiche l'heure, `batterie` donne le niveau de la batterie sur la pastille, et tout le reste est une question. La ligne est lue sans la ponctuation, les formules de politesse ne comptent qu'autour d'un verbe, et un verbe compte pareil sous toutes ses formes (`ouvre`, `ouvrir`, `lance`, `open`). Un mot seul de quatre lettres ou plus ouvre l'app dont le nom, ou un mot de ce nom, commence ainsi, s'il n'y en a qu'une : `disc` ouvre Discord, mais jamais tant que le mot peut encore devenir un mot de la barre ou une question. Dans le doute, la ligne est une question : des apps à égalité ou un verbe à la forme négative n'ouvrent rien. La pastille dit ce que fera Entrée, et Tab la fait passer à la cible suivante : les apps à égalité, l'assistant par défaut, les autres assistants, puis le moteur de recherche. Sur une ligne vide, Entrée ne fait rien.
 
 Le raccourci fait passer la barre au premier plan, avec le focus. Échap rend le focus à la fenêtre où vous étiez ; un clic ailleurs ou un changement d'app referme aussi la barre. Avant qu'une app ou un site s'ouvre, la barre lâche le focus, pour que ce qui s'ouvre passe au premier plan. Tant que l'île est masquée en plein écran, le raccourci ne fait rien.
 
@@ -152,6 +163,8 @@ Ce qu'affichent l'île et sa bulle décide si elle reste ou se range toute seule
 | Barre de commande ou sa réponse | Reste, et la fait revenir |
 | Accueil | Reste, et la fait revenir |
 | Coup d'œil de fin ou pastille de fin d'un minuteur | Reste, et la fait revenir |
+| Batterie faible, celle du PC ou d'un appareil | Reste, et la fait revenir |
+| Chargeur branché, ou un appareil qui se connecte | Ne s'affiche que si l'île est sortie, et ne la fait jamais revenir |
 | Musique, en lecture ou en pause | Reste, et la fait revenir |
 | Minuteur en cours | Se range toute seule. Sa fin la fait revenir. |
 | L'heure seule | Se range toute seule |
