@@ -22,7 +22,7 @@ Sumi puts a small black pill at the top of your screen. It shows the time, then 
 
 [**Download Sumi for Windows**](https://github.com/Rateur/sumi/releases/latest/download/Sumi-setup.exe) (10 and 11, 64-bit), or pick a version on the [releases page](https://github.com/Rateur/sumi/releases).
 
-The installer isn't signed yet. Your browser may hold it as rarely downloaded: keep it from its downloads list. Windows then warns about an unknown publisher: click **More info**, then **Run anyway**. A Microsoft Store version, signed by Microsoft, is on its way: see the [code signing policy](https://rateur.github.io/sumi/docs/code-signing/). Quit Sumi from its tray icon.
+The installer isn't signed yet. Your browser may hold it as rarely downloaded: keep it from its downloads list. Windows then warns about an unknown publisher: click **More info**, then **Run anyway**. A Microsoft Store version, signed by Microsoft, is on its way: see the [code signing policy](https://sumi.valentinperies.fr/docs/code-signing/). Quit Sumi from its tray icon.
 
 ## Roadmap
 
