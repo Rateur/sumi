@@ -79,6 +79,35 @@ export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 230
 /** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
 export const INK = { r: 15.5, d: 21, goo: 7 } as const
 
+/** The tuck: the line under the top edge, its hit height, and the gesture: deltaY summed within `within` ms, or a pull. */
+export const TUCK = { width: 132, height: 4, hit: 12, wheel: 40, within: 200, pull: 12 } as const
+
+/**
+ * Goutte, the tuck's motion, in ms from its start. In: the edge's ink, `ink` wide, comes down from `away` (its bottom
+ * edge, above the screen) while the island closes into a drop (`close`), is drawn up `rise` px above its place as a
+ * `thin` × `long` drop (`draw`), and the ink spreads along the edge (`spread`). The ink runs `above` px over the edge,
+ * so the goo keeps a full meniscus there. Out: a bead of radius `bead` hangs from the line, which gathers to `gather`,
+ * the edge lets it go (`release`), and the drop opens into the island (`open`).
+ */
+export const GOUTTE = {
+  ink: 24,
+  away: -12,
+  above: 40,
+  close: 60,
+  draw: 180,
+  thin: 16,
+  long: 40,
+  rise: 50,
+  spread: 300,
+  bead: 8,
+  gather: 40,
+  release: 120,
+  open: 260,
+} as const
+
+/** What the island shows tucks itself after this long at rest, in ms, when it is a kind that tucks (tuck.ts). */
+export const TUCK_AFTER = 10_000
+
 /** A CSS `cubic-bezier()` as an easing function, for Svelte transitions. */
 export function bezier(x1: number, y1: number, x2: number, y2: number): (x: number) => number {
   const at = (p1: number, p2: number, t: number) => 3 * p1 * t * (1 - t) ** 2 + 3 * p2 * (1 - t) * t * t + t ** 3
