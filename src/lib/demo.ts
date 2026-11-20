@@ -160,8 +160,8 @@ const KEYS: Record<string, string> = {
  * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none. `?lang=fr` or `?lang=en`
  * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
  edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
- 'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does; a rest, a click, a scroll down or a
- pull down on the line brings it back.
+ 'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does, and drains the open panel (E) up
+ into the edge; a rest, a click, a scroll down or a pull down on the line brings it back.
  */
 export function demo(island: {
   activities: Activity[]

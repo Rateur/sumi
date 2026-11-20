@@ -173,6 +173,17 @@ export function radius(height: number): number {
 }
 
 /**
+ * The corners of a shape drawn up into a drop, as a CSS `border-radius`: at `taper` 0 the island's own; at 1 round
+ * below, and drawn out above into a dome that hangs from the middle of its top.
+ */
+export function drip(width: number, height: number, taper: number): string {
+  const [r, round] = [radius(height), Math.min(width / 2, radius(height))]
+  const mix = (to: number) => (r + (to - r) * taper).toFixed(1)
+  const [x, y, b] = [mix(width / 2), mix(height - round), mix(round)]
+  return `${x}px ${x}px ${b}px ${b}px / ${y}px ${y}px ${b}px ${b}px`
+}
+
+/**
  * Where the island and the bubble are drawn, and where clicks are caught: the island
  * centered under the top edge, the bubble beside it, both growing from their centers.
  * `travel` slides the bubble sideways from its place and `drop` moves both down.

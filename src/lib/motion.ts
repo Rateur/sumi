@@ -79,6 +79,10 @@ export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 230
 /** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
 export const INK = { r: 15.5, d: 21, goo: 7 } as const
 
+/** The bubble's drop springs, in split and merge, which the tuck's drop shares. */
+export const MERGE: Axis = [0.36, 0]
+export const SPLIT: { d: Axis; r: Axis } = { d: [0.5, 0.3], r: [0.4, 0.25] }
+
 /**
  * The tuck: the line under the top edge, its hit height, and the gesture: deltas summed within `within` ms past
  * `wheel`, or a pull.
@@ -107,6 +111,14 @@ export const GOUTTE = {
   release: 120,
   open: 260,
 } as const
+
+/**
+ * Drain, the tuck from an open panel, in ms from its start: the panel's ink is drawn back into the edge as into a nib.
+ * The content leaves and the edge's ink comes down as in Goutte. At `pull` the panel's sides and bottom pull in toward
+ * the top centre, its corners first, into a bell and then Goutte's `thin` × `long` drop under the neck. From `rise`
+ * the body drains up through the neck while the ink spreads along the edge.
+ */
+export const DRAIN = { pull: 60, rise: 140 } as const
 
 /** What the island shows tucks itself after this long at rest, in ms, when it is a kind that tucks (tuck.ts). */
 export const TUCK_AFTER = 10_000

@@ -24,8 +24,10 @@
     FULLSCREEN,
     GOUTTE,
     INK,
+    MERGE,
     OPEN,
     PRESS,
+    SPLIT,
     SWIPE,
     TUCK,
     WELCOME,
@@ -43,6 +45,7 @@
     TAG_GAP,
     TOP,
     cardSize,
+    drip,
     layout,
     radius,
     resolveView,
@@ -89,6 +92,7 @@
   import { ASSISTANTS, choices, langOf, type Choice, type Lang } from './lib/intent'
   import { WORDS, announce, keysOf } from './lib/welcome'
   import {
+    DRAINS,
     TRAY,
     drag,
     kinds,
@@ -114,9 +118,6 @@
   // Blur that joins the island and the bubble while they part. Their neck breaks at a gap of
   // about 1.35 σ: just before the bubble lands 8 px away, and not again on its bounce.
   const GOO = 5
-  // The bubble's drop springs, in split and merge, which the tuck's drop shares.
-  const MERGE: Axis = [0.36, 0]
-  const SPLIT: { d: Axis; r: Axis } = { d: [0.5, 0.3], r: [0.4, 0.25] }
   const entering = bezier(...ENTER.easing)
   const leaving = bezier(...EXIT.easing)
 
@@ -317,12 +318,13 @@
   const inkR = new Spring(0)
   const lift = new Spring(0)
   const slide = new Spring(0)
+  const taper = new Spring(0)
   const lineW = new Spring(0)
   const lineB = new Spring(GOUTTE.away)
   const lineX = new Spring(0)
   const springs = [
     width, height, drop, travel, bubble, tagShift, tagW, tagH, inkD, inkR,
-    lift, slide, lineW, lineB, lineX,
+    lift, slide, taper, lineW, lineB, lineX,
   ]
 
   let goo = $state(false)
@@ -405,7 +407,9 @@
       shine: level(fades.shine, t),
       shade,
       hit,
-      lean: reduced ? 0 : lean(slide.velocity),
+      // A panel leans less, so its bottom trails no more than the drawn-up drop's.
+      lean: reduced ? 0 : lean(slide.velocity) * Math.min(1, GOUTTE.long / h),
+      corners: taper.value > 0.01 ? drip(w, h, taper.value) : undefined,
       clip: { ...layout(viewport, clip, 0, { drop: lifted })[0], x: (viewport - clip.width) / 2 + slide.value },
     }
   }
@@ -769,6 +773,9 @@
         // Folding, the box rides the shape's middle: the old row starts where it was drawn.
         top: `${r.top - c.top - (folding ? (c.height - size.height) / 2 : 0)}px`,
         width: `${node.offsetWidth}px`,
+        // Its size as drawn: a piece styled for the panel, such as the artwork, would take the closed view's.
+        height: `${node.offsetHeight}px`,
+        boxSizing: 'border-box',
         margin: '0',
         transform: '',
       })
@@ -1359,7 +1366,7 @@
   let armed = true
   // A press on the island, while it is held: where it began, and whether it has gone past a click's square.
   let grip: { x: number; y: number; far: boolean } | undefined
-  // A swipe's press doesn't also open the island as it is released.
+  // A swipe's press doesn't also click the island or its panel as it is released.
   let swiped = false
 
   const away = () => tuck === 'tucking' || tuck === 'tucked'
@@ -1375,6 +1382,8 @@
       skip()
     }
     tucker = by
+    // From the open panel, its ink drains up into the edge instead.
+    const panel = expanded
     expanded = false
     closeBar()
     press(false)
@@ -1393,7 +1402,7 @@
       spring.kick(way === 'left' || way === 'up' ? -SWIPE.push : SWIPE.push, t)
     }
     // A bubble merges back into the island as it closes, in the tuck's goo.
-    drawUp(t, back, way)
+    drawUp(t, back, way, panel)
     wake()
   }
 
@@ -1418,8 +1427,9 @@
   // The edge's ink comes down while the island closes into a drop, the drop is drawn up through a neck, and the ink
   // spreads along the edge. The welcome bead's goo: its neck holds across the 8 px under the edge. Swiped sideways,
   // the island slides that way first, so the neck forms off-centre and the drop is drawn up on a curve; swiped down,
-  // it first stretches down like a rubber band, then snaps up into the same neck.
-  function drawUp(t0: number, back = false, way: Direction = 'up') {
+  // it first stretches down like a rubber band, then snaps up into the same neck. From an open panel, the panel drains
+  // up through that neck instead (DRAINS).
+  function drawUp(t0: number, back = false, way: Direction = 'up', panel = false) {
     const x = way === 'left' ? -SWIPE.side : way === 'right' ? SWIPE.side : 0
     pill = true
     if (!back) {
@@ -1432,25 +1442,30 @@
     // Its own speed is kept: a drag or a push already heads that way.
     if (x) slide.to(x, ...MERGE, t0)
     if (way === 'down') {
-      drive(width, size.width - SWIPE.stretch, FULLSCREEN.hide, t0)
-      drive(height, size.height + SWIPE.stretch, FULLSCREEN.hide, t0)
+      drive(width, width.value - SWIPE.stretch, FULLSCREEN.hide, t0)
+      drive(height, height.value + SWIPE.stretch, FULLSCREEN.hide, t0)
       t0 += SWIPE.snap
     }
-    step(t0, GOUTTE.close, (t) => {
-      drive(width, BUBBLE, FULLSCREEN.hide, t)
-      drive(height, BUBBLE, FULLSCREEN.hide, t)
-    })
-    // Drawn up, the drop thins and stretches, its top first. The width keeps its speed: it already heads that way.
-    step(t0, GOUTTE.draw, (t) => {
-      width.to(GOUTTE.thin, ...MERGE, t)
-      drive(height, GOUTTE.long, MERGE, t)
-      drive(lift, -(TOP + GOUTTE.rise), MERGE, t)
-    })
-    // The ink spreads along the edge into the centred line.
-    step(t0, GOUTTE.spread, (t) => {
-      drive(lineW, TUCK.width, CLOSE.width, t)
-      drive(lineX, 0, CLOSE.width, t)
-    })
+    if (panel) {
+      const driven = { width, height, lift, taper, lineW, lineX }
+      for (const { at, part, to, axis } of DRAINS) step(t0, at, (t) => drive(driven[part], to, axis, t))
+    } else {
+      step(t0, GOUTTE.close, (t) => {
+        drive(width, BUBBLE, FULLSCREEN.hide, t)
+        drive(height, BUBBLE, FULLSCREEN.hide, t)
+      })
+      // Drawn up, the drop thins and stretches, its top first. The width keeps its speed: it already heads that way.
+      step(t0, GOUTTE.draw, (t) => {
+        width.to(GOUTTE.thin, ...MERGE, t)
+        drive(height, GOUTTE.long, MERGE, t)
+        drive(lift, -(TOP + GOUTTE.rise), MERGE, t)
+      })
+      // The ink spreads along the edge into the centred line.
+      step(t0, GOUTTE.spread, (t) => {
+        drive(lineW, TUCK.width, CLOSE.width, t)
+        drive(lineX, 0, CLOSE.width, t)
+      })
+    }
     check(
       () => TOP + drop.value + lift.value + height.value < lineB.value - 2,
       (t) => {
@@ -1475,6 +1490,7 @@
     // Its centre 8 px inside the line's bottom, as the welcome's bead starts 8 px inside the pill.
     width.jump(2 * r)
     height.jump(2 * r)
+    taper.jump(0)
     lift.jump(TUCK.height - 2 * r - TOP)
     drive(lineW, GOUTTE.gather, MERGE, t0)
     drive(lift, 0, SPLIT.d, t0)
@@ -1500,6 +1516,7 @@
     drive(height, size.height, OPEN.height, t)
     drive(lift, 0, FULLSCREEN.show, t)
     drive(slide, 0, FULLSCREEN.show, t)
+    drive(taper, 0, OPEN.width, t)
     drive(lineB, GOUTTE.away, MERGE, t)
     if (sigma > 0) fade(0, 120, t)
     stowed = false
@@ -1538,6 +1555,7 @@
     goo = false
     fades = { pill: still(1), line: still(1), shine: still(tucked ? 1 : 0) }
     slide.jump(0)
+    taper.jump(0)
     lineX.jump(0)
     if (tucked) {
       pill = false
@@ -1584,7 +1602,7 @@
   // A wheel or touchpad swipe on the island, once the hover dwell has passed, tucks it from that side; down on the line
   // brings it back.
   function wheelIsland(event: WheelEvent) {
-    if (tuck !== 'shown' || !hovered || expanded || barOpen || card) return
+    if (tuck !== 'shown' || !hovered || barOpen || card) return
     const lines = event.deltaMode === WheelEvent.DOM_DELTA_LINE
     notches = scroll(notches, event.timeStamp, event.deltaX, event.deltaY, lines)
     const way = swipe(notches)
@@ -1600,11 +1618,13 @@
     if (swipe(notches) === 'down') untuck()
   }
 
-  // A press on the island that moves is a swipe: past a click's square the island follows the pointer, less and
-  // less, and released out there it tucks from that side. Back inside, or beside the privacy tag, it springs back.
+  // A press on the island or its panel that moves is a swipe: past a click's square the island follows the pointer,
+  // less and less, and released out there it tucks from that side. Back inside, or beside the privacy tag, it springs
+  // back. A press on the progress bar seeks instead.
   function gripStart(event: PointerEvent) {
     swiped = false
-    if (event.button !== 0 || tuck !== 'shown' || expanded || barOpen || card) return
+    if (event.button !== 0 || tuck !== 'shown' || barOpen || card) return
+    if ((event.target as Element).closest('.scrub')) return
     grip = { x: event.clientX, y: event.clientY, far: false }
   }
 
@@ -1915,8 +1935,8 @@
     )
   }
 
-  const place = ({ x, y, width, height }: Rect) =>
-    `left:${x}px;top:${y}px;width:${width}px;height:${height}px;border-radius:${radius(height)}px`
+  const place = ({ x, y, width, height }: Rect, corners = `${radius(height)}px`) =>
+    `left:${x}px;top:${y}px;width:${width}px;height:${height}px;border-radius:${corners}`
 </script>
 
 <svelte:window
@@ -2049,7 +2069,7 @@
   {#if geometry.pill > 0}
     <div
       class="fill"
-      style={place(geometry.fill)}
+      style={place(geometry.fill, geometry.corners)}
       style:opacity={geometry.pill < 1 ? geometry.pill : undefined}
       style:transform={Math.abs(geometry.lean) > 0.05 ? `skewX(${-geometry.lean}deg)` : undefined}
     ></div>
@@ -2132,6 +2152,12 @@
   onpointercancel={() => press(false)}
   onpointerenter={() => tauri || point(true)}
   onpointerleave={() => (tauri ? press(false) : point(false))}
+  onclickcapture={(event) => {
+    // A swipe's press doesn't also click what it started on as it is released.
+    if (!swiped) return
+    swiped = false
+    event.stopPropagation()
+  }}
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
   {#if !expanded && !barOpen && !launch}
@@ -2141,7 +2167,7 @@
       class="opener"
       aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
       aria-expanded={done ? undefined : 'false'}
-      onclick={() => (swiped ? (swiped = false) : greeting === 'playing' ? skip() : open())}
+      onclick={() => (greeting === 'playing' ? skip() : open())}
     ></button>
   {/if}
   <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
@@ -2172,7 +2198,7 @@
         {@const p = parts.player.player}
         {#if playback && playback.endMs > 0}
           {@const at = position(playback, tick)}
-          <span class="progress muted" in:enter={{ step: 2 }} out:exit>
+          <span class="progress muted" in:enter={{ step: 2 }} out:exit|global>
             <span>{clockTime(at)}</span>
             <span
               class="scrub"
@@ -2205,7 +2231,7 @@
             <span>-{clockTime(playback.endMs - at)}</span>
           </span>
         {/if}
-        <span class="controls" in:enter={{ step: 3 }} out:exit>
+        <span class="controls" in:enter={{ step: 3 }} out:exit|global>
           <button type="button" aria-label="Previous" disabled={!p.canPrevious} onclick={() => control('previous')}>
             {@render icon('previous')}
           </button>
@@ -2252,12 +2278,12 @@
       {#if view.name === 'expanded'}
         <!-- The panel: the name, the digits and the end, then pause or resume, and cancel. -->
         {@const others = timers.filter((o) => o.id !== t.id && !ended(o, at)).length}
-        <span class="timing" in:enter out:exit>
+        <span class="timing" in:enter out:exit|global>
           <span class="muted">{name ?? said.timer}{#if others}<span class="others">+{others}</span>{/if}</span>
           <span class="big countdown" class:paused class:long={long(t, at)}>{@render digits(formatLeft(t, at))}</span>
           <span class="muted">{paused ? said.paused : said.ends(formatTime(new Date(endOf(t, at))))}</span>
         </span>
-        <span class="round" in:enter={{ step: 1 }} out:exit>
+        <span class="round" in:enter={{ step: 1 }} out:exit|global>
           <button
             type="button"
             class="main"

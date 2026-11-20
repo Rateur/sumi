@@ -1,7 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import type { Activity } from './activities'
-import { TUCK_AFTER, TUCK_AFTER_CLICK } from './motion'
-import { drag, kinds, marks, resist, scroll, swipe, tucksAfter, tucksItself, wakes, type Notch } from './tuck'
+import { MERGE, TUCK, TUCK_AFTER, TUCK_AFTER_CLICK } from './motion'
+import { TOP } from './shapes'
+import { Spring } from './spring'
+import {
+  DRAINS,
+  drag,
+  kinds,
+  marks,
+  resist,
+  scroll,
+  swipe,
+  tucksAfter,
+  tucksItself,
+  wakes,
+  type Notch,
+  type Part,
+} from './tuck'
 
 const call: Activity = { id: 'call', kind: 'call', mic: true, camera: false }
 const song: Activity = { id: 'spotify', kind: 'music', title: 'Intro', artist: 'The xx', color: '#fff' }
@@ -138,5 +153,53 @@ describe('resist', () => {
     expect(resist(-8)).toBeCloseTo(-3.7, 1)
     expect(resist(1e4)).toBeLessThan(24)
     expect(resist(40)).toBeLessThan(resist(60))
+  })
+})
+
+describe('DRAINS', () => {
+  // The clock panel drained at 60 Hz, as Island.svelte runs it: the edge's ink comes down at 0, then the beats.
+  function drain() {
+    const springs: Record<Part | 'lineB', Spring> = {
+      width: new Spring(280),
+      height: new Spring(120),
+      lift: new Spring(0),
+      taper: new Spring(0),
+      lineW: new Spring(24),
+      lineX: new Spring(0),
+      lineB: new Spring(-12),
+    }
+    springs.lineB.to(TUCK.height, ...MERGE, 0)
+    const frames: { t: number; at: Record<string, number> }[] = []
+    for (let t = 0; t <= 1200; t += 1000 / 60) {
+      for (const beat of DRAINS.filter((b) => b.at <= t && b.at > t - 1000 / 60)) {
+        springs[beat.part].to(beat.to, ...beat.axis, beat.at)
+      }
+      Object.values(springs).forEach((s) => s.update(t))
+      frames.push({ t, at: Object.fromEntries(Object.entries(springs).map(([k, s]) => [k, s.value])) })
+    }
+    return frames
+  }
+  const frames = drain()
+  const first = (when: (at: Record<string, number>) => boolean) => frames.find((f) => when(f.at))?.t ?? Infinity
+
+  it('drains the body into the line, then draws the line sooner than the closed tuck (about 630 ms)', () => {
+    const inside = first((at) => TOP + at.lift + at.height < TUCK.height - 2)
+    const drawn = first((at) => at.lineW > TUCK.width - 4)
+    expect(inside).toBeLessThan(400)
+    expect(drawn).toBeGreaterThan(inside)
+    expect(drawn).toBeLessThan(500)
+  })
+
+  it('pulls the sides in faster than the bottom rises', () => {
+    const sides = first((at) => at.width < 280 - (280 - 16) / 2)
+    const bottom = first((at) => at.height < 120 - (120 - 40) / 2)
+    expect(sides).toBeLessThan(bottom)
+  })
+
+  it('never overshoots: calm, without a bounce', () => {
+    for (const { part, to } of DRAINS) {
+      const start = frames[0].at[part]
+      for (const { at } of frames) expect((at[part] - to) * Math.sign(start - to)).toBeGreaterThanOrEqual(-1e-6)
+    }
   })
 })
