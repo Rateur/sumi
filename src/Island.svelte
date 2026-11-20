@@ -1938,8 +1938,8 @@
     if (!city) return
     if (!consented && !asking) {
       asking = { ...choice, city }
-      line = consent(city, lang)
-      spoken = WEATHER_WORDS[lang].consent(city)
+      line = consent(city, lang).join('')
+      spoken = line
       return
     }
     consented = true
@@ -2605,7 +2605,7 @@
         choices={options}
         {lang}
         {reduced}
-        asking={!!asking}
+        question={asking && consent(asking.city ?? '', lang)}
         {shortcut}
         {enter}
         {exit}

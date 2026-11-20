@@ -113,14 +113,9 @@ describe('the chip', () => {
 })
 
 describe('the consent', () => {
-  it('says what Open-Meteo will get', () => {
-    expect(consent('Lyon', 'fr')).toBe('Open-Meteo recevra « Lyon » et votre IP.')
-    expect(consent('Paris', 'en')).toBe('Open-Meteo will get "Paris" and your IP.')
-  })
-
-  it('cuts a long city, so the IP still shows', () => {
-    expect(consent('Saint-Rémy-de-Provence', 'fr')).toBe('Open-Meteo recevra « Saint-Rémy… » et votre IP.')
-    expect(consent('Saint-Étienne', 'en')).toBe('Open-Meteo will get "Saint-Étie…" and your IP.')
+  it('says what Open-Meteo will get, the city apart so the bar can cut it alone', () => {
+    expect(consent('Lyon', 'fr')).toEqual(['Open-Meteo recevra « ', 'Lyon', ' » et votre IP.'])
+    expect(consent('Paris', 'en').join('')).toBe('Open-Meteo will get "Paris" and your IP.')
   })
 })
 

@@ -42,7 +42,7 @@
     choices,
     lang,
     reduced,
-    asking = false,
+    question,
     shortcut,
     enter,
     exit,
@@ -53,8 +53,8 @@
     choices: Choice<Listed>[]
     lang: Lang
     reduced: boolean
-    /** The field holds a question, read-only, and the chip is its answer: the weather's consent. */
-    asking?: boolean
+    /** A question the chip answers, in three parts, the middle one cut first: the weather's consent. */
+    question?: [string, string, string]
     /** The shortcut that opens the bar, as Rust registered it: `Win+Alt+S`. */
     shortcut?: string
     enter: (node: HTMLElement, params?: { step?: number }) => TransitionConfig
@@ -170,15 +170,6 @@
   const focus = (node: HTMLInputElement) => {
     if (window === parent) node.focus()
   }
-
-  // A question shows from its start, whatever the caret did.
-  let field = $state<HTMLInputElement>()
-  $effect(() => {
-    void line
-    if (!asking || !field) return
-    field.setSelectionRange(0, 0)
-    field.scrollLeft = 0
-  })
 </script>
 
 {#snippet face(choice: Choice<Listed>, mark: ReturnType<typeof markOf>)}
@@ -203,11 +194,10 @@
 
 <input
   class="field"
-  class:asking
+  class:asking={!!question}
   type="text"
-  bind:this={field}
   bind:value={line}
-  readonly={asking}
+  readonly={!!question}
   placeholder={lang === 'fr' ? 'Minuteur, app, question…' : 'Timer, app, question…'}
   aria-label={lang === 'fr' ? 'Barre de commande' : 'Command bar'}
   aria-keyshortcuts={shortcut?.replace('Win', 'Meta')}
@@ -219,6 +209,12 @@
   in:enter|global
   out:exit|global
 />
+{#if question}
+  <!-- The field keeps the focus and the whole sentence, out of sight; this shows it with the city cut first. -->
+  <span class="field question" aria-hidden="true" out:exit|global>
+    <span>{question[0]}</span><span class="city">{question[1]}</span><span>{question[2]}</span>
+  </span>
+{/if}
 <span
   class="chip"
   role="status"
@@ -258,11 +254,30 @@
     color: rgb(255 255 255 / 0.6);
   }
 
-  /* A question takes the room the chip leaves, without a caret: it can't be edited. */
   .field.asking {
-    flex-grow: 1;
+    position: absolute;
+    width: 0;
+    opacity: 0;
+  }
+
+  /* A question takes the room the chip leaves. A long city gets an ellipsis, so the end always shows. */
+  .question {
+    display: flex;
+    flex: 1 1 auto;
     margin-right: 12px;
-    caret-color: transparent;
+    overflow: hidden;
+    white-space: pre;
+  }
+
+  .question > span {
+    flex: none;
+  }
+
+  .question > .city {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* The chip has no padding of its own, so it can spring down to nothing. */

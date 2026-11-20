@@ -39,9 +39,6 @@ export const TIMEOUT = 8000
 /** Never cached, so WebView2 writes nothing to disk; no cookie and no referrer go with it. */
 export const FETCH: RequestInit = { cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' }
 
-/** The longest city the consent sentence shows whole, in characters. */
-const LONGEST = 11
-
 /** An hour still to come today with this rain chance or more, in %, gives the rain line. */
 export const RAIN = 50
 
@@ -50,7 +47,7 @@ const WORDS = {
     weather: 'Météo',
     tomorrow: 'demain',
     city: 'tapez une ville',
-    consent: (city: string) => `Open-Meteo recevra « ${city} » et votre IP.`,
+    consent: ['Open-Meteo recevra « ', ' » et votre IP.'],
     allow: 'Autoriser',
     offline: 'Pas de réseau',
     unknown: 'Ville introuvable',
@@ -60,7 +57,7 @@ const WORDS = {
     weather: 'Weather',
     tomorrow: 'tomorrow',
     city: 'type a city',
-    consent: (city: string) => `Open-Meteo will get "${city}" and your IP.`,
+    consent: ['Open-Meteo will get "', '" and your IP.'],
     allow: 'Allow',
     offline: 'No connection',
     unknown: 'City not found',
@@ -119,13 +116,12 @@ export function chip(city: string | undefined, day: 0 | 1, lang: Lang): string {
 }
 
 /**
- * The consent sentence the field shows, the city cut so the sentence ends inside the 480 px bar: « Open-Meteo recevra
- * « Saint-Rémy… » et votre IP. ». A screen reader hears it whole.
+ * The consent sentence in three parts, « Open-Meteo recevra « », the city, « » et votre IP. », so the bar can cut a long
+ * city and still show the end.
  */
-// shortcut: a long city is cut at a count of characters, not measured; measure the field if a city still overflows
-export function consent(city: string, lang: Lang): string {
-  const shown = city.length > LONGEST ? `${city.slice(0, LONGEST - 1).replace(/[\s-]+$/, '')}…` : city
-  return WORDS[lang].consent(shown)
+export function consent(city: string, lang: Lang): [string, string, string] {
+  const [before, after] = WORDS[lang].consent
+  return [before, city, after]
 }
 
 /** Where the city is looked up. `encodeURIComponent` makes a space %20 and an accent its UTF-8 bytes. */
