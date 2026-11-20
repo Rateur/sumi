@@ -19,6 +19,7 @@ mod privacy;
 mod timers;
 mod tray;
 mod welcome;
+mod xbox;
 
 use std::sync::Mutex;
 

@@ -1,5 +1,5 @@
 //! The battery: the laptop's, from Windows' power manager, and the level a Bluetooth device reports, as Windows shows
-//! it in its Bluetooth settings or as Sumi reads it where Windows doesn't (fastpair.rs). Everything
+//! it in its Bluetooth settings or as Sumi reads it where Windows doesn't (fastpair.rs, xbox.rs). Everything
 //! comes from events on a thread of its own, which sleeps in between: plugging in, the laptop running low, a device
 //! with a battery connecting or running low, and what the batteries panel shows. What it reads goes to the page and
 //! nowhere else: nothing is logged or stored.
@@ -257,7 +257,7 @@ impl Gadgets {
         tell(g, ready)
     }
 
-    /// A level Sumi read itself (fastpair.rs): it stands over Windows' own, which may be coarser or
+    /// A level Sumi read itself (fastpair.rs, xbox.rs): it stands over Windows' own, which may be coarser or
     /// from one bud, until the device disconnects.
     fn own(
         &mut self,
@@ -571,6 +571,7 @@ mod win {
         }
         // The levels Windows doesn't read, which Sumi reads itself.
         crate::fastpair::watch(&tx);
+        crate::xbox::watch(&tx);
         drop(tx);
         let power = app.state::<Power>();
         let mut gadgets = Gadgets {

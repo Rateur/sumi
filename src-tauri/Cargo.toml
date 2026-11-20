@@ -33,6 +33,7 @@ windows = { version = "0.62", features = [
   "Devices_Bluetooth_Rfcomm",
   "Devices_Enumeration",
   "Devices_Power",
+  "Gaming_Input",
   "Media_Control",
   "Networking",
   "Networking_Sockets",
