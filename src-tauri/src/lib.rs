@@ -10,6 +10,7 @@
 
 mod apps;
 mod bar;
+mod fastpair;
 mod fullscreen;
 mod island;
 mod media;

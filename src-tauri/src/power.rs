@@ -1,7 +1,8 @@
 //! The battery: the laptop's, from Windows' power manager, and the level a Bluetooth device reports, as Windows shows
-//! it in its Bluetooth settings. Everything comes from Windows' events on a thread of its own, which sleeps in
-//! between: plugging in, the laptop running low, a device with a battery connecting or running low, and what the
-//! batteries panel shows. What it reads goes to the page and nowhere else: nothing is logged or stored.
+//! it in its Bluetooth settings or as Sumi reads it where Windows doesn't (fastpair.rs). Everything
+//! comes from events on a thread of its own, which sleeps in between: plugging in, the laptop running low, a device
+//! with a battery connecting or running low, and what the batteries panel shows. What it reads goes to the page and
+//! nowhere else: nothing is logged or stored.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -9,6 +10,10 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
+
+use crate::fastpair::Buds;
+#[cfg(windows)]
+pub(crate) use win::Msg;
 
 /// The low peek fires at or under this level. Settings, in 0.9, will make it a choice.
 const LOW: u8 = 20;
@@ -33,13 +38,15 @@ pub struct Battery {
     devices: Vec<Device>,
 }
 
-/// A connected device's battery: `None` for a headset, a speaker or a controller Windows gives no level for.
-/// Mirrored in src/lib/power.ts.
+/// A connected device's battery: `None` for a headset, a speaker or a controller Windows gives no level for, and
+/// each bud's and the case's when Fast Pair gives them. Mirrored in src/lib/power.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Device {
     name: String,
     kind: Kind,
     percent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    buds: Option<Buds>,
 }
 
 /// What a device is, for its glyph and its place in the panel. Mirrored in src/lib/power.ts.
@@ -156,6 +163,9 @@ struct Gadget {
     warned: bool,
     /// Until when a level may still come after it connected: past that, it peeks without one.
     waiting: Option<Instant>,
+    /// Whether Sumi reads its level itself while it stays connected, and the buds' from Fast Pair.
+    own: bool,
+    buds: Option<Buds>,
 }
 
 impl Gadget {
@@ -165,6 +175,7 @@ impl Gadget {
             name: self.name.clone(),
             kind: self.kind?,
             percent: self.percent.filter(|_| self.live),
+            buds: self.buds.filter(|_| self.live),
         })
     }
 
@@ -207,6 +218,8 @@ impl Gadgets {
         if !connected || was {
             g.live &= connected;
             g.waiting = g.waiting.filter(|_| connected);
+            g.own &= connected;
+            g.buds = g.buds.filter(|_| connected);
             return None;
         }
         // At launch the level Windows has is the one it shows; later, only a fresh one counts, and one may still come.
@@ -223,10 +236,14 @@ impl Gadgets {
         None
     }
 
-    /// A node's level. Windows keeps the last one of a device that left, so a level only counts while connected.
+    /// A node's level. Windows keeps the last one of a device that left, so a level only counts while connected. One
+    /// Sumi reads itself goes over Windows' own.
     fn level(&mut self, address: &str, percent: u8, now: Instant) -> Option<Peek> {
         let ready = self.ready;
         let g = self.by_address.entry(address.to_string()).or_default();
+        if g.own {
+            return None;
+        }
         g.percent = Some(percent);
         g.read = ready.then_some(now);
         if percent > LOW {
@@ -238,6 +255,25 @@ impl Gadgets {
         g.live = true;
         g.waiting = None;
         tell(g, ready)
+    }
+
+    /// A level Sumi read itself (fastpair.rs): it stands over Windows' own, which may be coarser or
+    /// from one bud, until the device disconnects.
+    fn own(
+        &mut self,
+        address: &str,
+        percent: u8,
+        buds: Option<Buds>,
+        now: Instant,
+    ) -> Option<Peek> {
+        let g = self.by_address.entry(address.to_string()).or_default();
+        g.own = false;
+        g.buds = buds;
+        let peek = self.level(address, percent, now);
+        if let Some(g) = self.by_address.get_mut(address) {
+            g.own = g.connected;
+        }
+        peek
     }
 
     /// When the next device that connected without a level stops waiting for one.
@@ -314,7 +350,7 @@ fn tell(g: &mut Gadget, ready: bool) -> Option<Peek> {
 /// The Bluetooth address in an endpoint's or a node's id: its last run of exactly 12 hex digits, colons dropped.
 /// `Bluetooth#Bluetooth00:45:e2:3b:f6:80-d8:f0:c0:83:4a:ff` and `BTHENUM\{…}_VID&…\7&cd23df0&0&D8F0C0834AFF_C00000000`
 /// are both D8F0C0834AFF.
-fn address(id: &str) -> Option<String> {
+pub(crate) fn address(id: &str) -> Option<String> {
     id.replace(':', "")
         .split(|c: char| !c.is_ascii_hexdigit())
         .rfind(|run| run.len() == 12)
@@ -417,7 +453,9 @@ mod win {
     use windows::core::{Array, HSTRING, IInspectable, Interface};
     use windows_collections::{IIterable, IMapView};
 
-    use super::{Battery, Gadgets, Kind, Laptop, Peek, Power, address, kind, minutes, to_full};
+    use super::{
+        Battery, Buds, Gadgets, Kind, Laptop, Peek, Power, address, kind, minutes, to_full,
+    };
 
     /// The level Windows shows in its Bluetooth settings, on a device's own nodes.
     const LEVEL: &str = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
@@ -433,7 +471,7 @@ mod win {
     /// The nodes Bluetooth makes for a device. AQS can't filter on the level itself.
     const NODES: &str = "System.Devices.DeviceInstanceId:~<\"BTH\"";
 
-    enum Msg {
+    pub(crate) enum Msg {
         /// The laptop's supply, level or energy saver changed.
         Laptop,
         Endpoint {
@@ -445,6 +483,8 @@ mod win {
         /// An endpoint was unpaired.
         Gone(String),
         Level(String, u8),
+        /// A level Sumi read itself, and the buds' from Fast Pair.
+        Own(String, u8, Option<Buds>),
         /// A watcher listed what was there at launch.
         Listed,
     }
@@ -526,10 +566,12 @@ mod win {
         let watchers = endpoints(&tx)
             .and_then(|e| nodes(&tx).inspect_err(|_| drop(e.Stop())).map(|n| (e, n)))
             .inspect_err(|e| log::warn!("power: Bluetooth levels can't be heard: {e}"));
-        drop(tx);
         if watchers.is_err() && !heard {
             return;
         }
+        // The levels Windows doesn't read, which Sumi reads itself.
+        crate::fastpair::watch(&tx);
+        drop(tx);
         let power = app.state::<Power>();
         let mut gadgets = Gadgets {
             ready: watchers.is_err(),
@@ -569,6 +611,7 @@ mod win {
                     None
                 }
                 Msg::Level(address, percent) => gadgets.level(&address, percent, now),
+                Msg::Own(address, percent, buds) => gadgets.own(&address, percent, buds, now),
                 Msg::Listed => {
                     listed += 1;
                     gadgets.ready = listed == 2;
@@ -767,7 +810,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        Device, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind, minutes, to_full,
+        Buds, Device, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind, minutes, to_full,
     };
 
     #[test]
@@ -901,6 +944,7 @@ mod tests {
             name: "Casque".into(),
             kind,
             percent: Some(percent),
+            buds: None,
         }
     }
 
@@ -1023,6 +1067,7 @@ mod tests {
             name: "Casque".into(),
             kind: Kind::Speaker,
             percent: None,
+            buds: None,
         };
         assert_eq!(g.due(t + FRESH), vec![Peek::Device(unknown.clone())]);
         assert_eq!(g.next(), None);
@@ -1066,6 +1111,49 @@ mod tests {
         );
         assert!(g.due(t + FRESH).is_empty());
         assert_eq!(g.connected(), vec![device(Kind::Headset, 60)]);
+    }
+
+    #[test]
+    fn a_level_sumi_reads_stands_over_windows_own_while_connected() {
+        let (mut g, t) = listed(Kind::Headset, 90);
+        g.endpoint("A", None, None, Some(true), t);
+        let buds = Buds::new(Some(47), Some(52), None);
+        let fast = Device {
+            buds: Some(buds),
+            ..device(Kind::Headset, 47)
+        };
+        assert_eq!(
+            g.own("A", 47, Some(buds), t),
+            Some(Peek::Device(fast.clone()))
+        );
+        // Windows' own, from one bud and in steps of 10, no longer moves the ring.
+        assert_eq!(g.level("A", 50, t), None);
+        assert_eq!(g.connected(), vec![fast]);
+        // Next time, without Fast Pair, Windows' counts again.
+        g.endpoint("A", None, None, Some(false), t);
+        g.endpoint("A", None, None, Some(true), t + Duration::from_secs(60));
+        g.level("A", 40, t);
+        assert_eq!(g.connected(), vec![device(Kind::Headset, 40)]);
+    }
+
+    #[test]
+    fn a_controller_sumi_reads_off_bluetooth_peeks_as_it_comes() {
+        let mut g = Gadgets {
+            ready: true,
+            ..Gadgets::default()
+        };
+        let t = Instant::now();
+        assert_eq!(g.own("xbox 1", 15, None, t), None);
+        assert_eq!(
+            g.endpoint(
+                "xbox 1",
+                Some("Casque".into()),
+                Some(Some(Kind::Controller)),
+                Some(true),
+                t
+            ),
+            Some(Peek::Device(device(Kind::Controller, 15)))
+        );
     }
 
     #[test]

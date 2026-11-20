@@ -5,14 +5,22 @@ import type { Size } from './shapes'
 /** What a device is, for its glyph and its place in the panel. Mirrored in src-tauri/src/power.rs. */
 export type Kind = 'headset' | 'speaker' | 'controller' | 'mouse' | 'keyboard' | 'other'
 
+/** Each bud's level and the case's, from Fast Pair, null when unknown. Mirrored in src-tauri/src/fastpair.rs. */
+export interface Buds {
+  left: number | null
+  right: number | null
+  case: number | null
+}
+
 /**
- * A connected device's battery: null for a headset, a speaker or a controller Windows gives no level for. Mirrored in
- * src-tauri/src/power.rs.
+ * A connected device's battery: null for a headset, a speaker or a controller Windows gives no level for, and each
+ * bud's and the case's when Fast Pair gives them. Mirrored in src-tauri/src/power.rs.
  */
 export interface Device {
   name: string
   kind: Kind
   percent: number | null
+  buds?: Buds
 }
 
 /**
