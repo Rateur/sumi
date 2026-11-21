@@ -42,6 +42,8 @@ const CORNER: f64 = 3.0;
 const MARCH: f64 = 14.0;
 /// How far a QR code may reach past the box and still be whole in it.
 const TOLERANCE: f64 = 4.0;
+/// The margin the box's text gets before the OCR reads it, in physical px.
+const PAD: usize = 8;
 
 /// How a capture ended. Mirrored as `Captured` in src/lib/capture.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -362,6 +364,41 @@ struct Crop {
 }
 
 impl Crop {
+    /// With `by` px around it in the commonest colour of its edge, its background: the OCR misreads letters that
+    /// touch the image's edge, and a box is often drawn tight around them.
+    fn padded(&self, by: usize) -> Crop {
+        let (w, h) = (self.width, self.height);
+        let edge =
+            (0..w * h).filter(|n| n % w == 0 || n % w == w - 1 || n / w == 0 || n / w == h - 1);
+        let mut counts: Vec<(u32, usize)> = Vec::new();
+        for n in edge {
+            match counts
+                .iter_mut()
+                .find(|(colour, _)| *colour == self.pixels[n])
+            {
+                Some((_, count)) => *count += 1,
+                None => counts.push((self.pixels[n], 1)),
+            }
+        }
+        let back = counts
+            .iter()
+            .fold((0xFFFF_FFFF, 0), |best, &(colour, n)| {
+                if n > best.1 { (colour, n) } else { best }
+            })
+            .0;
+        let width = w + 2 * by;
+        let mut pixels = vec![back; width * (h + 2 * by)];
+        for (y, row) in self.pixels.chunks(w).enumerate() {
+            let at = (y + by) * width + by;
+            pixels[at..at + w].copy_from_slice(row);
+        }
+        Crop {
+            pixels,
+            width,
+            height: h + 2 * by,
+        }
+    }
+
     /// Scaled by `by` to the nearest pixel: a small box read twice as large gives the OCR letters it knows.
     fn scaled(&self, by: f64) -> Crop {
         let width = ((self.width as f64 * by).round() as usize).max(1);
@@ -726,7 +763,7 @@ mod os {
 
     use super::{
         AFTER, CELLS, Capture, Captured, Crop, FADE, FOLLOW, Fade, GROW, Key, Lens, MARCH, MARGIN,
-        MERGE, Outline, Pixels, RADIUS, REDUCED, Read, Spring, TOLERANCE, grown, hex, picked,
+        MERGE, Outline, PAD, Pixels, RADIUS, REDUCED, Read, Spring, TOLERANCE, grown, hex, picked,
         spanned, squash,
     };
     use crate::{bar, clipboard, island};
@@ -1736,6 +1773,7 @@ mod os {
             return Read::Unreadable;
         };
         let limit = OcrEngine::MaxImageDimension().map_or(2600, |m| m as usize);
+        let crop = crop.padded(PAD);
         let crop = crop.scaled(super::fit(crop.width, crop.height, limit));
         let bytes: Vec<u8> = crop.pixels.iter().flat_map(|p| p.to_le_bytes()).collect();
         let lines = (|| {
@@ -1968,6 +2006,10 @@ mod tests {
             width: 2,
             height: 2,
         };
+        let framed = crop.padded(1);
+        assert_eq!((framed.width, framed.height), (4, 4));
+        assert_eq!(framed.pixels[5..7], [1, 2]);
+        assert_eq!(framed.pixels[0], 1);
         let twice = crop.scaled(2.0);
         assert_eq!((twice.width, twice.height), (4, 4));
         assert_eq!(twice.pixels[..4], [1, 1, 2, 2]);
