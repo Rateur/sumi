@@ -67,7 +67,7 @@ Type `battery`, or just `bat`, or `battery level`, or in French `batterie`, `aut
 - Phones and computers are left out: they show their own battery.
 - Windows doesn't say whether a Bluetooth device is charging: only the PC gets the bolt.
 - "Full in" shows after 2 minutes on mains, rounded up to 10 minutes. Before that, or if Windows gives no charge rate, the panel says "Plugged in".
-- The warning comes at 20 %. Settings, in 0.9, will let you choose.
+- The warning comes at 20 %. Settings, in 0.10, will let you choose.
 
 ## Privacy
 

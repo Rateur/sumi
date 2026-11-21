@@ -61,7 +61,7 @@ The weather asked in the bar shows over all of it for 4 s, as the bar's answers 
 - Several timers: the island shows the one that ends first, the others wait, still counting. Without a label they are numbered: "Timer 2".
 - At the end, the island swells and peeks for 6 s: the full ring, the name or "Time's up", the time since the end counting up ("+0:12"), a quiet +1 min and a white OK. It then folds into the done pill, ring, name and "+3:10", whose buttons show under the cursor.
 - A click on the done pill, or OK, dismisses it, and so does `stop` in the bar. Esc and a click elsewhere don't: you may not have seen it yet. +1 min starts a minute under the same name. There is no Repeat button.
-- A short, soft chime made by the app every 10 s for a minute, then silence, at Windows' volume. On by default; Settings, in 0.9, will turn it off. The browser demo stays silent.
+- A short, soft chime made by the app every 10 s for a minute, then silence, at Windows' volume. On by default; Settings, in 0.10, will turn it off. The browser demo stays silent.
 - While Windows says you're busy, a finished timer still peeks and rings: it is an alarm you set. In fullscreen only the chime plays; when the fullscreen app ends, the island drops back, swells once and shows the end.
 - Timers live in memory only: quitting Sumi or restarting Windows clears them. Nothing the island shows is written to disk.
 
@@ -145,7 +145,7 @@ In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `
 
 The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
 
-If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are taken, the bar has no shortcut, and nothing pops up to say so. Settings, in 0.9, will let you change it. `Ctrl+Alt+S` is left alone, since some keyboards type a letter with AltGr+S, and so is `Ctrl+Shift+S`, Save As. So are `Alt+Space` (Windows and PowerToys Run) and `Ctrl+Alt+Space` (Claude's quick entry).
+If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are taken, the bar has no shortcut, and nothing pops up to say so. Settings, in 0.10, will let you change it. `Ctrl+Alt+S` is left alone, since some keyboards type a letter with AltGr+S, and so is `Ctrl+Shift+S`, Save As. So are `Alt+Space` (Windows and PowerToys Run) and `Ctrl+Alt+Space` (Claude's quick entry).
 
 ## Staying out of the way
 

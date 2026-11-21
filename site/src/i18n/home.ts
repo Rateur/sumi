@@ -35,7 +35,8 @@ export const home = {
 			{ title: 'Live taskbar icon', text: 'Sumi’s icon shows the microphone dot and the music. A click tucks the island.', tag: '0.7.0' },
 			{ title: 'Weather', text: 'Type weather and a city: the island answers, through Open-Meteo, once you allow it.', tag: '0.8.0' },
 			{ title: 'Battery', text: 'Your PC’s and your devices’ batteries, even ones Windows doesn’t show.', tag: '0.8.0' },
-			{ title: 'Settings', text: 'Screen, theme, language and shortcuts, in one window.', tag: 'next' },
+			{ title: 'Smart clipboard', text: 'Your recent copies, pasted where you were. A color, text or a QR code from the screen.', tag: 'next' },
+			{ title: 'Settings', text: 'Screen, theme, language and shortcuts in one window, and Sumi on the Microsoft Store.', tag: 'planned' },
 		],
 		quietTitle: 'It stays out of the way.',
 		quiet: [
@@ -91,7 +92,8 @@ export const home = {
 			{ title: 'Icône vivante', text: 'L’icône de Sumi montre le point micro et la musique. Un clic range l’île.', tag: '0.7.0' },
 			{ title: 'Météo', text: 'Tapez météo et une ville : l’île répond, via Open-Meteo, une fois que vous l’autorisez.', tag: '0.8.0' },
 			{ title: 'Batterie', text: 'La batterie de votre PC et de vos appareils, même celle que Windows n’affiche pas.', tag: '0.8.0' },
-			{ title: 'Réglages', text: 'Écran, thème, langue et raccourcis, dans une seule fenêtre.', tag: 'prochaine' },
+			{ title: 'Presse-papiers intelligent', text: 'Vos dernières copies, collées là où vous étiez. Une couleur, un texte ou un QR code depuis l’écran.', tag: 'prochaine' },
+			{ title: 'Réglages', text: 'Écran, thème, langue et raccourcis dans une seule fenêtre, et Sumi sur le Microsoft Store.', tag: 'prévu' },
 		],
 		quietTitle: 'Elle se fait oublier.',
 		quiet: [

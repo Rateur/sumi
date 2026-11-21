@@ -67,7 +67,7 @@ Tapez `batterie`, ou juste `bat`, `autonomie` ou `niveau de batterie`, ou en ang
 - Les téléphones et les ordinateurs sont laissés de côté : ils affichent leur propre batterie.
 - Windows ne dit pas si un appareil Bluetooth charge : seul le PC a l'éclair.
 - « Plein dans » s'affiche après 2 minutes sur secteur, arrondi aux 10 minutes supérieures. Avant, ou si Windows ne donne pas de vitesse de charge, le panneau dit « Sur secteur ».
-- L'alerte arrive à 20 %. Les paramètres, en 0.9, vous laisseront choisir.
+- L'alerte arrive à 20 %. Les paramètres, en 0.10, vous laisseront choisir.
 
 ## Confidentialité
 

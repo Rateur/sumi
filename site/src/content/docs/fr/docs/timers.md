@@ -34,7 +34,7 @@ Un minuteur qui finit prend l'île à la musique, jamais à un appel. Quand Wind
 
 ## Le son
 
-Un carillon court et doux toutes les 10 secondes pendant une minute, puis le silence. Il suit le volume de Windows. Il est activé pour l'instant ; les réglages, dans la 0.9, permettront de le couper. La démo du site ne joue aucun son.
+Un carillon court et doux toutes les 10 secondes pendant une minute, puis le silence. Il suit le volume de Windows. Il est activé pour l'instant ; les réglages, dans la 0.10, permettront de le couper. La démo du site ne joue aucun son.
 
 En plein écran, un jeu ou une vidéo garde l'écran : seul le carillon sonne. Quand il se termine, l'île redescend et montre le minuteur fini.
 

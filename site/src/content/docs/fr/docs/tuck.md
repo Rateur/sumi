@@ -15,7 +15,7 @@ L'île peut se ranger dans une fine ligne sous le bord supérieur de votre écra
 
 ## Elle se range toute seule
 
-Quand l'île n'affiche que l'heure ou un minuteur en cours, elle se range toute seule après 10 secondes au repos : sans curseur dessus, sans rien d'ouvert. Après un clic ailleurs, elle part au bout d'une seconde. La musique, un appel, le point du micro ou de la caméra, la barre de commande et un minuteur fini la gardent sortie. Les réglages, en 0.9, permettront de choisir pour chacun.
+Quand l'île n'affiche que l'heure ou un minuteur en cours, elle se range toute seule après 10 secondes au repos : sans curseur dessus, sans rien d'ouvert. Après un clic ailleurs, elle part au bout d'une seconde. La musique, un appel, le point du micro ou de la caméra, la barre de commande et un minuteur fini la gardent sortie. Les réglages, en 0.10, permettront de choisir pour chacun.
 
 ## La faire revenir
 

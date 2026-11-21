@@ -235,12 +235,19 @@ const island = `${base}island/index.html?lang=${lang}`;
 						<span class="rm-tag rm-done">{t.roadmap[10].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 64px; --w1: 150px">
-							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e4e4e7" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
-							<span class="rm-more rm-dim">{t.roadmap[11].title}</span>
+						<span class="rm-clip" data-ui aria-hidden="true">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="#000" stroke="#e4e4e7" stroke-width="2"><rect x="3" y="3" width="12" height="12" rx="2.5"></rect><rect x="8" y="8" width="12" height="12" rx="2.5"></rect></svg>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[11].title}</strong><span>{t.roadmap[11].text}</span></span>
 						<span class="rm-tag rm-next">{t.roadmap[11].tag}</span>
+					</li>
+					<li class="rm-row" data-reveal>
+						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 64px; --w1: 150px">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e4e4e7" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
+							<span class="rm-more rm-dim">{t.roadmap[12].title}</span>
+						</span>
+						<span class="rm-copy"><strong>{t.roadmap[12].title}</strong><span>{t.roadmap[12].text}</span></span>
+						<span class="rm-tag">{t.roadmap[12].tag}</span>
 					</li>
 				</ol>
 			</section>
@@ -1352,23 +1359,28 @@ const island = `${base}island/index.html?lang=${lang}`;
 	.rm-more {
 		display: inline-block;
 		max-width: 0;
+		/* Folded, it takes back the pill's gap too, so the glyph sits in the middle like the others. */
+		margin-left: -10px;
 		opacity: 0;
 		scale: var(--enter-scale);
 		filter: blur(var(--enter-blur));
 		overflow: hidden;
 		transition:
 			max-width var(--unpeek-w),
+			margin-left var(--unpeek-w),
 			opacity var(--exit),
 			scale 0s var(--exit-time),
 			filter 0s var(--exit-time);
 	}
 	.rm-row:hover .rm-more {
 		max-width: 220px;
+		margin-left: 0;
 		opacity: 1;
 		scale: 1;
 		filter: none;
 		transition:
 			max-width var(--peek-w),
+			margin-left var(--peek-w),
 			opacity var(--enter) var(--enter-delay),
 			scale var(--enter) var(--enter-delay),
 			filter var(--enter) var(--enter-delay);
@@ -1381,8 +1393,25 @@ const island = `${base}island/index.html?lang=${lang}`;
 	   and nothing around it moves. The frame lets the cursor through, so the line under it stays hovered. */
 	.rm-pill,
 	.rm-live,
-	.rm-icon {
+	.rm-icon,
+	.rm-clip {
 		justify-self: center;
+	}
+	/* The clipboard: on the island's black, the last copy slides off the stack. Nothing else moves. */
+	.rm-clip {
+		display: grid;
+		place-items: center;
+		width: 64px;
+		height: 34px;
+		border-radius: 17px;
+		background: #000;
+	}
+	.rm-clip rect + rect {
+		transition: translate var(--unpeek-h);
+	}
+	.rm-row:hover .rm-clip rect + rect {
+		translate: 2px 2px;
+		transition: translate var(--peek-h);
 	}
 	/* Sumi's own icon, as the taskbar shows it: an app turns the microphone on, and its dot springs in. */
 	.rm-icon {
@@ -1733,7 +1762,8 @@ const island = `${base}island/index.html?lang=${lang}`;
 		}
 		.rm-pill,
 		.rm-live,
-		.rm-icon {
+		.rm-icon,
+		.rm-clip {
 			grid-column: 1 / -1;
 			max-width: 100%;
 		}
