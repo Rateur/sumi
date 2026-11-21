@@ -13,7 +13,7 @@ La liste commence par ce que contient le presse-papiers au moment de votre accor
 
 ## Dans la liste
 
-- **Tapez** pour filtrer. Les majuscules et les accents ne comptent pas. Le compteur à droite devient « 2 sur 12 ». Tapez `couleur`, `lien`, `dossier`, `e-mail` ou `code` pour ne garder que ces éléments.
+- **Tapez** pour filtrer. Les majuscules et les accents ne comptent pas. Le compteur à droite devient « 2 sur 12 ». Tapez `couleur`, `lien`, `dossier`, `e-mail` ou `code` pour retrouver ces éléments.
 - **↑ et ↓** déplacent la surbrillance. Au-delà de la cinquième ligne, la liste défile.
 - **Entrée** colle l'élément dans l'app où vous étiez. L'île affiche « Collé » un instant, jamais ce qui a été collé.
 - **Maj+Entrée** le colle en texte brut, sans la mise en forme d'origine. Tant que vous tenez Maj, la pastille affiche « Texte brut ».
@@ -57,5 +57,5 @@ Faites un clic droit sur l'icône de Sumi, près de l'horloge :
 - Du texte seulement : pas encore d'images ni de fichiers.
 - Seule l'app d'où vous copiez peut marquer un élément comme privé. Sumi garde ce qu'elle ne marque pas.
 - Seul l'élément le plus récent, tant qu'il est encore dans le presse-papiers, garde sa mise en forme d'origine. Les autres se collent en texte brut.
-- Seules les adresses sans accents ont « Écrire ». Un chemin réseau, comme `\\serveur\partage`, n'a pas « Dossier ». Les couleurs avec transparence, comme `rgba()`, restent du texte.
+- Seules les adresses sans accents ont « Écrire ». Un chemin réseau, comme `\\serveur\partage` ou un chemin sur un lecteur réseau connecté, n'a pas « Dossier ». Les couleurs avec transparence, comme `rgba()`, restent du texte.
 - Tant que l'île est masquée en plein écran, le raccourci ne fait rien.

@@ -255,25 +255,28 @@
   }
 
   // The chip's label slides in 4 px: sideways from the side Tab turns to, and up or down from where the selection
-  // went or as Shift turns it. A colour's value rolls the way Tab turned, and back as its row is left.
+  // went or as Shift turns it. The axis waits for a new label, so a slide under way keeps its own. A colour's value
+  // rolls the way Tab turned, and back as its row is left.
   let turn = 1
+  let along: 'x' | 'y' = 'y'
   let axis = $state<'x' | 'y'>('y')
   let rolled = 1
   let tabs = $state(0)
-  function toward(dir: number, along: 'x' | 'y') {
+  function toward(dir: number, way: 'x' | 'y') {
     turn = dir
-    axis = along
+    along = way
   }
 
   // Typing filters: the selection goes back to the first row and the scroll to the top. Rows still in sight move up
   // 60 ms after a shrink starts, as the content leaves first. A fade's jump or a late move from an older filter is
-  // dropped, so the newest decides where each row ends up.
+  // dropped, so the newest decides where each row ends up. The same rows again, as when Rust's paths arrive, change
+  // nothing.
   let shown = untrack(() => items)
   let filters = 0
   $effect.pre(() => {
     const next = items
     untrack(() => {
-      if (next === shown) return
+      if (next.length === shown.length && next.every((text, i) => text === shown[i])) return void (shown = next)
       const mine = ++filters
       const latest = () => mine === filters
       opening = false
@@ -420,6 +423,7 @@
     const next = label
     untrack(() => {
       if (next !== said && !reduced) {
+        axis = along
         slide.jump(4 * turn)
         slide.to(0, 0.3, 0, performance.now())
         wake()
@@ -567,7 +571,7 @@
         <span class="body" style:right="{on ? drawn.hint : 16}px">
           <span class="line" class:mono={type === 'code'}>
             {#if type === 'link'}
-              {@const link = linkParts(text)}
+              {@const link = linkParts(text, now === 'clean')}
               <!-- Trackers leave the line once faded, so its end shows what is left. -->
               {link.domain}{#each link.rest as part, k (k)}{#if !part.tracker}<span class="dim">{part.text}</span
                   >{:else if now !== 'clean'}<span class="tracker" in:fades out:fades>{part.text}</span>{/if}{/each}

@@ -13,7 +13,7 @@ The list starts with what the clipboard holds as you allow it. Nothing you copie
 
 ## In the list
 
-- **Type** to filter. Capitals and accents don't count. The count on the right becomes "2 of 12". Type `colour`, `link`, `folder`, `email` or `code` to keep only those items.
+- **Type** to filter. Capitals and accents don't count. The count on the right becomes "2 of 12". Type `colour`, `link`, `folder`, `email` or `code` to find those items.
 - **↑ and ↓** move the highlight. Past the fifth row, the list scrolls.
 - **Enter** pastes the item into the app you were in. The island says "Pasted" for a moment, never what was pasted.
 - **Shift+Enter** pastes it as plain text, without the formatting it was copied with. While you hold Shift, the chip says "Plain text".
@@ -57,5 +57,5 @@ Right-click Sumi's icon by the clock:
 - Text only: no images or files yet.
 - Only the app you copy from can mark a copy as private. Sumi keeps what it doesn't mark.
 - Only the newest item, while it is still on the clipboard, keeps the formatting it was copied with. The others paste as plain text.
-- Only addresses without accents get "Compose". A network path, such as `\\server\share`, gets no "Folder". Colours with transparency, such as `rgba()`, stay text.
+- Only addresses without accents get "Compose". A network path, such as `\\server\share` or one on a mapped network drive, gets no "Folder". Colours with transparency, such as `rgba()`, stay text.
 - While the island is hidden in fullscreen, the shortcut does nothing.

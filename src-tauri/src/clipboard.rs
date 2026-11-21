@@ -267,7 +267,7 @@ fn paste(window: &WebviewWindow, text: String, plain: bool, form: Option<String>
 }
 
 /// The items that name a file or a folder on this PC, which Tab offers to show in File Explorer. Looked up off the
-/// main thread: a mapped network drive may take seconds to answer.
+/// main thread: a sleeping disk may take seconds to answer.
 #[tauri::command]
 pub async fn clipboard_paths(app: AppHandle) -> Vec<String> {
     let items = app
@@ -279,7 +279,7 @@ pub async fn clipboard_paths(app: AppHandle) -> Vec<String> {
     tauri::async_runtime::spawn_blocking(move || {
         items
             .into_iter()
-            .filter(|item| path(item).is_some_and(|path| Path::new(path).exists()))
+            .filter(|item| path(item).is_some_and(on_this_pc))
             .collect()
     })
     .await
@@ -335,8 +335,16 @@ fn opening(text: &str) -> Option<Opening> {
         return Some(Opening::Mail(format!("mailto:{text}")));
     }
     path(text)
-        .filter(|path| Path::new(path).exists())
-        .map(|path| Opening::Folder(path.to_owned()))
+        .filter(|path| on_this_pc(path))
+        // The Shell finds a path only in its usual form: `C:\a`, not `C:/a`, `C:\\a` or `C:\b\..\a`.
+        .and_then(|path| {
+            std::path::absolute(path)
+                .ok()?
+                .into_os_string()
+                .into_string()
+                .ok()
+        })
+        .map(Opening::Folder)
 }
 
 /// An http or https link with a host, and no space or control character, as the page reads one (`isLink` in
@@ -381,7 +389,7 @@ fn address(text: &str) -> bool {
 }
 
 /// A path from a drive's root, `C:\…` or `C:/…`, on one line, without the quotes of Explorer's "Copy as path". A
-/// network path (`\\server\share`) isn't one, so looking it up never reaches another machine.
+/// network path (`\\server\share`) isn't one.
 fn path(text: &str) -> Option<&str> {
     let text = text.trim();
     let path = text
@@ -391,6 +399,12 @@ fn path(text: &str) -> Option<&str> {
     let rooted =
         matches!(path.as_bytes(), [drive, b':', b'\\' | b'/', ..] if drive.is_ascii_alphabetic());
     (rooted && !path.contains('"') && !path.chars().any(char::is_control)).then_some(path)
+}
+
+/// Whether a path names a file or a folder on this PC. A mapped network drive is left out before the lookup, so it
+/// never reaches another machine.
+fn on_this_pc(path: &str) -> bool {
+    !os::remote(path) && Path::new(path).exists()
 }
 
 /// Whether the list may paste `form` in place of `item`: a colour item's value in another format, or the item's link
@@ -508,6 +522,7 @@ mod os {
     use windows_sys::Win32::Security::{
         GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation,
     };
+    use windows_sys::Win32::Storage::FileSystem::GetDriveTypeW;
     use windows_sys::Win32::System::DataExchange::{
         AddClipboardFormatListener, CloseClipboard, EmptyClipboard, GetClipboardData,
         GetClipboardOwner, GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard,
@@ -641,6 +656,15 @@ mod os {
 
     pub fn sequence() -> u32 {
         unsafe { GetClipboardSequenceNumber() }
+    }
+
+    /// Whether `path`, from a drive's root, is on a mapped network drive. Windows answers from the drive letters it
+    /// keeps for this session, without asking the server.
+    pub fn remote(path: &str) -> bool {
+        // In windows-sys's WindowsProgramming, which Sumi doesn't turn on for one value.
+        const DRIVE_REMOTE: u32 = 4;
+        let root = wide(&format!("{}\\", path.get(..2).unwrap_or_default()));
+        unsafe { GetDriveTypeW(root.as_ptr()) == DRIVE_REMOTE }
     }
 
     fn format(name: &str) -> u32 {
@@ -906,6 +930,9 @@ mod os {
     pub fn sequence() -> u32 {
         0
     }
+    pub fn remote(_: &str) -> bool {
+        false
+    }
     pub fn read(_: usize) -> Option<String> {
         None
     }
@@ -1095,6 +1122,18 @@ mod tests {
             opening(&format!("\"{windows}\"")),
             Some(Opening::Folder(windows.clone()))
         );
+        for written in [
+            windows.replace('\\', "/"),
+            windows.replace('\\', "\\\\"),
+            format!("{windows}\\System32\\.."),
+        ] {
+            assert_eq!(
+                opening(&written),
+                Some(Opening::Folder(windows.clone())),
+                "{written}"
+            );
+        }
+        assert!(!os::remote(&windows));
         assert_eq!(opening("C:\\sumi-nothing-here\\a.txt"), None);
         assert_eq!(opening("Réunion jeudi"), None);
         assert_eq!(opening("#1E90FF"), None);

@@ -328,17 +328,20 @@ export function untracked(url: string): string {
 }
 
 /**
- * A link's line: the domain without `www.`, then the path, the query and the hash in pieces, its trackers marked so
- * they show dimmer and leave as Tab offers to paste it without them.
+ * A link's line: the domain without a login or `www.`, then the path, the query and the hash in pieces, its trackers
+ * marked so they show dimmer and leave as Tab offers to paste it without them. Once they have left (`clean`), the
+ * first parameter kept opens the query with `?`, as it pastes.
  */
-export function linkParts(url: string): { domain: string; rest: { text: string; tracker: boolean }[] } {
+export function linkParts(url: string, clean = false): { domain: string; rest: { text: string; tracker: boolean }[] } {
   const { head, params, hash } = split(url.trim())
   const authority = head.replace(/^https?:\/\//i, '')
   const slash = authority.indexOf('/')
   const [domain, path] = slash < 0 ? [authority, ''] : [authority.slice(0, slash), authority.slice(slash)]
-  const query = params.map((param, i) => ({ text: (i ? '&' : '?') + param, tracker: isTracker(param) }))
+  const lead = clean ? params.findIndex((param) => !isTracker(param)) : 0
+  const query = params.map((param, i) => ({ text: (i === lead ? '?' : '&') + param, tracker: isTracker(param) }))
   return {
-    domain: domain.replace(/^www\./i, ''),
+    // A token or a password before the `@` never shows, not even in the peek.
+    domain: domain.replace(/^.*@/, '').replace(/^www\./i, ''),
     rest: [{ text: path, tracker: false }, ...query, { text: hash, tracker: false }].filter((part) => part.text),
   }
 }

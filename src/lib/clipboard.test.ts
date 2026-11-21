@@ -245,6 +245,26 @@ describe('links', () => {
     })
     expect(linkParts('https://a.fr')).toEqual({ domain: 'a.fr', rest: [] })
   })
+
+  it('never shows the login before the domain', () => {
+    expect(linkParts('https://ghp_abc123@github.com/org/repo.git').domain).toBe('github.com')
+    expect(linkParts('https://admin:hunter2@www.a.fr/').domain).toBe('a.fr')
+    expect(linkParts('https://a.fr/@me').domain).toBe('a.fr')
+  })
+
+  it('shows the link without its trackers as it pastes', () => {
+    const shown = (url: string) => {
+      const { domain, rest } = linkParts(url, true)
+      return domain + rest.filter((part) => !part.tracker).map((part) => part.text).join('')
+    }
+    for (const url of [
+      'https://a.fr/p?utm_source=x&id=5#top',
+      'https://a.fr/p?id=5&utm_source=x&b=2',
+      'https://a.fr/?utm_source=x&utm_medium=y',
+    ]) {
+      expect(shown(url)).toBe(untracked(url).replace('https://', ''))
+    }
+  })
 })
 
 describe('paths and code', () => {
