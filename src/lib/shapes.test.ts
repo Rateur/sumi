@@ -75,6 +75,15 @@ describe('resolveView', () => {
     expect(resolveView({ ...all, clock: true })).toEqual({ name: 'hover' })
   })
 
+  it('hangs the clipboard history under the bar, 90 px for one row and 250 for five', () => {
+    expect(resolveView({ ...rest, bar: true, rows: 2 })).toEqual({ name: 'bar', rows: 2 })
+    expect(resolveView({ ...rest, bar: true, rows: 0 })).toEqual({ name: 'bar' })
+    expect(resolveView({ ...rest, rows: 2 })).toEqual({ name: 'idle' })
+    expect([1, 2, 3, 4, 5].map((rows) => sizeOf({ name: 'bar', rows }))).toEqual(
+      [90, 130, 170, 210, 250].map((height) => ({ width: 480, height })),
+    )
+  })
+
   it('shows the weather asked for over everything but the bar and its fold, as a 300 × 56 peek', () => {
     const power = { kind: 'plugged', percent: 5 } as const
     const all = { activity: call, hovered: true, expanded: true, welcome: hello, power }

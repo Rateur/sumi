@@ -45,7 +45,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 ## How the code is laid out
 
 - `src-tauri/src/lib.rs` starts the app, one copy at a time: the tray icon, the list of commands the page can call, and each module's watcher.
-- `src-tauri/src/tray.rs` draws the tray icon at the taskbar's size with the corner the page asks for (the microphone or camera dot, or the music), sets its tooltip and its menu's words, and tucks the island on a left click.
+- `src-tauri/src/tray.rs` draws the tray icon at the taskbar's size with the corner the page asks for (the microphone or camera dot, or the music), sets its tooltip and its menu's words, tucks the island on a left click, and offers the clipboard history's pause and clear while there is one.
 - `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, closes the panel, and tells the page when a window is dragged and of a click elsewhere while the island waits to tuck itself.
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen, and hears a window start and end a move or a resize.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
@@ -54,11 +54,12 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/power/jbl.rs` asks a JBL speaker for the level Windows doesn't have: one short Bluetooth LE connection, one request, its reply's battery.
 - `src-tauri/src/fastpair.rs` reads earbuds' levels from Google's Fast Pair stream, `src-tauri/src/xbox.rs` Xbox controllers' on the Xbox Wireless Adapter from Windows' game input, and `src-tauri/src/pads.rs` the Switch Pro Controller's and PlayStation controllers' from their HID reports. Each hands `power.rs` the levels Windows doesn't read.
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, opens a question in an assistant or the search engine, and opens Open-Meteo's site from the weather peek's credit.
-- `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
+- `src-tauri/src/bar.rs` registers the command bar's shortcut and the clipboard history's, and gives focus to the bar and back.
+- `src-tauri/src/clipboard.rs` keeps the clipboard history once the user allows it in the bar: a message-only window listens to the clipboard and skips what is marked private, and the history is sealed with DPAPI in the app's local data folder. It pastes an item into the window the bar came from, and keeps the island out of screen captures while the list shows.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
-- `src/Island.svelte` draws the island, and asks Open-Meteo for the weather after the bar's yes: Sumi's only network request. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), the weather's links, glyphs and words (`weather.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/Island.svelte` draws the island, and asks Open-Meteo for the weather after the bar's yes: Sumi's only network request. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/ClipboardHistory.svelte` draws the clipboard history's list under the bar and moves it. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), the weather's links, glyphs and words (`weather.ts`), the clipboard history's words and list (`clipboard.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
@@ -86,6 +87,10 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `open_meteo` | page → Rust | returns `bool` (`apps.rs`): opens https://open-meteo.com | `boolean` |
 | `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
 | `bar_focus` | page → Rust | `open: bool` | `boolean` |
+| `clipboard_history` | page → Rust | returns `Option<Vec<String>>` (`clipboard.rs`): the items, newest first, or nothing before the yes | `string[]` or `null` |
+| `clipboard_allow` | page → Rust | returns `Result<Vec<String>, String>`: keeps the yes, then gives the items | `string[]`, or an error |
+| `clipboard_paste` | page → Rust | `text: String`, `plain: bool`, returns `Landed` (`clipboard.rs`) | `Landed` (`src/lib/clipboard.ts`) |
+| `clipboard_hide` | page → Rust | `hidden: bool`: keeps the island out of screen captures while the list shows | `boolean` |
 | `timer_chime` | page → Rust | nothing | nothing |
 | `battery` | page → Rust | returns `Battery` (`power.rs`) | `Battery` (`src/lib/power.ts`) |
 | `battery_ask` | page → Rust | nothing: the batteries panel opened, so a JBL speaker is asked for its level, which comes on `power://battery` | nothing |
@@ -98,6 +103,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `island://moving` | Rust → page | `bool`: `true` once a window is dragged, `false` when the move ends | `boolean` |
 | `island://elsewhere` | Rust → page | nothing: a click outside the island while it waits to tuck itself | nothing |
 | `bar://toggle` | Rust → page | nothing | nothing |
+| `clipboard://toggle` | Rust → page | nothing: the clipboard history's shortcut | nothing |
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
@@ -129,7 +135,7 @@ On your first pull request, CI starts once I approve it. Leave **Allow edits by 
 - It does one thing, with tests for the logic.
 - It fails quietly. If a Windows API call fails, the module hides and the app keeps running. No `unwrap()` on Windows calls.
 - It costs nothing at rest: no timer or animation running when nothing changes.
-- It keeps your PC private. Nothing the island shows is written to a log or a file, and nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
+- It keeps your PC private. Nothing the island shows is written to a log. Only the clipboard history goes to a file, after the user's yes, sealed with DPAPI for their Windows account (`clipboard.rs`). Nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
 - It adds no dependency, network request or Tauri permission (`src-tauri/capabilities/`) unless the issue agreed on it. Every package is code that each user runs.
 - The UI works with reduced motion and keeps AA contrast.
 - It reads like the code around it, so the next person, or an AI, can pick it up. Rust: `snake_case` for functions and modules, `CamelCase` for types, `UPPER_CASE` for constants. TypeScript: `camelCase`, `PascalCase` for types, `UPPER_CASE` for shared constants. Svelte components: `PascalCase.svelte`. Comments are short and say why, not what.

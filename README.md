@@ -53,7 +53,7 @@ Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it 
 
 ## Privacy
 
-Sumi collects nothing. Its only network request is the weather, and only after you allow it in the command bar, once per session: [Open-Meteo](https://open-meteo.com) then gets the city you typed and your IP address, which it keeps in its logs for up to 90 days ([terms](https://open-meteo.com/en/terms)). Your yes and the city stay in memory until Sumi quits.
+Sumi collects nothing. Its only network request is the weather, and only after you allow it in the command bar, once per session: [Open-Meteo](https://open-meteo.com) then gets the city you typed and your IP address, which it keeps in its logs for up to 90 days ([terms](https://open-meteo.com/en/terms)). Your yes and the city stay in memory until Sumi quits. The clipboard history, once you allow it, stays on this PC, encrypted for your Windows account, and is never sent anywhere.
 
 ## Contributing
 

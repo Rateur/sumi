@@ -144,6 +144,8 @@
     type Tucker,
   } from './lib/tuck'
   import { TRAY, badge, tip, type Tray } from './lib/tray'
+  import { CLIPBOARD_WORDS, GLYPHS, arrived, matching, rows as listRows, type Landed } from './lib/clipboard'
+  import ClipboardHistory from './ClipboardHistory.svelte'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
   import Batteries from './Batteries.svelte'
@@ -222,6 +224,18 @@
   let asking = $state<Extract<Choice<Listed>, { kind: 'weather' }>>()
   let sky = $state<Sky>()
   let skyTimer: ReturnType<typeof setTimeout> | undefined
+  // The clipboard history, opened in the bar: its items as Rust keeps them, newest first, and what filters them.
+  // `allowing` is the bar's consent question, and `refused` a no this session, after which its chip says « Activer ».
+  // The demo's stand-ins: what Rust would keep, null before the yes, and what the clipboard holds now.
+  let history = $state<string[]>()
+  let query = $state('')
+  let allowing = $state(false)
+  let refused = false
+  let kept: string[] | null = null
+  let holding = ''
+  const searchable = $derived(history?.map(folded) ?? [])
+  const matches = $derived(history ? matching(history, searchable, query) : [])
+  const listed = $derived(history ? listRows(matches.length, history.length, query, lang) : 0)
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -273,6 +287,7 @@
       expanded,
       peeking,
       bar: barOpen,
+      rows: listed,
       launch: !!launch,
       weather: !!sky,
       clock: telling,
@@ -295,21 +310,23 @@
           : undefined,
   )
   // The bar names timers as the island does, so 'stop minuteur 2' finds the second one. While it asks for the
-  // weather's yes, its one chip is that yes.
+  // weather's or the clipboard history's yes, its one chip is that yes.
   const options = $derived(
     !barOpen
       ? ([] as Choice<Listed>[])
-      : asking
-        ? [{ ...asking, label: WEATHER_WORDS[lang].allow }]
-        : choices(line, {
-            apps,
-            lang,
-            claudeApp,
-            timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
-            now: now.getTime(),
-            battery,
-            city: here?.name,
-          }),
+      : allowing
+        ? [{ kind: 'clipboard' as const, label: CLIPBOARD_WORDS[lang][refused ? 'again' : 'allow'] }]
+        : asking
+          ? [{ ...asking, label: WEATHER_WORDS[lang].allow }]
+          : choices(line, {
+              apps,
+              lang,
+              claudeApp,
+              timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
+              now: now.getTime(),
+              battery,
+              city: here?.name,
+            }),
   )
   const size = $derived(sizeOf(view))
   // A timer's shape changes size without changing view, as an hour passes or its name shows.
@@ -821,9 +838,11 @@
   function enter(node: HTMLElement, { step = 0 } = {}) {
     if (reduced) return { delay: gap, duration: 120, css: (t: number) => `opacity:${t}` }
     if (content?.contains(node)) {
-      // Scaled from the island's center, or from its top for the panel and the peek.
+      // Scaled from the island's center, or from its top for the panel, the peek and the list, which pours down out
+      // of the bar.
       const [r, c] = [node.getBoundingClientRect(), content.getBoundingClientRect()]
-      const top = view.name === 'expanded' || view.name === 'peek' ? c.top : c.top + c.height / 2
+      const fromTop = view.name === 'expanded' || view.name === 'peek' || (view.name === 'bar' && !!view.rows)
+      const top = fromTop ? c.top : c.top + c.height / 2
       node.style.transformOrigin = `${c.left + c.width / 2 - r.left}px ${top - r.top}px`
     }
     return {
@@ -1037,6 +1056,7 @@
         if (payload !== 'shown' && greeting === 'playing') end(true)
       }),
       listen('bar://toggle', () => toggleBar()),
+      listen('clipboard://toggle', toggleHistory),
       listen('island://tuck', toggleTuck),
       listen('island://elsewhere', elsewhere),
       // A window moved or resized: the island makes room for Snap layouts, and comes back unless it was tucked.
@@ -1813,7 +1833,8 @@
   const trayTip = $derived(tip(privacy, music, keys, lang))
   const trayTuck = $derived(TRAY[lang][away() ? 'back' : 'tuck'])
   $effect(() => {
-    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, quit: TRAY[lang].quit }
+    const { pause, clear, quit } = TRAY[lang]
+    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, pause, clear, quit }
     if (tauri) invoke('set_tray', { tray }).catch(console.error)
   })
 
@@ -1857,8 +1878,13 @@
     if (barOpen && tauri && giveBack) invoke('bar_focus', { open: false })
     barOpen = false
     line = ''
-    if (asking) spoken = ''
+    if (asking || allowing || history) spoken = ''
     asking = undefined
+    // Closed while it asked: a no, so the next ask says « Activer ».
+    if (allowing) refused = true
+    allowing = false
+    history = undefined
+    query = ''
   }
 
   // The monogram of an app whose icon hasn't come yet, as in the privacy card.
@@ -1891,6 +1917,7 @@
   function run(choice: Choice<Listed>) {
     if (!barOpen || (choice.kind === 'battery' && !opens(battery))) return
     if (choice.kind === 'weather') return weather(choice)
+    if (choice.kind === 'clipboard') return allowing ? allow() : read().then(shows)
     // An app or a site takes the focus; the batteries panel keeps it for the arrows.
     closeBar(choice.kind !== 'app' && choice.kind !== 'ask' && choice.kind !== 'battery')
     const t = Date.now()
@@ -1990,6 +2017,94 @@
   function credit() {
     if (tauri) invoke('open_meteo').catch(console.error)
   }
+
+  // --- Clipboard history ---
+
+  // What Rust keeps, newest first, or null before the yes.
+  const read = (): Promise<string[] | null> =>
+    tauri ? invoke<string[] | null>('clipboard_history').catch(() => null) : Promise.resolve(kept)
+
+  // Win+Alt+V opens the bar on the list, or on its yes; pressed again, it closes. A press while Rust answers counts
+  // once.
+  let reading = false
+  async function toggleHistory() {
+    if (barOpen && (history || allowing)) return closeBar()
+    if (hidden || reading) return
+    reading = true
+    const items = await read()
+    reading = false
+    if (!barOpen) toggleBar()
+    shows(items)
+  }
+
+  // The list, or its yes, as for the weather: the field becomes the sentence and the chip the yes. Enter is yes, Esc
+  // is no. A bar closed while Rust answered stays closed.
+  function shows(items: string[] | null) {
+    if (!barOpen) return
+    const words = CLIPBOARD_WORDS[lang]
+    line = ''
+    query = ''
+    asking = undefined
+    spoken = ''
+    if (items) {
+      history = items
+      spoken = arrived(items.length, lang)
+      return
+    }
+    allowing = true
+    line = words.consent.join('')
+    spoken = `${line} ${words.keys}`
+  }
+
+  // The yes: Rust keeps it across restarts, and the list opens on what the clipboard holds now.
+  async function allow() {
+    const items = tauri
+      ? await invoke<string[]>('clipboard_allow').catch(() => null)
+      : (kept = holding ? [holding, ...(kept ?? []).filter((t) => t !== holding)] : (kept ?? []))
+    if (!barOpen || !allowing) return
+    allowing = false
+    spoken = ''
+    if (!items) return closeBar()
+    line = ''
+    history = items
+    spoken = arrived(items.length, lang)
+  }
+
+  // Enter on an item: the bar folds into the launch peek as Rust pastes it where you were. The peek says what
+  // happened, never what was pasted. A bar closed during the chip's press pastes nothing.
+  function paste(text: string, plain: boolean) {
+    if (!history) return
+    const words = CLIPBOARD_WORDS[lang]
+    // Rust gives the focus back itself, then pastes.
+    closeBar(false)
+    show({ drawing: GLYPHS.text, text: plain ? words.pastedPlain : words.pasted }, 1200)
+    if (!tauri) {
+      kept = [text, ...(kept ?? []).filter((t) => t !== text)]
+      holding = text
+      return
+    }
+    invoke<Landed>('clipboard_paste', { text, plain })
+      .catch((): Landed => {
+        // Rust gives focus back too, but not if the call itself failed.
+        invoke('bar_focus', { open: false }).catch(console.error)
+        return 'failed'
+      })
+      .then((landed) => {
+        if (landed === 'pasted') return
+        show({ drawing: GLYPHS.text, text: landed === 'copied' ? words.copied : words.failed }, 2000)
+      })
+  }
+
+  // The list never shows in a screenshot or a shared screen. The island comes back to them once the list has left.
+  let unhide: ReturnType<typeof setTimeout> | undefined
+  $effect(() => {
+    if (!tauri || !history) return
+    clearTimeout(unhide)
+    invoke('clipboard_hide', { hidden: true }).catch(console.error)
+    return () => {
+      unhide = setTimeout(() => invoke('clipboard_hide', { hidden: false }).catch(console.error), EXIT.duration)
+    }
+  })
 
   // --- Battery ---
 
@@ -2189,6 +2304,13 @@
         alert,
         fullscreen: () => fullscreen(!hidden),
         bar: toggleBar,
+        clipboard: toggleHistory,
+        set kept(next: string[] | null) {
+          kept = next
+        },
+        set holding(next: string) {
+          holding = next
+        },
         welcome: replay,
         tuck: toggleTuck,
         swipe: (way: Direction) => tuckIn('you', way, true),
@@ -2625,13 +2747,26 @@
         {/if}
       {/if}
     {/if}
-    {#if parts.bar}
+    {#if parts.bar && history}
+      <ClipboardHistory
+        items={matches}
+        total={history.length}
+        bind:query
+        {lang}
+        {reduced}
+        height={geometry.clip.height}
+        {enter}
+        {exit}
+        onpaste={paste}
+        onclose={() => closeBar()}
+      />
+    {:else if parts.bar}
       <CommandBar
         bind:line
         choices={options}
         {lang}
         {reduced}
-        question={asking && consent(asking.city ?? '', lang)}
+        question={allowing ? [...CLIPBOARD_WORDS[lang].consent] : asking && consent(asking.city ?? '', lang)}
         {shortcut}
         {enter}
         {exit}
@@ -2645,6 +2780,8 @@
           <canvas use:paintIcon={parts.launch.icon}></canvas>
         {:else if parts.launch.glyph}
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d={DRAWINGS[parts.launch.glyph]} /></svg>
+        {:else if parts.launch.drawing}
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d={parts.launch.drawing} /></svg>
         {:else if parts.launch.letter}{parts.launch.letter}{/if}
       </span>
       <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>

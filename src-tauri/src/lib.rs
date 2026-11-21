@@ -6,11 +6,13 @@
 //! that sleeps until Windows calls back; media's also wakes to read a late artwork again. `power` emits power://plugged,
 //! power://low, power://device, power://device-low, power://device-gone and power://battery the same way, with the
 //! levels `fastpair`, `xbox` and `pads` read where Windows doesn't. `apps` reads Start's list once on a thread that
-//! then ends, and `bar` hears the command bar's shortcut through Windows. `timers` and `welcome` only answer the page:
-//! one plays the timers' chime, the other keeps the first-launch welcome's flag.
+//! then ends, and `bar` hears the command bar's shortcuts through Windows. `clipboard` hears copies from a thread of its
+//! own that sleeps in its message loop, once the history is allowed. `timers` and `welcome` only answer the page: one
+//! plays the timers' chime, the other keeps the first-launch welcome's flag.
 
 mod apps;
 mod bar;
+mod clipboard;
 mod fastpair;
 mod fullscreen;
 mod island;
@@ -55,6 +57,7 @@ pub fn run() {
         .manage(island::IslandWaiting::default())
         .manage(apps::Apps::default())
         .manage(bar::Bar::default())
+        .manage(clipboard::Clipboard::default())
         .invoke_handler(tauri::generate_handler![
             island::set_island_rects,
             island::set_island_expanded,
@@ -68,6 +71,10 @@ pub fn run() {
             apps::open_meteo,
             bar::bar_shortcut,
             bar::bar_focus,
+            clipboard::clipboard_history,
+            clipboard::clipboard_allow,
+            clipboard::clipboard_paste,
+            clipboard::clipboard_hide,
             media::media_control,
             media::media_seek,
             media::media_players,
@@ -122,6 +129,7 @@ pub fn run() {
             privacy::watch(app.handle());
             power::watch(app.handle());
             apps::watch(app.handle());
+            clipboard::watch(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())

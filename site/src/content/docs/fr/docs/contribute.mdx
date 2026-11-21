@@ -48,7 +48,7 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 ## Organisation du code
 
 - `src-tauri/src/lib.rs` démarre l'app, un seul exemplaire à la fois : l'icône de la zone de notification, la liste des commandes que la page peut appeler, et la surveillance de chaque module.
-- `src-tauri/src/tray.rs` dessine l'icône de la zone de notification à la taille de la barre des tâches, avec le coin que demande la page (le point du micro ou de la caméra, ou la musique), règle son info-bulle et les mots de son menu, et range l'île au clic gauche.
+- `src-tauri/src/tray.rs` dessine l'icône de la zone de notification à la taille de la barre des tâches, avec le coin que demande la page (le point du micro ou de la caméra, ou la musique), règle son info-bulle et les mots de son menu, range l'île au clic gauche, et propose la pause et l'effacement de l'historique du presse-papiers quand il y en a un.
 - `src-tauri/src/island.rs` garde la fenêtre en haut de l'écran, laisse passer les clics partout sauf sur l'île, ferme le panneau, et prévient la page quand une fenêtre est déplacée et d'un clic ailleurs pendant que l'île attend de se ranger.
 - `src-tauri/src/fullscreen.rs` masque l'île quand un jeu, une vidéo ou un diaporama occupe l'écran principal, et entend une fenêtre commencer et finir un déplacement ou un redimensionnement.
 - `src-tauri/src/media.rs` lit les lecteurs que voient les contrôles multimédias de Windows, et commande la lecture, la pause, le morceau suivant ou précédent et la position.
@@ -57,11 +57,12 @@ L'île apparaît en haut de votre écran principal. Pour la quitter, passez par 
 - `src-tauri/src/power/jbl.rs` demande à une enceinte JBL le niveau que Windows n'a pas : une courte connexion Bluetooth LE, une requête, la batterie de sa réponse.
 - `src-tauri/src/fastpair.rs` lit le niveau des écouteurs dans le canal Fast Pair de Google, `src-tauri/src/xbox.rs` celui des manettes Xbox sur l'adaptateur sans fil Xbox par les entrées de jeu de Windows, et `src-tauri/src/pads.rs` celui de la manette Switch Pro et des manettes PlayStation dans leurs rapports HID. Chacun passe à `power.rs` les niveaux que Windows ne lit pas.
 - `src-tauri/src/apps.rs` lit les apps du menu Démarrer, ouvre celle choisie dans la barre de commande, ouvre une question dans un assistant ou le moteur de recherche, et ouvre le site d'Open-Meteo depuis la mention du coup d'œil de la météo.
-- `src-tauri/src/bar.rs` enregistre le raccourci de la barre de commande, et donne le focus à la barre puis le rend.
+- `src-tauri/src/bar.rs` enregistre le raccourci de la barre de commande et celui de l'historique du presse-papiers, et donne le focus à la barre puis le rend.
+- `src-tauri/src/clipboard.rs` garde l'historique du presse-papiers une fois que l'utilisateur l'a autorisé dans la barre : une fenêtre réservée aux messages écoute le presse-papiers et ignore ce qui est marqué privé, et l'historique est scellé avec DPAPI dans le dossier de données local de l'app. Il colle un élément dans la fenêtre d'où venait la barre, et tient l'île hors des captures d'écran tant que la liste est affichée.
 - `src-tauri/src/timers.rs` joue le carillon des minuteurs. Les minuteurs eux-mêmes ne vivent que dans la mémoire de la page.
 - `src-tauri/src/welcome.rs` garde le repère de l'accueil du premier lancement, un fichier qui contient la version qui a dit bonjour.
-- `src/Island.svelte` dessine l'île, et demande la météo à Open-Meteo après le oui de la barre : la seule requête réseau de Sumi. `src/Batteries.svelte` dessine les anneaux du panneau des batteries et les fait bouger, et `src/Ring.svelte` un anneau et les pictogrammes des appareils, dont se servent aussi les coups d'œil de la batterie. `src/PrivacyCard.svelte` dessine la carte du micro et de la caméra, et appelle les commandes `privacy_mute`, `privacy_settings` et `privacy_show`. Seuls `Island.svelte` et `PrivacyCard.svelte` parlent à Rust ; `src/main.ts` et `src/App.svelte` ne font que monter l'île.
-- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité, les minuteurs (`timers.ts`), l'accueil du premier lancement (`welcome.ts`), l'île rangée et ce qui se range tout seul (`tuck.ts`), ce que montre et dit l'icône de la zone de notification (`tray.ts`), les mots de la batterie (`power.ts`), les liens, pictogrammes et mots de la météo (`weather.ts`), et ce que veut dire la ligne de la barre de commande (`intent.ts`). Chaque fichier a ses tests Vitest à côté (`*.test.ts`).
+- `src/Island.svelte` dessine l'île, et demande la météo à Open-Meteo après le oui de la barre : la seule requête réseau de Sumi. `src/Batteries.svelte` dessine les anneaux du panneau des batteries et les fait bouger, et `src/Ring.svelte` un anneau et les pictogrammes des appareils, dont se servent aussi les coups d'œil de la batterie. `src/ClipboardHistory.svelte` dessine la liste de l'historique du presse-papiers sous la barre et la fait bouger. `src/PrivacyCard.svelte` dessine la carte du micro et de la caméra, et appelle les commandes `privacy_mute`, `privacy_settings` et `privacy_show`. Seuls `Island.svelte` et `PrivacyCard.svelte` parlent à Rust ; `src/main.ts` et `src/App.svelte` ne font que monter l'île.
+- `src/lib/*.ts` contient la logique sans DOM : qui obtient l'île, les tailles, les ressorts, la musique, la confidentialité, les minuteurs (`timers.ts`), l'accueil du premier lancement (`welcome.ts`), l'île rangée et ce qui se range tout seul (`tuck.ts`), ce que montre et dit l'icône de la zone de notification (`tray.ts`), les mots de la batterie (`power.ts`), les liens, pictogrammes et mots de la météo (`weather.ts`), les mots et la liste de l'historique du presse-papiers (`clipboard.ts`), et ce que veut dire la ligne de la barre de commande (`intent.ts`). Chaque fichier a ses tests Vitest à côté (`*.test.ts`).
 - `src/lib/demo.ts` joue chaque état au clavier, dans un navigateur sans Rust, et fait tourner les exemples animés du site (`npm run showcase`).
 - `site/` est le site, en Astro et Starlight. Sa page de contribution en anglais importe `.github/CONTRIBUTING.md`, dont cette page est la traduction.
 
@@ -89,6 +90,10 @@ La page appelle Rust avec `invoke()` et écoute ses événements avec `listen()`
 | `open_meteo` | page → Rust | renvoie `bool` (`apps.rs`) : ouvre https://open-meteo.com | `boolean` |
 | `bar_shortcut` | page → Rust | renvoie `Option<&str>` (`bar.rs`) | `string` ou `null` |
 | `bar_focus` | page → Rust | `open: bool` | `boolean` |
+| `clipboard_history` | page → Rust | renvoie `Option<Vec<String>>` (`clipboard.rs`) : les éléments, du plus récent au plus ancien, ou rien avant le oui | `string[]` ou `null` |
+| `clipboard_allow` | page → Rust | renvoie `Result<Vec<String>, String>` : garde le oui, puis donne les éléments | `string[]`, ou une erreur |
+| `clipboard_paste` | page → Rust | `text: String`, `plain: bool`, renvoie `Landed` (`clipboard.rs`) | `Landed` (`src/lib/clipboard.ts`) |
+| `clipboard_hide` | page → Rust | `hidden: bool` : tient l'île hors des captures d'écran tant que la liste est affichée | `boolean` |
 | `timer_chime` | page → Rust | rien | rien |
 | `battery` | page → Rust | renvoie `Battery` (`power.rs`) | `Battery` (`src/lib/power.ts`) |
 | `battery_ask` | page → Rust | rien : le panneau des batteries s'est ouvert, une enceinte JBL est donc interrogée sur son niveau, qui arrive par `power://battery` | rien |
@@ -101,6 +106,7 @@ La page appelle Rust avec `invoke()` et écoute ses événements avec `listen()`
 | `island://moving` | Rust → page | `bool` : `true` dès qu'une fenêtre est déplacée, `false` à la fin du déplacement | `boolean` |
 | `island://elsewhere` | Rust → page | rien : un clic hors de l'île pendant qu'elle attend de se ranger toute seule | rien |
 | `bar://toggle` | Rust → page | rien | rien |
+| `clipboard://toggle` | Rust → page | rien : le raccourci de l'historique du presse-papiers | rien |
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, avec `url: Option<String>` | `{ id, url }`, avec `url` une URL `data:` ou `null` |
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
@@ -132,7 +138,7 @@ Sur votre première pull request, la CI démarre une fois que je l'ai approuvée
 - Elle fait une seule chose, avec des tests pour la logique.
 - Elle échoue sans bruit. Si un appel à Windows échoue, le module se masque et l'app continue. Pas de `unwrap()` sur les appels à Windows.
 - Elle ne coûte rien au repos : aucun minuteur ni aucune animation quand rien ne change.
-- Elle protège votre vie privée. Rien de ce qu'affiche l'île n'est écrit dans un journal ou un fichier, et rien ne quitte le PC sans que l'utilisateur ait activé la fonction. Pas de télémétrie, de statistiques ni de rapports de plantage.
+- Elle protège votre vie privée. Rien de ce qu'affiche l'île n'est écrit dans un journal. Seul l'historique du presse-papiers va dans un fichier, après le oui de l'utilisateur, scellé avec DPAPI pour son compte Windows (`clipboard.rs`). Rien ne quitte le PC sans que l'utilisateur ait activé la fonction. Pas de télémétrie, de statistiques ni de rapports de plantage.
 - Elle n'ajoute ni dépendance, ni requête réseau, ni permission Tauri (`src-tauri/capabilities/`) sans accord dans l'issue. Chaque paquet, c'est du code que chaque utilisateur fait tourner.
 - L'interface fonctionne avec les animations réduites et garde un contraste AA.
 - Elle se lit comme le code autour, pour que la personne suivante, ou une IA, puisse la reprendre. Rust : `snake_case` pour les fonctions et les modules, `CamelCase` pour les types, `UPPER_CASE` pour les constantes. TypeScript : `camelCase`, `PascalCase` pour les types, `UPPER_CASE` pour les constantes partagées. Composants Svelte : `PascalCase.svelte`. Les commentaires sont courts et disent pourquoi, pas quoi.

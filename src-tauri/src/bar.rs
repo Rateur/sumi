@@ -1,4 +1,4 @@
-//! The command bar's shortcut and focus. The island never takes focus, except while the bar is open: the shortcut
+//! The command bar's shortcuts and focus. The island never takes focus, except while the bar is open: a shortcut
 //! lets Sumi come to the front, and the window it came from gets focus back on Esc or when the bar closes.
 
 use std::sync::OnceLock;
@@ -22,6 +22,20 @@ const SHORTCUTS: [(&str, Modifiers, Code); 2] = [
     ),
 ];
 
+/// The clipboard history's, which opens the bar on its list, tried the same way. Win+V is Windows' own history.
+const CLIPBOARD: [(&str, Modifiers, Code); 2] = [
+    (
+        "Win+Alt+V",
+        Modifiers::SUPER.union(Modifiers::ALT),
+        Code::KeyV,
+    ),
+    (
+        "Alt+Shift+V",
+        Modifiers::ALT.union(Modifiers::SHIFT),
+        Code::KeyV,
+    ),
+];
+
 #[derive(Default)]
 pub struct Bar {
     /// The shortcut Sumi got, which every hint shows. Empty when other apps hold them all.
@@ -31,14 +45,20 @@ pub struct Bar {
     focusable: AtomicBool,
 }
 
-/// Registers the first free shortcut. Each press tells the page to open or close the bar; while the island is hidden
-/// in fullscreen, the page ignores it. If Windows' hotkeys can't be set up at all, the bar has no shortcut.
+/// Registers the first free shortcut of each list. Each press tells the page to open or close the bar, or its
+/// clipboard history; while the island is hidden in fullscreen, the page ignores it. If Windows' hotkeys can't be
+/// set up at all, the bar has no shortcut.
 pub fn register(app: &AppHandle) {
     let plugin = app.plugin(
         tauri_plugin_global_shortcut::Builder::new()
-            .with_handler(|app, _, event| {
+            .with_handler(|app, shortcut, event| {
                 if event.state == ShortcutState::Pressed {
-                    let _ = app.emit("bar://toggle", ());
+                    let event = if shortcut.key == Code::KeyV {
+                        "clipboard://toggle"
+                    } else {
+                        "bar://toggle"
+                    };
+                    let _ = app.emit(event, ());
                 }
             })
             .build(),
@@ -47,14 +67,17 @@ pub fn register(app: &AppHandle) {
         return;
     }
     // The plugin reports every refusal as text, so any refusal moves on: that combination isn't Sumi's to take.
-    let free = SHORTCUTS.iter().find(|(_, modifiers, key)| {
-        app.global_shortcut()
-            .register(Shortcut::new(Some(*modifiers), *key))
-            .is_ok()
-    });
-    if let Some((label, ..)) = free {
+    let free = |list: &'static [(&'static str, Modifiers, Code)]| {
+        list.iter().find(|(_, modifiers, key)| {
+            app.global_shortcut()
+                .register(Shortcut::new(Some(*modifiers), *key))
+                .is_ok()
+        })
+    };
+    if let Some((label, ..)) = free(&SHORTCUTS) {
         let _ = app.state::<Bar>().shortcut.set(label);
     }
+    free(&CLIPBOARD);
 }
 
 /// The shortcut that opens the bar, as `Win+Alt+S`, or nothing.
@@ -99,8 +122,9 @@ pub fn let_go(window: &WebviewWindow) {
     allow_any_to_the_front();
 }
 
-/// Stops taking focus, and brings back the window that had it, unless the user already went somewhere else.
-pub fn give_back(window: &WebviewWindow) {
+/// Stops taking focus, and brings back the window that had it, unless the user already went somewhere else. Returns
+/// the window brought back, or 0.
+pub fn give_back(window: &WebviewWindow) -> usize {
     if window
         .state::<Bar>()
         .focusable
@@ -111,7 +135,9 @@ pub fn give_back(window: &WebviewWindow) {
     let previous = window.state::<Bar>().previous.swap(0, Ordering::Relaxed);
     if previous != 0 && own(window) == Some(foreground()) {
         bring_forward(previous);
+        return previous;
     }
+    0
 }
 
 /// Whether the bar holds focus, which it does only while open.
