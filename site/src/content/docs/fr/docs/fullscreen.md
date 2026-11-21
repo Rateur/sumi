@@ -1,9 +1,9 @@
 ---
 title: Plein écran
-description: L'île laisse la place aux jeux, aux vidéos et aux diaporamas.
+description: L'île disparaît pendant les jeux, les vidéos et les diaporamas.
 ---
 
-Quand un jeu, une vidéo ou un diaporama occupe tout votre écran principal, l'île remonte hors de l'écran et sa fenêtre se masque : rien ne reste au-dessus de ce que vous jouez ou regardez. Quand l'app quitte le plein écran, l'île redescend. Elle ne prend jamais le focus.
+Quand un jeu, une vidéo ou un diaporama occupe tout votre écran principal, l'île remonte hors de l'écran et sa fenêtre se masque. Quand l'app quitte le plein écran, l'île redescend. Elle ne prend jamais le focus.
 
 Elle se masque quand :
 

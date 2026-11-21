@@ -1,9 +1,9 @@
 ---
 title: Weather
-description: The weather for a city, when you ask for it in the command bar.
+description: A city's weather, from the command bar.
 ---
 
-Type `weather in Paris` in the command bar and press Enter. The island shows the weather for a moment, then goes back to what it was doing. Nothing sits on it at rest, and nothing is asked until you ask.
+Type `weather in Paris` in the command bar and press Enter. The island shows the weather for 4 seconds, then what it showed before. Nothing is sent before you press Enter.
 
 ## What to type
 

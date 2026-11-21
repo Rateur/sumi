@@ -1,9 +1,9 @@
 ---
 title: Fullscreen
-description: The island gets out of the way of games, videos and slideshows.
+description: The island hides during games, videos and slideshows.
 ---
 
-When a game, a video or a slideshow fills your main screen, the island slides up off the screen and its window hides, so nothing sits over what you're playing or watching. When the app leaves fullscreen, the island drops back down. It never takes focus.
+When a game, a video or a slideshow fills your main screen, the island slides up off the screen and its window hides. When the app leaves fullscreen, the island drops back down. It never takes focus.
 
 It hides when:
 
