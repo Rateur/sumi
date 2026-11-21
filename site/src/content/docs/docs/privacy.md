@@ -17,7 +17,7 @@ See [Weather](../weather/). Update checks, in a later version, will ask GitHub f
 
 ## On your PC
 
-Nothing the island shows is written to a log. Only the clipboard history goes to a file, once you allow it: it stays on this PC, encrypted by Windows for your account, and is never sent anywhere. See [Clipboard history](../clipboard/). Battery levels are read when Windows says they changed, and are never kept. The few Sumi reads itself, from Fast Pair earbuds and game controllers, travel only over Bluetooth or the Xbox adapter, between the device and your PC.
+Nothing the island shows is written to a log. Only the clipboard history goes to a file, once you allow it: it stays on this PC, encrypted by Windows for your account, and is never sent anywhere. See [Clipboard history](../clipboard/). The capture's frozen screen stays in memory, never on the disk, and is freed as soon as the capture ends. Its text is read on this PC by Windows. See [Capture](../capture/). Battery levels are read when Windows says they changed, and are never kept. The few Sumi reads itself, from Fast Pair earbuds and game controllers, travel only over Bluetooth or the Xbox adapter, between the device and your PC.
 
 The command bar opens the app or site you pick with your question; Sumi sends it nowhere, and the app list stays in memory. The clipboard history opens a link in your browser, a new message in your mail app or a folder in File Explorer only when you pick that with Tab and Enter.
 

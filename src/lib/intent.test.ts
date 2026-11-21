@@ -440,6 +440,10 @@ describe('natural phrasing', () => {
     ['histo', 'clipboard'],
     ['cop', 'clipboard'],
     ['clip', 'clipboard'],
+    ['cap', 'capture'],
+    ['captu', 'capture'],
+    ['pip', 'capture'],
+    ['eyed', 'capture'],
   ] as const)('offers what %s is on its way to', (line, kind) => {
     expect(choices(line, options)[0].kind).toBe(kind)
   })
@@ -493,6 +497,26 @@ describe('natural phrasing', () => {
       'Copilot',
     ])
     expect(choices('copil', list)[0]).toMatchObject({ kind: 'app' })
+  })
+
+  it.each(['capture', 'Capturer', 'pipette', 'eyedropper', 'color picker', 'Colour picker'])(
+    'starts the screen capture on %s',
+    (line) => {
+      expect(choices(line, options)[0]).toEqual({ kind: 'capture', label: 'Capture' })
+      expect(choices(line, { ...options, lang: 'en' })[0]).toEqual({ kind: 'capture', label: 'Capture' })
+    },
+  )
+
+  it("keeps a screenshot a question, and an app 'cap' also starts one Tab away", () => {
+    for (const line of ["capture d'écran", 'capture the flag', 'pipette graduée', 'color picker chrome']) {
+      expect(choices(line, options)[0].kind, line).toBe('ask')
+    }
+    const list = { ...options, apps: [{ name: 'CapCut' }] }
+    expect(choices('cap', list).map((c) => (c.kind === 'app' ? c.app.name : c.kind)).slice(0, 2)).toEqual([
+      'capture',
+      'CapCut',
+    ])
+    expect(choices('capc', list)[0]).toMatchObject({ kind: 'app' })
   })
 
   it('names the battery until Rust answers, and keeps its questions', () => {
@@ -713,13 +737,14 @@ describe('corpus', () => {
   })
 
   // While a command is typed, each prefix of 3 letters or more shows its chip or a question: never another app, nor
-  // a timer of another length once the right one has shown. The time, the battery and the clipboard history may show,
-  // as they only answer or open in the bar: 'time' is on the way to 'timer', 'batt' to 'Battle.net', 'copi' to Copilot.
+  // a timer of another length once the right one has shown. The time, the battery, the clipboard history and the
+  // capture may show, as they only answer or open in the bar: 'time' is on the way to 'timer', 'batt' to 'Battle.net',
+  // 'copi' to Copilot, 'cap' to CapCut.
   it.each(corpus.filter(([, , kind]) => kind !== 'ask'))('stays put while %s is typed', (line, _, kind, to) => {
     let shown = false
     for (let n = 3; n <= line.length; n++) {
       const c = read(line.slice(0, n))
-      const answers = c.kind === 'clock' || c.kind === 'battery' || c.kind === 'clipboard'
+      const answers = c.kind === 'clock' || c.kind === 'battery' || c.kind === 'clipboard' || c.kind === 'capture'
       if (c.kind === 'ask' || (answers && kind !== c.kind)) continue
       const where = `${line.slice(0, n)} → ${c.kind} ${target(c)}`
       expect(c.kind, where).toBe(kind)

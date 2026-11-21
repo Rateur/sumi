@@ -49,6 +49,8 @@ export type Choice<A extends App = App> = { label: string } & (
   | { kind: 'weather'; city?: string; day: 0 | 1 }
   // The clipboard history, which opens in the bar: « Presse-papiers ».
   | { kind: 'clipboard' }
+  // The screen capture, which the bar folds into: « Capture ».
+  | { kind: 'capture' }
   // `peek` is what the island shows after Enter: 'Claude', or 'Claude · navigateur' when it opens on the web.
   | { kind: 'ask'; to: Target; question: string; web: boolean; peek: string }
 )
@@ -92,6 +94,7 @@ const WORDS = {
     search: 'Rechercher',
     timer: 'Minuteur',
     clipboard: 'Presse-papiers',
+    capture: 'Capture',
     none: (q: string) => `Aucune app « ${q} »`,
     time: (t: string) => `Il est ${t}`,
     pause: ['Pause', 'Mettre en pause'],
@@ -105,6 +108,7 @@ const WORDS = {
     search: 'Search',
     timer: 'Timer',
     clipboard: 'Clipboard',
+    capture: 'Capture',
     none: (q: string) => `No app "${q}"`,
     time: (t: string) => `It's ${t}`,
     pause: ['Pause', 'Pause the timer'],
@@ -848,6 +852,12 @@ const BATTERY = /^(?:batterie|battery|battery level|autonomie|niveau de batterie
 const CLIPBOARD =
   /^(?:presse|presse[- ]papiers?|historique(?: du presse[- ]papiers?)?|copies|clipboard(?: history)?)$/
 
+// --- The screen capture ---
+
+// Whole lines only, as for the battery: « capture », « pipette », 'color picker'. A screenshot is something else:
+// 'capture d'écran' stays a question.
+const CAPTURE = /^(?:capture|capturer|pipette|eyedropper|colou?r picker)$/
+
 // --- The weather ---
 
 // Whole lines only, as for the battery: 'météo', 'météo à Lyon', 'weather in Paris tomorrow', 'météo demain'. A city
@@ -868,7 +878,7 @@ const NOT_CITY = new RegExp(
 // --- The bar's own words, on their way ---
 
 // The words that answer alone, folded, by what they ask. A timer needs a length, so 'minuteur' and 'timer' aren't here.
-type Own = 'battery' | 'time' | 'date' | 'weather' | 'clipboard'
+type Own = 'battery' | 'time' | 'date' | 'weather' | 'clipboard' | 'capture'
 const OWN: [string, Own][] = [
   ['batterie', 'battery'],
   ['battery', 'battery'],
@@ -882,12 +892,16 @@ const OWN: [string, Own][] = [
   ['historique', 'clipboard'],
   ['copies', 'clipboard'],
   ['clipboard', 'clipboard'],
+  ['capture', 'capture'],
+  ['capturer', 'capture'],
+  ['pipette', 'capture'],
+  ['eyedropper', 'capture'],
 ]
 
 /**
  * What a word alone on the line, 3 letters or more, asks for when it starts one of the bar's own words, and only
  * words of one kind: 'bat' and 'batte' are the battery, 'heu' the time, 'mét' and 'weat' the weather, 'pres' and
- * 'histo' the clipboard history. Never inside a longer line, so 'batman' and 'time management' stay questions. `raw`
+ * 'histo' the clipboard history, 'cap' and 'pip' the screen capture. Never inside a longer line, so 'batman' and 'time management' stay questions. `raw`
  * is the word as typed: the weather takes 4 letters, or 'mét' with its accent, as 'met' is French for « puts » ('met
  * un minuteur').
  */
@@ -957,7 +971,8 @@ const BARE = [...OPEN, ...SETS, ...KEYWORDS, ...ORDER, 'gpt', 'google', 'affiche
   .concat(['donne', 'donner', 'peux', 'pourrais', 'what', 'whats', 'which', 'where', 'when', 'explain', 'translate'])
   .concat(['summarize', 'summarise', 'write', 'help', 'give', 'could', 'would', 'should', 'please'])
   .concat(['batterie', 'battery', 'autonomie', 'niveau', 'meteo', 'weather'])
-  .concat(['presse', 'presse-papiers', 'historique', 'copies', 'clipboard'])
+  .concat(['presse', 'presse-papiers', 'historique', 'copies', 'clipboard', 'capture', 'capturer', 'pipette'])
+  .concat(['eyedropper'])
 // The first group opens what it names, or says no app aloud. 'montre', 'show' or 'run' takes an exact name: without
 // one it is just a question, so 'show the ti' is no Time Doctor. "m'ouvrir" and 'mouvrir' are 'open for me', and
 // 'open up', 'fire up' and 'boot up' a verb with its particle. 'show me' is 'montre-moi'. A trailing 'now' or 'ok'
@@ -1077,16 +1092,18 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     }
     const battery = (): Choice<A> => ({ kind: 'battery', label: answer(options.battery, lang) })
     const clipboard = (): Choice<A> => ({ kind: 'clipboard', label: WORDS[lang].clipboard })
+    const capture = (): Choice<A> => ({ kind: 'capture', label: WORDS[lang].capture })
     if (TIME.test(text) || TIME.test(cut)) return [time(), typed]
     if (DATE.test(text) || DATE.test(cut)) return [date(), typed]
     if (BATTERY.test(text) || BATTERY.test(cut)) return [battery(), typed]
     if (CLIPBOARD.test(text) || CLIPBOARD.test(cut)) return [clipboard(), typed]
+    if (CAPTURE.test(text) || CAPTURE.test(cut)) return [capture(), typed]
     // One of the bar's own words on its way comes first; an app the word also starts is one Tab away.
     const asked = own(text, read.raw)
     if (asked) {
       const app = starts(index, key(whole.text, true), tied)
       if (app) tied.unshift(app)
-      const answers = { battery, time, date, clipboard, weather: () => sky() }
+      const answers = { battery, time, date, clipboard, capture, weather: () => sky() }
       return [answers[asked](), typed]
     }
     const by = BY_NAME.exec(text)

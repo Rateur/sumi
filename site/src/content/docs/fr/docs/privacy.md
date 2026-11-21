@@ -17,7 +17,7 @@ Voir [Météo](../weather/). La recherche de mises à jour, dans une version sui
 
 ## Sur votre PC
 
-Rien de ce que l'île affiche n'est écrit dans un journal. Seul l'historique du presse-papiers va dans un fichier, une fois que vous l'avez autorisé : il reste sur ce PC, chiffré par Windows pour votre compte, et n'est envoyé nulle part. Voir [Historique du presse-papiers](../clipboard/). Les niveaux de batterie sont lus quand Windows dit qu'ils ont changé, et ne sont jamais gardés. Les quelques-uns que Sumi lit lui-même, d'écouteurs Fast Pair et de manettes, ne passent qu'en Bluetooth ou par l'adaptateur Xbox, entre l'appareil et votre PC.
+Rien de ce que l'île affiche n'est écrit dans un journal. Seul l'historique du presse-papiers va dans un fichier, une fois que vous l'avez autorisé : il reste sur ce PC, chiffré par Windows pour votre compte, et n'est envoyé nulle part. Voir [Historique du presse-papiers](../clipboard/). L'écran figé de la capture reste en mémoire, jamais sur le disque, et disparaît dès la fin de la capture. Son texte est lu sur ce PC par Windows. Voir [Capture](../capture/). Les niveaux de batterie sont lus quand Windows dit qu'ils ont changé, et ne sont jamais gardés. Les quelques-uns que Sumi lit lui-même, d'écouteurs Fast Pair et de manettes, ne passent qu'en Bluetooth ou par l'adaptateur Xbox, entre l'appareil et votre PC.
 
 La barre de commande ouvre l'app ou le site que vous choisissez avec votre question ; Sumi ne l'envoie nulle part, et la liste des apps reste en mémoire. L'historique du presse-papiers n'ouvre un lien dans votre navigateur, un nouveau message dans votre app de messagerie ou un dossier dans l'Explorateur de fichiers que si vous le choisissez avec Tab et Entrée.
 

@@ -463,6 +463,27 @@ fn trims(item: &str, form: &str) -> bool {
         })
 }
 
+/// What the screen capture copied: on the clipboard as Sumi's own write, which the listener skips, so it goes on top
+/// of the history here while that is on.
+pub fn keep(app: &AppHandle, text: String) -> bool {
+    let state = app.state::<Clipboard>();
+    if !os::write(state.window.load(Ordering::SeqCst), &text) {
+        return false;
+    }
+    let Ok(mut history) = state.history.lock() else {
+        return true;
+    };
+    if state.on.load(Ordering::SeqCst) {
+        if history.add(text)
+            && let Ok(dir) = app.path().app_local_data_dir()
+        {
+            let _ = history.save(&dir);
+        }
+        state.top.store(os::sequence(), Ordering::SeqCst);
+    }
+    true
+}
+
 /// Keeps the island out of screenshots and screen sharing while the list shows.
 #[tauri::command]
 pub fn clipboard_hide(window: WebviewWindow, hidden: bool) {

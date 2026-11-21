@@ -20,8 +20,11 @@ export type View =
   | { name: 'power'; power: Power }
   // The first-launch welcome: the greeting, then the command bar's shortcut. Its width is measured from its text.
   | Welcome
+  // The screen capture's pill: the HEX under the loupe, the box being drawn, then what was copied. Measured too.
+  | Capture
 
 export type Welcome = { name: 'welcome'; step: 'hello' | 'keys'; width: number }
+export type Capture = { name: 'capture'; step: 'pick' | 'box' | 'done'; width: number }
 
 export interface Size {
   width: number
@@ -52,6 +55,9 @@ const SIZES = {
 
 /** The welcome is as tall as a peek. The greeting is at least 200 px wide with 40 px each side, the shortcut row 24. */
 export const WELCOME_H = 56
+
+/** The capture's pill is never taller: what it points at may be at the top of the screen. */
+export const CAPTURE_H = 34
 
 /** The welcome's width around text this wide. A shortcut row that measured nothing gets 0: no shortcut beat. */
 export function welcomeWidth(step: Welcome['step'], text: number): number {
@@ -133,7 +139,7 @@ export function timerSize(fit: TimerFit, hovered: boolean): Size {
 }
 
 /**
- * What the island shows. The command bar and its answer beat everything, then the welcome. A click beats a peek,
+ * What the island shows. The command bar, the screen capture and the bar's answer beat everything, then the welcome. A click beats a peek,
  * a peek beats an activity, an activity beats the clock. A battery peek never covers a call or a timer's end peek. `timer` says how the island's timer fits, when it has one:
  * under the cursor it shows its name, and once it ended it peeks, then stays as a done pill and never opens.
  */
@@ -145,6 +151,8 @@ export function resolveView(state: {
   bar?: boolean
   /** The rows of the clipboard history's list, while the bar shows it. */
   rows?: number
+  /** The screen capture's pill, while it runs and as it says what was copied. */
+  capture?: Capture
   launch?: boolean
   /** The weather the bar asked for, which always shows. */
   weather?: boolean
@@ -159,8 +167,9 @@ export function resolveView(state: {
   batteries?: Size
 }): View {
   const { activity, hovered, expanded, peeking, bar, rows, launch, weather, clock, timer, welcome, blank, power } = state
-  const { batteries } = state
+  const { batteries, capture } = state
   if (bar) return rows ? { name: 'bar', rows } : { name: 'bar' }
+  if (capture) return capture
   if (launch) return { name: 'launch' }
   if (weather) return { name: 'weather' }
   if (welcome) return welcome
@@ -185,6 +194,7 @@ export function resolveView(state: {
 
 export function sizeOf(view: View): Size {
   if (view.name === 'welcome') return { width: view.width, height: WELCOME_H }
+  if (view.name === 'capture') return { width: view.width, height: CAPTURE_H }
   if ('batteries' in view) return view.batteries
   if ('size' in view && view.size) return view.size
   if (view.name === 'expanded' && view.activity?.kind === 'music') return PLAYER

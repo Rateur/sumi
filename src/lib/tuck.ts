@@ -21,7 +21,7 @@ export type Tucker = 'you' | 'auto' | 'move'
 export type Direction = 'up' | 'down' | 'left' | 'right'
 
 /** What the island can show, as far as tucking goes. */
-export type Kind = 'privacy' | 'call' | 'bar' | 'welcome' | 'peek' | 'done' | 'music' | 'timer' | 'time'
+export type Kind = 'privacy' | 'call' | 'bar' | 'capture' | 'welcome' | 'peek' | 'done' | 'music' | 'timer' | 'time'
 
 /**
  * For each kind, whether the island stays or tucks itself after `TUCK_AFTER` at rest. A kind that stays also brings
@@ -31,6 +31,7 @@ export const AUTO: Record<Kind, 'stays' | 'tucks'> = {
   privacy: 'stays',
   call: 'stays',
   bar: 'stays',
+  capture: 'stays',
   welcome: 'stays',
   peek: 'stays',
   done: 'stays',
@@ -48,8 +49,8 @@ export function kindOf(activity: Activity, at: number, peeking?: string): Kind {
 }
 
 /**
- * Everything the island shows: the island, its bubble, the privacy tag, and the bar, the welcome or a battery or
- * weather peek over them.
+ * Everything the island shows: the island, its bubble, the privacy tag, and the bar, the screen capture, the welcome or
+ * a battery or weather peek over them.
  */
 export function kinds(
   state: {
@@ -57,17 +58,19 @@ export function kinds(
     bubble?: Activity
     tagged: boolean
     bar: boolean
+    capture?: boolean
     welcome: boolean
     peeking?: string
     peek?: boolean
   },
   at: number,
 ): Kind[] {
-  const { island, bubble, tagged, bar, welcome, peeking, peek } = state
+  const { island, bubble, tagged, bar, capture, welcome, peeking, peek } = state
   const shown: Kind[] = [island ? kindOf(island, at, peeking) : 'time']
   if (bubble) shown.push(kindOf(bubble, at, peeking))
   if (tagged) shown.push('privacy')
   if (bar) shown.push('bar')
+  if (capture) shown.push('capture')
   if (welcome) shown.push('welcome')
   if (peek) shown.push('peek')
   return shown

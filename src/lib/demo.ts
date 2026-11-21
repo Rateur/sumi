@@ -2,6 +2,7 @@ import { isTauri } from '@tauri-apps/api/core'
 import type { Listed } from '../CommandBar.svelte'
 import { fold, langOf } from './intent'
 import type { Activity } from './activities'
+import type { Captured } from './capture'
 import type { Player } from './music'
 import type { Battery, Device, Power } from './power'
 import type { Privacy, PrivacyApp } from './privacy'
@@ -237,6 +238,7 @@ const KEYS: Record<string, string> = {
   s: 'batteries',
   V: 'clipboard',
   F: 'forget',
+  C: 'capture',
 }
 
 /**
@@ -260,6 +262,8 @@ const KEYS: Record<string, string> = {
  recorded forecasts, never the network; 'weather' shows Lyon's peek without the bar, and 'offline' cuts the network or
  brings it back. Shift+V opens the clipboard history in the bar, as Win+Alt+V does ('clipboard'), on a stand-in of
  twelve items, and Shift+F forgets its yes ('forget'): the next Shift+V asks for it, and the yes keeps only the first.
+ Shift+C starts the screen capture's pill, as Win+Alt+C does ('capture'), over a blue pixel; 'capture-colour' clicks it,
+ 'capture-text' draws a box and reads 42 words, 'capture-qr' a box with a link's QR code, and Esc cancels.
  */
 export function demo(island: {
   activities: Activity[]
@@ -273,6 +277,10 @@ export function demo(island: {
   fullscreen: () => void
   bar: () => void
   clipboard: () => void
+  capture: () => void
+  captured: (captured: Captured) => void
+  boxed: () => void
+  pixel: (hex: string) => void
   kept: string[] | null
   holding: string
   paths: string[]
@@ -327,6 +335,20 @@ export function demo(island: {
     bar: island.bar,
     clipboard: island.clipboard,
     forget: () => (island.kept = null),
+    capture: () => {
+      island.capture()
+      island.pixel('#1E90FF')
+    },
+    'capture-colour': () => island.captured({ kind: 'colour', hex: '#1E90FF' }),
+    // Rust reads the box once it is let go.
+    'capture-text': () => {
+      island.boxed()
+      setTimeout(() => island.captured({ kind: 'text', words: 42 }), 900)
+    },
+    'capture-qr': () => {
+      island.boxed()
+      setTimeout(() => island.captured({ kind: 'link', host: 'example.com' }), 900)
+    },
     // Through the field itself, so the chip answers and gives under the key as it does for a person.
     enter: () => field()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
     clear: () => (island.activities = island.activities.filter((a) => !isTimer(a))),

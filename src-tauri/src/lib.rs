@@ -7,11 +7,13 @@
 //! power://low, power://device, power://device-low, power://device-gone and power://battery the same way, with the
 //! levels `fastpair`, `xbox` and `pads` read where Windows doesn't. `apps` reads Start's list once on a thread that
 //! then ends, and `bar` hears the command bar's shortcuts through Windows. `clipboard` hears copies from a thread of its
-//! own that sleeps in its message loop, once the history is allowed. `timers` and `welcome` only answer the page: one
-//! plays the timers' chime, the other keeps the first-launch welcome's flag.
+//! own that sleeps in its message loop, once the history is allowed. `capture` runs a thread only from its shortcut
+//! until its windows are gone, and emits capture://pixel and capture://box meanwhile. `timers` and `welcome` only
+//! answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
 
 mod apps;
 mod bar;
+mod capture;
 mod clipboard;
 mod fastpair;
 mod fullscreen;
@@ -58,6 +60,7 @@ pub fn run() {
         .manage(apps::Apps::default())
         .manage(bar::Bar::default())
         .manage(clipboard::Clipboard::default())
+        .manage(capture::Capture::default())
         .invoke_handler(tauri::generate_handler![
             island::set_island_rects,
             island::set_island_expanded,
@@ -71,6 +74,8 @@ pub fn run() {
             apps::open_meteo,
             bar::bar_shortcut,
             bar::bar_focus,
+            capture::capture_start,
+            capture::capture_key,
             clipboard::clipboard_history,
             clipboard::clipboard_allow,
             clipboard::clipboard_paste,

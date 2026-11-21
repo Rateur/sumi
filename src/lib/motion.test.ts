@@ -58,6 +58,19 @@ describe('motion', () => {
     expect(motion(two, five)).toMatchObject({ height: [0.3, 0], delay: 0 })
     expect(motion(five, { name: 'launch' })).toMatchObject({ width: CLOSE.width, height: CLOSE.height, delay: 60 })
   })
+
+  it('opens the capture as a peek or folds the bar into it, changes it as anything else, and folds it as a peek', () => {
+    const [pick, box, done] = [
+      { name: 'capture', step: 'pick', width: 247 },
+      { name: 'capture', step: 'box', width: 231 },
+      { name: 'capture', step: 'done', width: 215 },
+    ] as const
+    expect(motion({ name: 'idle' }, pick)).toMatchObject({ width: [0.44, 0.28], height: [0.48, 0.2], delay: 0 })
+    expect(motion({ name: 'bar' }, pick)).toMatchObject({ width: CLOSE.width, height: CLOSE.height, delay: 60 })
+    expect(motion(pick, box)).toMatchObject({ width: [0.36, 0], height: [0.3, 0], delay: 60 })
+    expect(motion(done, { name: 'idle' })).toMatchObject({ width: [0.38, 0], height: [0.32, 0], delay: 60 })
+    expect(motion(done, { name: 'compact', activity: music }).pulse).toBe(false)
+  })
 })
 
 describe('bezier', () => {

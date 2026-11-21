@@ -16,7 +16,7 @@ Never:
 
 - `unwrap()` a Windows call: when one fails, the module hides and the app keeps running.
 - Add a dependency, a Tauri capability or a network request without an issue that agreed on it.
-- Log anything the island shows, or write it to a file. The one file is the clipboard history, after the user's yes and sealed with DPAPI (`src-tauri/src/clipboard.rs`).
+- Log anything the island shows, or write it to a file. The one file is the clipboard history, after the user's yes and sealed with DPAPI (`src-tauri/src/clipboard.rs`). The capture's frozen frame never leaves RAM (`src-tauri/src/capture.rs`).
 - Leave anything running at rest: no timer or animation while nothing changes.
 - Leave dead code or a `TODO`, or write an `unsafe` block that relies on what the compiler can't check (a raw pointer it reads, `from_raw`, a transmute, a callback's `lparam`) without a `// SAFETY:` comment.
 - Add a file, a command or an event without its line in [How the code is laid out](.github/CONTRIBUTING.md#how-the-code-is-laid-out), in both languages.

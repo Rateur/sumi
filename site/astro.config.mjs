@@ -56,6 +56,7 @@ export default defineConfig({
 						'docs/battery',
 						'docs/weather',
 						'docs/clipboard',
+						'docs/capture',
 					],
 				},
 				{
