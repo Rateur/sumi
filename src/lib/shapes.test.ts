@@ -84,6 +84,14 @@ describe('resolveView', () => {
     )
   })
 
+  it('shows the screen capture over everything but the bar, as a pill measured from its text, 34 px tall', () => {
+    const pick = { name: 'capture', step: 'pick', width: 247 } as const
+    const all = { activity: call, hovered: true, expanded: true, welcome: hello, launch: true, weather: true }
+    expect(resolveView({ ...all, bar: true, capture: pick })).toEqual({ name: 'bar' })
+    expect(resolveView({ ...all, capture: pick })).toEqual(pick)
+    expect(sizeOf(pick)).toEqual({ width: 247, height: 34 })
+  })
+
   it('shows the weather asked for over everything but the bar and its fold, as a 300 × 56 peek', () => {
     const power = { kind: 'plugged', percent: 5 } as const
     const all = { activity: call, hovered: true, expanded: true, welcome: hello, power }

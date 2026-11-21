@@ -1,4 +1,5 @@
 <script lang="ts" module>
+  import { CAPTURE_GLYPHS } from './lib/capture'
   import { GLYPHS } from './lib/clipboard'
   import { ASSISTANTS, type App, type Choice, type Lang, type Target } from './lib/intent'
   import { DRAWINGS, type Glyph } from './lib/weather'
@@ -19,7 +20,7 @@
 
   /**
    * What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, a cloud for the weather, the
-   * clipboard, or the timer's amber ring. `drawing` is a path on 16 units.
+   * clipboard, the capture's loupe, or the timer's amber ring. `drawing` is a path on 16 units.
    */
   export function markOf(choice: Choice<Listed>): {
     letter?: string
@@ -33,6 +34,7 @@
     if (choice.kind === 'ask') return { letter: ASSISTANTS[choice.to].name[0], color: MARKS[choice.to] }
     if (choice.kind === 'weather') return { glyph: 'cloud' }
     if (choice.kind === 'clipboard') return { drawing: GLYPHS.clip }
+    if (choice.kind === 'capture') return { drawing: CAPTURE_GLYPHS.loupe }
     return {}
   }
 </script>

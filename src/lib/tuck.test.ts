@@ -34,6 +34,12 @@ describe('kinds', () => {
     expect(shown).toEqual(['timer', 'time', 'privacy', 'bar'])
   })
 
+  it('adds the screen capture, which stays until its result has gone', () => {
+    const shown = kinds({ island: timer, ...none, capture: true }, 0)
+    expect(shown).toEqual(['timer', 'capture'])
+    expect(tucksItself(shown)).toBe(false)
+  })
+
   it('adds a battery peek over the rest, and stays while it shows', () => {
     const shown = kinds({ island: timer, ...none, peek: true }, 0)
     expect(shown).toEqual(['timer', 'peek'])
@@ -53,7 +59,7 @@ describe('tucksItself', () => {
   })
 
   it('stays as long as one thing shown stays', () => {
-    for (const kind of ['music', 'call', 'privacy', 'bar', 'welcome', 'peek', 'done'] as const) {
+    for (const kind of ['music', 'call', 'privacy', 'bar', 'capture', 'welcome', 'peek', 'done'] as const) {
       expect(tucksItself(['time', kind])).toBe(false)
     }
   })
