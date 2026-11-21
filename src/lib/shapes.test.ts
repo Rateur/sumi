@@ -94,6 +94,40 @@ describe('resolveView', () => {
   })
 })
 
+describe('battery peeks', () => {
+  const rest = { hovered: false, expanded: false }
+  const plugged = { kind: 'plugged', percent: 47 } as const
+  const low = { kind: 'low', percent: 20, minutes: null } as const
+
+  it('show over an activity and the time, and under a click', () => {
+    expect(resolveView({ ...rest, activity: music, power: low })).toEqual({ name: 'power', power: low })
+    expect(resolveView({ ...rest, hovered: true, power: plugged })).toEqual({ name: 'power', power: plugged })
+    expect(resolveView({ ...rest, expanded: true, power: low })).toEqual({ name: 'expanded' })
+  })
+
+  it("never cover a call or a timer's end peek", () => {
+    expect(resolveView({ ...rest, activity: call, power: low })).toEqual({ name: 'compact', activity: call })
+    const ended: TimerFit = { ...running, ended: true }
+    expect(resolveView({ ...rest, activity: timer, timer: ended, peeking: 't', power: low }).name).toBe('peek')
+    expect(resolveView({ ...rest, activity: timer, timer: ended, power: low }).name).toBe('power')
+  })
+
+  it("take the music's compact shape to plug in and as a device connects, and a song's peek when low", () => {
+    const device = { name: 'JBL Flip 6', kind: 'speaker', percent: 45 } as const
+    expect(sizeOf({ name: 'power', power: plugged })).toEqual({ width: 200, height: 34 })
+    expect(sizeOf({ name: 'power', power: { kind: 'device', device } })).toEqual({ width: 200, height: 34 })
+    expect(sizeOf({ name: 'power', power: low })).toEqual({ width: 300, height: 56 })
+    expect(sizeOf({ name: 'power', power: { kind: 'deviceLow', device } })).toEqual({ width: 300, height: 56 })
+  })
+
+  it('open the batteries panel at its own size, over everything a panel covers', () => {
+    const batteries = { width: 360, height: 164 }
+    expect(resolveView({ ...rest, expanded: true, activity: music, batteries })).toEqual({ name: 'expanded', batteries })
+    expect(sizeOf({ name: 'expanded', batteries })).toEqual(batteries)
+    expect(resolveView({ ...rest, expanded: false, batteries }).name).toBe('idle')
+  })
+})
+
 describe('sizeOf', () => {
   it('matches the design', () => {
     expect(sizeOf({ name: 'idle' })).toEqual({ width: 132, height: 34 })

@@ -53,6 +53,7 @@ export default defineConfig({
 						'docs/microphone-camera',
 						'docs/command-bar',
 						'docs/timers',
+						'docs/battery',
 					],
 				},
 				{

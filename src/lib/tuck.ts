@@ -47,17 +47,29 @@ export function kindOf(activity: Activity, at: number, peeking?: string): Kind {
   return activity.id === peeking ? 'peek' : 'done'
 }
 
-/** Everything the island shows: the island, its bubble, the privacy tag, and the bar or the welcome over them. */
+/**
+ * Everything the island shows: the island, its bubble, the privacy tag, and the bar, the welcome or a battery peek
+ * over them.
+ */
 export function kinds(
-  state: { island?: Activity; bubble?: Activity; tagged: boolean; bar: boolean; welcome: boolean; peeking?: string },
+  state: {
+    island?: Activity
+    bubble?: Activity
+    tagged: boolean
+    bar: boolean
+    welcome: boolean
+    peeking?: string
+    peek?: boolean
+  },
   at: number,
 ): Kind[] {
-  const { island, bubble, tagged, bar, welcome, peeking } = state
+  const { island, bubble, tagged, bar, welcome, peeking, peek } = state
   const shown: Kind[] = [island ? kindOf(island, at, peeking) : 'time']
   if (bubble) shown.push(kindOf(bubble, at, peeking))
   if (tagged) shown.push('privacy')
   if (bar) shown.push('bar')
   if (welcome) shown.push('welcome')
+  if (peek) shown.push('peek')
   return shown
 }
 

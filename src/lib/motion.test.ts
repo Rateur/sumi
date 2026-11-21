@@ -37,6 +37,14 @@ describe('motion', () => {
     expect(motion(keys, { name: 'compact', activity: music })).toMatchObject({ width: CLOSE.width, pulse: false })
   })
 
+  it("swells into a battery peek and folds out of it as a song's peek, without a pulse after", () => {
+    const low = { name: 'power', power: { kind: 'low', percent: 20, minutes: null } } as const
+    expect(motion({ name: 'compact', activity: music }, low)).toEqual(
+      motion({ name: 'compact', activity: music }, { name: 'peek', activity: music }),
+    )
+    expect(motion(low, { name: 'compact', activity: music })).toMatchObject({ width: [0.38, 0], pulse: false })
+  })
+
   it('opens and closes the command bar as the panel', () => {
     expect(motion({ name: 'idle' }, { name: 'bar' })).toMatchObject({ width: OPEN.width, height: OPEN.height })
     expect(motion({ name: 'bar' }, { name: 'idle' })).toMatchObject({ width: CLOSE.width, height: CLOSE.height })

@@ -34,6 +34,12 @@ describe('kinds', () => {
     expect(shown).toEqual(['timer', 'time', 'privacy', 'bar'])
   })
 
+  it('adds a battery peek over the rest, and stays while it shows', () => {
+    const shown = kinds({ island: timer, ...none, peek: true }, 0)
+    expect(shown).toEqual(['timer', 'peek'])
+    expect(tucksItself(shown)).toBe(false)
+  })
+
   it('tells an end peek from a done pill', () => {
     expect(kinds({ island: timer, ...none, peeking: 't' }, 61_000)).toEqual(['peek'])
     expect(kinds({ island: timer, ...none }, 61_000)).toEqual(['done'])

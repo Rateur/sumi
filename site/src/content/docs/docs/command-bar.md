@@ -10,7 +10,10 @@ Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the righ
 - **A timer**: `25m`, `90s`, `1h30`, `10 min timer` or `set a timer for ten minutes`. The bar folds into the timer: see [Timers](../timers/).
 - **An app**: its name as Start shows it, such as `Discord`, its first four letters or more, such as `disc`, or a verb and its name, such as `open spotify` or `open the settings`. A missing accent is fine, and after a verb, a typo too.
 - **The time or the date**: `what time is it` or `what's the date`. The chip gives the answer, and Enter shows it in the island with the date.
+- **The battery**: `battery` or `battery level`, or just its start, `bat`. The chip gives the level, where the power comes from and your connected devices, and Enter opens the batteries panel. See [Battery](../battery/).
 - **A question**: anything else goes to Claude. Name an assistant first to pick another: `ask chatgpt …`, `gemini …`, `perplexity …`, or `search …` for the search engine.
+
+A word alone of three letters or more on its way to one of the bar's own words gives its answer: `bat` the batteries, `tim` the time, `dat` the date. An app it also starts comes next on Tab.
 
 Write as you speak: around a verb, `please`, `can you` or `hey Sumi` change nothing, and neither does punctuation. `can you open Spotify please?` opens Spotify. A word alone opens an app only when one app starts that way. If two do, such as `disco` for Discord and Disco Elysium, the chip asks Claude and Tab offers both. A verb said in the negative, such as `don't open Spotify`, is a question.
 
@@ -33,7 +36,7 @@ Sumi sends nothing. The list of apps is read from Start and stays in memory. Wha
 
 ## Limits
 
-- One thing per line: a timer, an app, the time or a question.
+- One thing per line: a timer, an app, the time, the battery or a question.
 - The start of a word that could still become a question or one of the bar's own words, such as `what` or `time`, opens no app by itself. Type the full name: `whatsapp`.
 - An app installed in the last few minutes may only show up the next time you open the bar.
 - While the island is hidden in fullscreen, the shortcut does nothing.

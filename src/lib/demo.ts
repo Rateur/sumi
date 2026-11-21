@@ -3,6 +3,7 @@ import type { Listed } from '../CommandBar.svelte'
 import { langOf } from './intent'
 import type { Activity } from './activities'
 import type { Player } from './music'
+import type { Battery, Device, Power } from './power'
 import type { Privacy, PrivacyApp } from './privacy'
 import { ended, isTimer, order, pause, resume } from './timers'
 
@@ -83,6 +84,23 @@ const APPS: Listed[] = [
   { name: 'Mail', color: '#0A66C2' },
 ]
 
+// Devices that report their battery, as the lab's: the panel shows the first one, three or five of this PC.
+const DEVICES: Device[] = [
+  { name: 'Casque UGREEN HiTune Max5', kind: 'headset', percent: 80 },
+  { name: 'Souris MX Master 3S', kind: 'mouse', percent: 52 },
+  { name: 'Enceinte JBL Flip 6', kind: 'speaker', percent: 45 },
+  { name: 'Manette Xbox', kind: 'controller', percent: 15 },
+]
+// A speaker Windows gives no level for.
+const JBL: Device = { name: 'JBL Go 4', kind: 'speaker', percent: null }
+const pc = { percent: 64, plugged: false, minutes: 190, full: null, saver: false }
+const SETS: Record<string, Battery> = {
+  one: { ...pc, devices: [] },
+  three: { ...pc, devices: DEVICES.slice(0, 2) },
+  five: { ...pc, devices: DEVICES },
+  unknown: { ...pc, devices: [...DEVICES.slice(0, 2), JBL] },
+}
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000, total: 25 * 60_000 }),
@@ -146,6 +164,11 @@ const KEYS: Record<string, string> = {
   z: 'pause',
   w: 'welcome',
   r: 'tuck',
+  y: 'plugged',
+  x: 'low',
+  q: 'device',
+  Q: 'gone',
+  s: 'batteries',
 }
 
 /**
@@ -161,7 +184,11 @@ const KEYS: Record<string, string> = {
  * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
  edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
  'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does, and drains the open panel (E) up
- into the edge; a rest, a click, a scroll down or a pull down on the line brings it back.
+ into the edge; a rest, a click, a scroll down or a pull down on the line brings it back. Y plugs the PC in ('plugged'),
+ X runs its battery low ('low'), Q connects a speaker ('device') and Shift+Q disconnects it ('gone'), and S opens the batteries panel ('batteries'), as the
+ bar's `batterie` and Enter do; 'one', 'three' and 'five' give it that many rings, 'mains' and 'saver' turn those on,
+ 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, 'late' connects it with the level
+ it gives 8 s later, and 'unknown' adds it to the panel.
  */
 export function demo(island: {
   activities: Activity[]
@@ -177,6 +204,9 @@ export function demo(island: {
   welcome: () => void
   tuck: () => void
   swipe: (way: 'up' | 'down' | 'left' | 'right') => void
+  power: (power: Power) => void
+  batteries: () => void
+  battery: Battery | undefined
   shortcut: string | undefined
   apps: Listed[]
   claudeApp: boolean
@@ -227,6 +257,21 @@ export function demo(island: {
     'tuck-down': () => island.swipe('down'),
     'tuck-left': () => island.swipe('left'),
     'tuck-right': () => island.swipe('right'),
+    plugged: () => island.power({ kind: 'plugged', percent: 64 }),
+    low: () => island.power({ kind: 'low', percent: 20, minutes: 65 }),
+    device: () => island.power({ kind: 'device', device: DEVICES[2] }),
+    'device-low': () => island.power({ kind: 'deviceLow', device: DEVICES[3] }),
+    gone: () => island.power({ kind: 'deviceGone', device: DEVICES[2] }),
+    jbl: () => island.power({ kind: 'device', device: JBL }),
+    // As Rust tells it: a speaker's peek waits for the level Sumi asks it for.
+    late: () => setTimeout(() => island.power({ kind: 'device', device: { ...JBL, percent: 64 } }), 8000),
+    batteries: island.batteries,
+    ...Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, () => (island.battery = set)])),
+    mains: () => island.battery && (island.battery = { ...island.battery, plugged: !island.battery.plugged, full: 50 }),
+    saver: () => island.battery && (island.battery = { ...island.battery, saver: !island.battery.saver }),
+    drain: () =>
+      island.battery &&
+      (island.battery = { ...island.battery, ...(island.battery.percent === 18 ? pc : { percent: 18, minutes: 50 }) }),
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
       island.claudeApp = !island.claudeApp
@@ -237,6 +282,7 @@ export function demo(island: {
   if (!isTauri()) {
     island.apps = APPS
     island.claudeApp = true
+    island.battery = SETS.three
     island.shortcut = (new URLSearchParams(location.search).get('shortcut') ?? 'Win+Alt+S') || undefined
   }
   addEventListener('keydown', (event) => {

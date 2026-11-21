@@ -3142,6 +3142,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-log",
  "windows",
+ "windows-collections",
  "windows-core",
  "windows-sys 0.61.2",
 ]

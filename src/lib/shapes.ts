@@ -1,4 +1,5 @@
 import type { Activity } from './activities'
+import type { Power } from './power'
 
 export type View =
   | { name: 'idle' }
@@ -9,7 +10,11 @@ export type View =
   | { name: 'launch' }
   // Music and a running timer open into their own panels; anything else opens the clock's.
   | { name: 'expanded'; activity?: Activity }
+  // The batteries panel, from the bar or a battery peek, sized by its rings (panelSize in power.ts).
+  | { name: 'expanded'; batteries: Size }
   | { name: 'compact' | 'peek'; activity: Activity; size?: Size }
+  // A battery peek, over whatever has the island for a few seconds: plugging in, a low battery, a device.
+  | { name: 'power'; power: Power }
   // The first-launch welcome: the greeting, then the command bar's shortcut. Its width is measured from its text.
   | Welcome
 
@@ -70,11 +75,9 @@ const COMPACT: Record<Activity['kind'], Size> = {
   clock: SIZES.idle,
 }
 
-// The kinds without a peek of their own stay compact. A timer peeks only as it ends.
-const PEEK: Partial<Record<Activity['kind'], Size>> = {
-  music: { width: 300, height: 56 },
-  timer: { width: 300, height: 56 },
-}
+// The kinds without a peek of their own stay compact. A timer peeks only as it ends. A battery peek is a song's.
+const PEEKED: Size = { width: 300, height: 56 }
+const PEEK: Partial<Record<Activity['kind'], Size>> = { music: PEEKED, timer: PEEKED }
 
 /**
  * The timer's row: a ring at the left end, its name, its digits at the right end. Running it is 112 px wide, 128 at
@@ -119,7 +122,7 @@ export function timerSize(fit: TimerFit, hovered: boolean): Size {
 
 /**
  * What the island shows. The command bar and its answer beat everything, then the welcome. A click beats a peek,
- * a peek beats an activity, an activity beats the clock. `timer` says how the island's timer fits, when it has one:
+ * a peek beats an activity, an activity beats the clock. A battery peek never covers a call or a timer's end peek. `timer` says how the island's timer fits, when it has one:
  * under the cursor it shows its name, and once it ended it peeks, then stays as a done pill and never opens.
  */
 export function resolveView(state: {
@@ -135,18 +138,23 @@ export function resolveView(state: {
   welcome?: Welcome
   /** The welcome's drop and bead: the empty idle island, even with a song already playing. */
   blank?: boolean
+  power?: Power
+  /** The batteries panel's size, while it is open. */
+  batteries?: Size
 }): View {
-  const { activity, hovered, expanded, peeking, bar, launch, clock, timer, welcome, blank } = state
+  const { activity, hovered, expanded, peeking, bar, launch, clock, timer, welcome, blank, power, batteries } = state
   if (bar) return { name: 'bar' }
   if (launch) return { name: 'launch' }
   if (welcome) return welcome
   if (blank) return { name: 'idle' }
   if (clock) return { name: 'hover' }
   const done = activity?.kind === 'timer' && !!timer?.ended
+  if (expanded && batteries) return { name: 'expanded', batteries }
   if (expanded && !done) {
     const own = activity?.kind === 'music' || activity?.kind === 'timer'
     return own ? { name: 'expanded', activity } : { name: 'expanded' }
   }
+  if (power && activity?.kind !== 'call' && !(done && activity?.id === peeking)) return { name: 'power', power }
   if (activity?.kind === 'timer' && timer) {
     if (done && activity.id === peeking) return { name: 'peek', activity }
     // Without a name, a running timer has nothing to add under the cursor.
@@ -159,11 +167,14 @@ export function resolveView(state: {
 
 export function sizeOf(view: View): Size {
   if (view.name === 'welcome') return { width: view.width, height: WELCOME_H }
+  if ('batteries' in view) return view.batteries
   if ('size' in view && view.size) return view.size
   if (view.name === 'expanded' && view.activity?.kind === 'music') return PLAYER
   if (view.name === 'expanded') return SIZES.expanded
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]
+  // Plugging in and a device connecting take the music's compact shape; a low battery, a song's peek.
+  if (view.name === 'power') return ['plugged', 'device', 'deviceGone'].includes(view.power.kind) ? COMPACT.music : PEEKED
   return SIZES[view.name]
 }
 

@@ -414,6 +414,44 @@ describe('natural phrasing', () => {
         expect(choices(line.slice(0, n), options)[0], line.slice(0, n)).toMatchObject({ kind: 'clock', what })
   })
 
+  it.each(['batterie', 'battery', 'autonomie', 'niveau de batterie', 'battery level'])(
+    'answers %s with the battery on the chip',
+    (line) => {
+      const battery = { percent: 47, plugged: true, minutes: null, full: null, saver: false, devices: [] }
+      expect(choices(line, { ...options, battery })[0]).toEqual({ kind: 'battery', label: '47\u202f% · sur secteur' })
+      expect(choices(line, { ...options, battery, lang: 'en' })[0].label).toBe('47\u202f% · plugged in')
+    },
+  )
+
+  it.each([
+    ['bat', 'battery'],
+    ['batte', 'battery'],
+    ['autono', 'battery'],
+    ['heu', 'clock'],
+    ['tim', 'clock'],
+    ['dat', 'clock'],
+  ] as const)('offers what %s is on its way to', (line, kind) => {
+    expect(choices(line, options)[0].kind).toBe(kind)
+  })
+
+  it('puts the bar first, and an app the word also starts one Tab away', () => {
+    const list = { ...options, apps: [{ name: 'Battle.net' }] }
+    const shown = choices('batt', list).map((c) => (c.kind === 'app' ? c.app.name : c.kind))
+    expect(shown.slice(0, 2)).toEqual(['battery', 'Battle.net'])
+    expect(choices('battl', list)[0]).toMatchObject({ kind: 'app' })
+  })
+
+  it('keeps a longer word, a line or two letters a question', () => {
+    for (const line of ['batman', 'timeline', 'ba', 'bat signal', 'database']) {
+      expect(choices(line, options)[0].kind, line).toBe('ask')
+    }
+  })
+
+  it('names the battery until Rust answers, and keeps its questions', () => {
+    expect(choices('batterie', options)[0].label).toBe('Batterie')
+    expect(choices('batterie faible que faire', options)[0].kind).toBe('ask')
+  })
+
   it('holds an app or the time while a tail is typed after it', () => {
     for (const [line, from] of [
       ['ouvre spotify maintenant', 'ouvre spotify'],
@@ -579,13 +617,13 @@ describe('corpus', () => {
   })
 
   // While a command is typed, each prefix of 3 letters or more shows its chip or a question: never another app, nor
-  // a timer of another length once the right one has shown. The time may show, as it runs nothing: 'time' is on
-  // the way to 'timer'.
+  // a timer of another length once the right one has shown. The time and the battery may show, as they only answer:
+  // 'time' is on the way to 'timer', 'batt' to 'Battle.net'.
   it.each(corpus.filter(([, , kind]) => kind !== 'ask'))('stays put while %s is typed', (line, _, kind, to) => {
     let shown = false
     for (let n = 3; n <= line.length; n++) {
       const c = read(line.slice(0, n))
-      if (c.kind === 'ask' || (c.kind === 'clock' && kind !== 'clock')) continue
+      if (c.kind === 'ask' || ((c.kind === 'clock' || c.kind === 'battery') && kind !== c.kind)) continue
       const where = `${line.slice(0, n)} → ${c.kind} ${target(c)}`
       expect(c.kind, where).toBe(kind)
       if (kind === 'timer' && !shown) shown = target(c) === to

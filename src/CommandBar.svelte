@@ -15,7 +15,7 @@
     search: '#5F6368',
   }
 
-  /** What fills the 16 px icon slot: the app's icon, a monogram, a clock, or the timer's amber ring. */
+  /** What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, or the timer's amber ring. */
   export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon } {
     if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
@@ -168,6 +168,8 @@
       {mark.letter}
     {:else if choice.kind === 'clock'}
       <svg class="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /><path d="M8 5v3.5l2 1.5" /></svg>
+    {:else if choice.kind === 'battery'}
+      <svg class="battery" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="11" height="7" rx="2" /><path d="M14.5 7v2" /></svg>
     {:else}
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
     {/if}
@@ -204,14 +206,17 @@
     <!-- The ellipsis waits for the chip to settle, so a growing label is revealed, not cut. -->
     <span class="row" class:moving={drawn.moving}>{@render face(shown, mark)}</span>
     <!-- Laid out at its own width, out of sight: the chip springs to it. -->
-    <span class="row ghost" aria-hidden="true" bind:offsetWidth={natural}>{@render face(choice ?? shown, mark)}</span>
+    <!-- The battery's answer may list devices: it may take room from the field. -->
+    <span class="row ghost" class:wide={(choice ?? shown).kind === 'battery'} aria-hidden="true" bind:offsetWidth={natural}>
+      {@render face(choice ?? shown, mark)}
+    </span>
   {/if}
 </span>
 
 <style>
   .field {
-    flex: none;
-    width: 240px;
+    flex: 0 1 240px;
+    min-width: 0;
     padding: 0;
     border: 0;
     outline: none;
@@ -258,6 +263,10 @@
     visibility: hidden;
   }
 
+  .ghost.wide {
+    max-width: 300px;
+  }
+
   .mark {
     display: grid;
     flex: none;
@@ -283,7 +292,8 @@
     stroke-width: 2;
   }
 
-  .mark svg.clock {
+  .mark svg.clock,
+  .mark svg.battery {
     stroke: #fff;
     stroke-linecap: round;
   }
