@@ -1,5 +1,6 @@
-//! The command bar's shortcuts, the screen capture's, and focus. The island never takes focus, except while the bar is open: a shortcut
-//! lets Sumi come to the front, and the window it came from gets focus back on Esc or when the bar closes.
+//! The command bar's shortcuts, the screen capture's, and focus. The island never takes focus, except while the bar
+//! is open or a capture runs: a shortcut lets Sumi come to the front, and the window it came from gets focus back on
+//! Esc or when the bar closes.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -59,9 +60,9 @@ pub struct Bar {
     focusable: AtomicBool,
 }
 
-/// Registers the first free shortcut of each list. Each press tells the page to open or close the bar, its
-/// clipboard history or the screen capture; while the island is hidden in fullscreen, the page ignores it. If Windows' hotkeys can't be
-/// set up at all, the bar has no shortcut.
+/// Registers the first free shortcut of each list. Each press tells the page to open or close the bar, its clipboard
+/// history or the screen capture; while the island is hidden in fullscreen, the page ignores it. If Windows' hotkeys
+/// can't be set up at all, the bar has no shortcut.
 pub fn register(app: &AppHandle) {
     let plugin = app.plugin(
         tauri_plugin_global_shortcut::Builder::new()

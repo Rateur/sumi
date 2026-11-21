@@ -264,8 +264,9 @@
   const matches = $derived(history ? matching(history, searchable, query) : [])
   const listed = $derived(history ? listRows(matches.length, history.length, query, lang) : 0)
   // The screen capture: whether Rust takes input, the HEX under the loupe and whether Shift asks for the text's
-  // colour. `captureView` is the island's view of it, measured from the hidden copies below, and `got` what was copied, which
-  // shows for 3 s. `bead` is the colour the result's bead holds. The demo settles its stand-in through `settleCapture`.
+  // colour. `captureView` is the island's view of it, measured from the hidden copies below, and `got` what was
+  // copied, which shows for 3 s. `bead` is the colour the result's bead holds. The demo settles its stand-in through
+  // `settleCapture`.
   let capturing = $state(false)
   let hex = $state('#000000')
   let textColour = $state(false)
@@ -986,7 +987,8 @@
   // The weather's peek opens nothing, so it never gives: only its credit takes a click.
   let pressed = false
   function press(down: boolean) {
-    if (reduced || expanded || barOpen || captureView || greeting === 'playing' || (down && sky) || pressed === down) return
+    if (reduced || expanded || barOpen || captureView || greeting === 'playing' || (down && sky)) return
+    if (pressed === down) return
     pressed = down
     const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
@@ -1985,10 +1987,7 @@
     if (choice.kind === 'weather') return weather(choice)
     if (choice.kind === 'clipboard') return allowing ? allow() : read().then(shows)
     // The bar folds into the capture's pill, and keeps the focus for its keys.
-    if (choice.kind === 'capture') {
-      closeBar(false)
-      return startCapture()
-    }
+    if (choice.kind === 'capture') return startCapture()
     // An app or a site takes the focus; the batteries panel keeps it for the arrows.
     closeBar(choice.kind !== 'app' && choice.kind !== 'ask' && choice.kind !== 'battery')
     const t = Date.now()
@@ -2235,6 +2234,9 @@
   async function startCapture() {
     retuck = undefined
     if (greeting === 'playing') end()
+    // The bar's focus is the capture's now: neither gives it back.
+    if (barOpen) closeBar(false)
+    focused = false
     expanded = false
     hovered = false
     closeCard()
