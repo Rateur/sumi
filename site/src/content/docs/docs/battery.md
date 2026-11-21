@@ -3,7 +3,7 @@ title: Battery
 description: Every battery in one panel, and a peek as you plug in, when the battery runs low, and when a headset connects.
 ---
 
-The island shows your laptop's battery and the Bluetooth devices that report theirs to Windows, such as headsets, speakers, controllers, mice and keyboards. Nothing new sits on it at rest: the batteries open when you ask, and a peek comes when something happens.
+The island shows your laptop's battery and the Bluetooth devices that report theirs to Windows, such as headsets, speakers, controllers, mice and keyboards. Nothing changes at rest. Type `battery` for the batteries panel, and a peek shows when you plug in, run low or connect a headset.
 
 Some devices give Windows no level: Sumi reads several of them itself, from JBL speakers to game controllers, see [Beyond Windows](#beyond-windows).
 

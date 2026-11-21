@@ -1,9 +1,9 @@
 ---
 title: Tray icon
-description: Sumi's icon by the clock shows what the island has. A click tucks the island.
+description: Sumi's icon by the clock shows the microphone dot and the music. A click tucks the island.
 ---
 
-Sumi's icon sits in the notification area, by the clock. It shows what the island has, even while the island is tucked or hidden by a game.
+Sumi's icon sits in the notification area, by the clock. It shows the microphone or camera dot and the music, even while the island is tucked or hidden by a game.
 
 ## What it shows
 

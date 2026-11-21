@@ -1,9 +1,9 @@
 ---
 title: Icône de la zone de notification
-description: L'icône de Sumi, près de l'horloge, montre ce qu'a l'île. Un clic range l'île.
+description: L'icône de Sumi, près de l'horloge, montre le point du micro et la musique. Un clic range l'île.
 ---
 
-L'icône de Sumi se trouve dans la zone de notification, près de l'horloge. Elle montre ce qu'a l'île, même quand l'île est rangée ou cachée par un jeu.
+L'icône de Sumi se trouve dans la zone de notification, près de l'horloge. Elle montre le point du micro ou de la caméra et la musique, même quand l'île est rangée ou cachée par un jeu.
 
 ## Ce qu'elle montre
 

@@ -36,7 +36,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] A command bar (`Win+Alt+S`): a timer, an app, a question for Claude, ChatGPT, Gemini, Perplexity or a search engine; timers on the island, from `25m` (0.6.0)
 - [x] Tuck the island into a thin line at the top with a swipe, or by itself at rest; a live tray icon with the microphone, camera and music that tucks it or brings it back (0.7.0)
 - [x] The weather from the command bar, through [Open-Meteo](https://open-meteo.com); the batteries of the PC and its Bluetooth devices, including ones Windows doesn't show, with a peek as you plug in, run low or connect one (0.8.0)
-- [ ] A smart clipboard: your recent copies in the command bar (`Win+Alt+V`), pasted where you were, each with its action, and a capture (`Win+Alt+C`) that copies a color, text or a QR code from the screen
+- [ ] Clipboard and capture: your recent copies in the command bar (`Win+Alt+V`), pasted where you were, each with its action. A capture (`Win+Alt+C`) copies a color, text or a QR code from the screen.
 - [ ] Settings (screen, theme, language, shortcuts), automatic updates and the Microsoft Store
 
 ## How it's built

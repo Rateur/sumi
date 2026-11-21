@@ -3,7 +3,7 @@ title: Tuck
 description: Put the island away in a line under the top edge, and bring it back.
 ---
 
-The island can tuck into a thin line under the top edge of your main screen, out of the way of tabs and title bars. It comes back when something needs it.
+The island can tuck into a thin line under the top edge of your main screen, out of the way of tabs and title bars. It comes back on its own for a call, new music or a timer that ends.
 
 ## Tuck it
 

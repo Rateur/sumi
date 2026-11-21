@@ -3,7 +3,7 @@ title: Ranger l'île
 description: Ranger l'île dans une ligne sous le bord de l'écran, et la faire revenir.
 ---
 
-L'île peut se ranger dans une fine ligne sous le bord supérieur de votre écran principal, à l'écart des onglets et des barres de titre. Elle revient quand quelque chose a besoin d'elle.
+L'île peut se ranger dans une fine ligne sous le bord supérieur de votre écran principal, à l'écart des onglets et des barres de titre. Elle revient d'elle-même pour un appel, une musique qui démarre ou un minuteur qui se termine.
 
 ## La ranger
 
