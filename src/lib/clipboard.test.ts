@@ -15,8 +15,9 @@ import {
   quiet,
   rows,
   searchKey,
-  shown,
+  swatchOf,
   untracked,
+  written,
   type Kind,
 } from './clipboard'
 import { fold } from './intent'
@@ -177,10 +178,15 @@ describe('colours', () => {
     expect(formatted([255, 255, 255], 'hsl')).toBe('hsl(0, 0%, 100%)')
   })
 
+  it('paints the swatch in HEX', () => {
+    expect(swatchOf('hsl(0, 100%, 50%)')).toBe('#FF0000')
+    expect(swatchOf('Bonjour')).toBeUndefined()
+  })
+
   it('shows a colour as it was copied in its own format', () => {
-    expect(shown('#1e90ff\n', 'hex')).toBe('#1e90ff')
-    expect(shown('#1e90ff', 'rgb')).toBe('rgb(30, 144, 255)')
-    expect(shown('#123', 'hex')).toBe('#123')
+    expect(written('#1e90ff\n', 'hex')).toBe('#1e90ff')
+    expect(written('#1e90ff', 'rgb')).toBe('rgb(30, 144, 255)')
+    expect(written('#123', 'hex')).toBe('#123')
   })
 
   const sample = Array.from({ length: 2000 }, (_, i): [number, number, number] => [

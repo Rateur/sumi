@@ -241,8 +241,14 @@ export function formatted([r, g, b]: Rgb, format: Format): string {
   return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('').toUpperCase()
 }
 
+/** A colour item's swatch, in HEX whatever way it was written. */
+export function swatchOf(text: string): string | undefined {
+  const colour = colourOf(text)
+  return colour && formatted(colour.rgb, 'hex')
+}
+
 /** A colour item in `format`: as it was copied in its own, worked out in the others. */
-export function shown(text: string, format: Format): string {
+export function written(text: string, format: Format): string {
   const colour = colourOf(text)
   if (!colour) return preview(text)
   return colour.format === format ? text.trim() : formatted(colour.rgb, format)

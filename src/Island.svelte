@@ -144,7 +144,21 @@
     type Tucker,
   } from './lib/tuck'
   import { TRAY, badge, tip, type Tray } from './lib/tray'
-  import { CLIPBOARD_WORDS, GLYPHS, arrived, matching, rows as listRows, type Landed } from './lib/clipboard'
+  import {
+    CLIPBOARD_WORDS,
+    GLYPHS,
+    arrived,
+    folderOf,
+    formOf,
+    kindOf,
+    linkParts,
+    matching,
+    rows as listRows,
+    searchKey,
+    swatchOf,
+    type Action,
+    type Landed,
+  } from './lib/clipboard'
   import ClipboardHistory from './ClipboardHistory.svelte'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
@@ -201,7 +215,7 @@
   const lang: Lang = langOf(location.search, navigator.language)
   let barOpen = $state(false)
   let line = $state('')
-  let launch = $state<ReturnType<typeof markOf> & { text: string }>()
+  let launch = $state<ReturnType<typeof markOf> & { text: string; swatch?: string }>()
   let launchTimer: ReturnType<typeof setTimeout> | undefined
   // The time asked in the bar: the hover view shows it with the date, then the previous view comes back.
   let telling = $state(false)
@@ -224,16 +238,19 @@
   let asking = $state<Extract<Choice<Listed>, { kind: 'weather' }>>()
   let sky = $state<Sky>()
   let skyTimer: ReturnType<typeof setTimeout> | undefined
-  // The clipboard history, opened in the bar: its items as Rust keeps them, newest first, and what filters them.
-  // `allowing` is the bar's consent question, and `refused` a no this session, after which its chip says « Activer ».
-  // The demo's stand-ins: what Rust would keep, null before the yes, and what the clipboard holds now.
+  // The clipboard history, opened in the bar: its items as Rust keeps them, newest first, the ones Rust found on this
+  // PC as a file or a folder, and what filters them. `allowing` is the bar's consent question, and `refused` a no
+  // this session, after which its chip says « Activer ». The demo's stand-ins: what Rust would keep, null before the
+  // yes, what the clipboard holds now, and the paths it would find.
   let history = $state<string[]>()
+  let paths = $state<ReadonlySet<string>>(new Set())
   let query = $state('')
   let allowing = $state(false)
   let refused = false
   let kept: string[] | null = null
   let holding = ''
-  const searchable = $derived(history?.map(folded) ?? [])
+  let found: string[] = []
+  const searchable = $derived(history?.map((text) => searchKey(text, kindOf(text, paths), lang)) ?? [])
   const matches = $derived(history ? matching(history, searchable, query) : [])
   const listed = $derived(history ? listRows(matches.length, history.length, query, lang) : 0)
   let apps = $state<Listed[]>([])
@@ -2049,6 +2066,7 @@
     if (items) {
       history = items
       spoken = arrived(items.length, lang)
+      look()
       return
     }
     allowing = true
@@ -2068,22 +2086,51 @@
     line = ''
     history = items
     spoken = arrived(items.length, lang)
+    look()
   }
 
-  // Enter on an item: the bar folds into the launch peek as Rust pastes it where you were. The peek says what
-  // happened, never what was pasted. A bar closed during the chip's press pastes nothing.
-  function paste(text: string, plain: boolean) {
+  // Which items name a file or a folder on this PC: Rust looks, and their rows turn into paths as it answers.
+  function look() {
+    if (!tauri) return void (paths = new Set(found))
+    invoke<string[]>('clipboard_paths')
+      .then((names) => {
+        if (history) paths = new Set(names)
+      })
+      .catch(console.error)
+  }
+
+  // What fills the peek's mark: a colour's swatch, or the type's glyph.
+  type Mark = { swatch?: string; drawing?: string }
+
+  // Enter on an item: the bar folds into the launch peek as Rust pastes it where you were, or a form of it, or opens
+  // what Tab picked. The peek shows the type's mark and says what happened, never what was pasted. A bar closed
+  // during the chip's press runs nothing.
+  function act(text: string, action: Action, plain: boolean) {
     if (!history) return
+    const words = CLIPBOARD_WORDS[lang]
+    const kind = kindOf(text, paths)
+    const mark = kind === 'colour' ? { swatch: swatchOf(text) } : { drawing: GLYPHS[kind] }
+    if (action === 'open' || action === 'folder' || action === 'write') {
+      const said = action === 'open' ? linkParts(text).domain : action === 'folder' ? folderOf(text) : words.wrote
+      return openItem(text, mark, said)
+    }
+    // A colour and code paste as plain text, whatever Shift says.
+    plain ||= kind === 'colour' || action === 'plain'
+    const said = action === 'clean' ? words.pastedClean : plain && kind !== 'colour' ? words.pastedPlain : words.pasted
+    paste(text, formOf(text, action), plain, mark, said)
+  }
+
+  function paste(text: string, form: string | undefined, plain: boolean, mark: Mark, said: string) {
     const words = CLIPBOARD_WORDS[lang]
     // Rust gives the focus back itself, then pastes.
     closeBar(false)
-    show({ drawing: GLYPHS.text, text: plain ? words.pastedPlain : words.pasted }, 1200)
+    show({ ...mark, text: said }, 1200)
     if (!tauri) {
       kept = [text, ...(kept ?? []).filter((t) => t !== text)]
-      holding = text
+      holding = form ?? text
       return
     }
-    invoke<Landed>('clipboard_paste', { text, plain })
+    invoke<Landed>('clipboard_paste', { text, plain, form: form ?? null })
       .catch((): Landed => {
         // Rust gives focus back too, but not if the call itself failed.
         invoke('bar_focus', { open: false }).catch(console.error)
@@ -2091,7 +2138,22 @@
       })
       .then((landed) => {
         if (landed === 'pasted') return
-        show({ drawing: GLYPHS.text, text: landed === 'copied' ? words.copied : words.failed }, 2000)
+        show({ ...mark, text: landed === 'copied' ? words.copied : words.failed }, 2000)
+      })
+  }
+
+  // Tab's open: what opens takes the focus, as an app from the bar does. Rust reads the item again and opens only a
+  // link, an address or a folder; the peek says so if nothing opened.
+  function openItem(text: string, mark: Mark, said: string) {
+    closeBar(false)
+    show({ ...mark, text: said }, 1200)
+    if (!tauri) return
+    invoke<boolean>('clipboard_open', { text })
+      .catch(() => false)
+      .then((opened) => {
+        if (opened || barOpen) return
+        invoke('bar_focus', { open: false }).catch(console.error)
+        show({ ...mark, text: CLIPBOARD_WORDS[lang].unopened }, 2000)
       })
   }
 
@@ -2310,6 +2372,9 @@
         },
         set holding(next: string) {
           holding = next
+        },
+        set paths(next: string[]) {
+          found = next
         },
         welcome: replay,
         tuck: toggleTuck,
@@ -2757,7 +2822,8 @@
         height={geometry.clip.height}
         {enter}
         {exit}
-        onpaste={paste}
+        {paths}
+        onrun={act}
         onclose={() => closeBar()}
       />
     {:else if parts.bar}
@@ -2776,7 +2842,9 @@
     {/if}
     {#if parts.launch}
       <span class="mark" style:background={parts.launch.color} in:enter out:exit>
-        {#if parts.launch.icon}
+        {#if parts.launch.swatch}
+          <span class="swatch" style:background={parts.launch.swatch}></span>
+        {:else if parts.launch.icon}
           <canvas use:paintIcon={parts.launch.icon}></canvas>
         {:else if parts.launch.glyph}
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d={DRAWINGS[parts.launch.glyph]} /></svg>
@@ -3095,7 +3163,8 @@
 
     .dot,
     .art,
-    .equalizer {
+    .equalizer,
+    .launch .swatch {
       forced-color-adjust: none;
     }
   }
@@ -3152,6 +3221,14 @@
     border-radius: 6px;
     font-size: 11px;
     font-weight: 700;
+  }
+
+  /* A colour's own swatch, ringed so black shows. */
+  .launch .swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.28);
   }
 
   .launch .mark canvas {

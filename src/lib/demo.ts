@@ -85,13 +85,15 @@ const APPS: Listed[] = [
   { name: 'Mail', color: '#0A66C2' },
 ]
 
-// What the clipboard history's stand-in holds, newest first, as the lab's. Text only, as Sumi keeps it.
+// What the clipboard history's stand-in holds, newest first, as the lab's. Text only, as Sumi keeps it. Its paths
+// stand in for files Rust would find on this PC.
+const PATHS = ['C:\\Users\\Valentin\\Documents\\Sumi\\rapport-0.9.pdf', 'D:\\Photos\\2026\\Lyon']
 const COPIED = [
   'https://github.com/Rateur/sumi/pull/94',
   '#1E90FF',
   fr ? 'Réunion jeudi 14 h, salle Lumière' : 'Meeting on Thursday at 2 pm, Lumière room',
   fr ? 'camille.martin@exemple.fr' : 'camille.martin@example.com',
-  'C:\\Users\\Valentin\\Documents\\Sumi\\rapport-0.9.pdf',
+  PATHS[0],
   fr
     ? 'const total = items.reduce(\n  (somme, i) => somme + i.prix,\n  0,\n)'
     : 'const total = items.reduce(\n  (sum, i) => sum + i.price,\n  0,\n)',
@@ -99,7 +101,7 @@ const COPIED = [
   '#FF6B4A',
   fr ? 'Merci pour le retour, je regarde ça demain matin.' : "Thanks for the feedback, I'll look at it tomorrow morning.",
   '4 rue de la République, 69002 Lyon',
-  'D:\\Photos\\2026\\Lyon',
+  PATHS[1],
   '#2BB673',
 ]
 
@@ -273,6 +275,7 @@ export function demo(island: {
   clipboard: () => void
   kept: string[] | null
   holding: string
+  paths: string[]
   welcome: () => void
   tuck: () => void
   swipe: (way: 'up' | 'down' | 'left' | 'right') => void
@@ -365,6 +368,7 @@ export function demo(island: {
     island.lookup = recorded
     island.kept = COPIED
     island.holding = COPIED[0]
+    island.paths = PATHS
   }
   addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {
