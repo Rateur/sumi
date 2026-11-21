@@ -128,6 +128,7 @@
     geocoding,
     peek as forecastPeek,
     type City,
+    type Kept,
     type Sky,
   } from './lib/weather'
   import { WORDS, announce, keysOf } from './lib/welcome'
@@ -241,8 +242,8 @@
   let grown = $state<string>()
   let focused = $state(false)
   const connects = new Map<string, Peeked>()
-  // The weather, asked in the bar only. The yes and `here`, the city last found, live in memory for the session:
-  // quitting Sumi forgets both. `asking` is the bar's consent question, `sky` the peek.
+  // The weather, asked in the bar only. The yes and `here`, the city last found, are kept by Rust across restarts until
+  // the tray's forget. `asking` is the bar's consent question, `sky` the peek.
   let consented = false
   let here = $state<City>()
   let asking = $state<Extract<Choice<Listed>, { kind: 'weather' }>>()
@@ -1132,6 +1133,11 @@
       listen<Battery>('power://battery', ({ payload }) => (battery = payload)),
       listen<Device>('power://device-low', ({ payload }) => notice({ kind: 'deviceLow', device: payload })),
       listen<Device>('power://device-gone', ({ payload }) => notice({ kind: 'deviceGone', device: payload }, connects)),
+      // The tray's forget: the next weather asks for the yes again, and a bare « météo » for a city.
+      listen('weather://forget', () => {
+        consented = false
+        here = undefined
+      }),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
@@ -1901,8 +1907,8 @@
   const trayTip = $derived(tip(privacy, music, keys, lang))
   const trayTuck = $derived(TRAY[lang][away() ? 'back' : 'tuck'])
   $effect(() => {
-    const { pause, clear, quit } = TRAY[lang]
-    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, pause, clear, quit }
+    const { pause, clear, forget, quit } = TRAY[lang]
+    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, pause, clear, forget, quit }
     if (tauri) invoke('set_tray', { tray }).catch(console.error)
   })
 
@@ -2041,9 +2047,18 @@
       r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)),
     )
 
-  // Enter on the weather. Without a city typed or found this session, it does nothing: the chip asks for one. The
-  // first Enter of a session sends nothing: the field says what Open-Meteo will get and the chip becomes the yes.
-  // Esc is no, and closes the bar.
+  // The yes and the city kept from an earlier start. A yes or a city of this start, given meanwhile, is newer.
+  if (tauri)
+    invoke<Kept>('weather_kept')
+      .then((kept) => {
+        consented ||= kept.allowed
+        here ??= kept.city ?? undefined
+      })
+      .catch(console.error)
+
+  // Enter on the weather. Without a city typed or kept, it does nothing: the chip asks for one. Without a yes, Enter
+  // sends nothing: the field says what Open-Meteo will get and the chip becomes the yes. Esc is no, closes the bar and
+  // keeps nothing.
   function weather(choice: Extract<Choice<Listed>, { kind: 'weather' }>) {
     const city = choice.city ?? here?.name
     if (!city) return
@@ -2053,7 +2068,10 @@
       spoken = line
       return
     }
-    consented = true
+    if (!consented) {
+      consented = true
+      if (tauri) invoke('weather_allow', { city: here ?? null }).catch(console.error)
+    }
     closeBar()
     forecastFor(city, choice.day)
   }
@@ -2066,12 +2084,15 @@
     const fail = (text: string) => mine === asked && show({ glyph: 'cloud', text }, WEATHER_ERROR)
     show({ glyph: 'cloud', text: chip(city, day, lang) }, 2 * TIMEOUT)
     try {
-      // The session's city keeps its place: only its forecast is asked again.
+      // The kept city keeps its place: only its forecast is asked again.
       const known = here && folded(here.name) === folded(city) ? here : undefined
       const found = known ?? cityOf(await lookup(geocoding(city, lang)))
       if (mine !== asked) return
       if (!found) return fail(words.unknown)
-      here = found
+      if (!known) {
+        here = found
+        if (tauri) invoke('weather_city', { city: found }).catch(console.error)
+      }
       const answer = forecastOf(await lookup(forecast(found, fahrenheit(navigator.language))))
       if (mine !== asked) return
       if (!answer) return fail(words.offline)

@@ -68,7 +68,7 @@ export interface Options<A extends App> {
   order?: readonly Assistant[]
   /** The battery, read from Rust as the bar opened. */
   battery?: Battery
-  /** The city the weather last found this session, for a bare « météo ». */
+  /** The city the weather last found, kept across restarts, for a bare « météo ». */
   city?: string
 }
 

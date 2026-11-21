@@ -16,6 +16,9 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use crate::{apps, bar, tray};
 
+/// DPAPI's seal and open for this Windows user, which the weather's yes uses too.
+pub use os::{protect, unprotect};
+
 /// The oldest items drop off past this many.
 const ITEMS: usize = 100;
 /// A copy past this size isn't kept, rather than cut, since a cut paste would be wrong. A long page or a source file
@@ -71,19 +74,11 @@ impl History {
             .unwrap_or_default()
     }
 
-    /// Writes beside the file, on the disk and not just in Windows' cache, then over it, so neither a crash nor a
-    /// power cut leaves half a history.
     fn save(&self, dir: &Path) -> std::io::Result<()> {
         let sealed = self
             .seal()
             .ok_or_else(|| std::io::Error::other("DPAPI refused"))?;
-        std::fs::create_dir_all(dir)?;
-        let next = dir.join(NEXT);
-        std::fs::File::create(&next).and_then(|mut file| {
-            file.write_all(&sealed)?;
-            file.sync_all()
-        })?;
-        std::fs::rename(next, dir.join(KEPT))
+        replace(dir, KEPT, NEXT, &sealed)
     }
 
     /// Deletes the kept history, and the next one a crash or a refused rename left beside it.
@@ -92,6 +87,18 @@ impl History {
             let _ = std::fs::remove_file(dir.join(name));
         }
     }
+}
+
+/// Writes `bytes` to `next` beside `name`, on the disk and not just in Windows' cache, then over `name`, so neither a
+/// crash nor a power cut leaves half a file. The weather's yes is kept the same way.
+pub fn replace(dir: &Path, name: &str, next: &str, bytes: &[u8]) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let next = dir.join(next);
+    std::fs::File::create(&next).and_then(|mut file| {
+        file.write_all(bytes)?;
+        file.sync_all()
+    })?;
+    std::fs::rename(next, dir.join(name))
 }
 
 /// What the app that copied says about it, through the clipboard formats Windows' own history reads.

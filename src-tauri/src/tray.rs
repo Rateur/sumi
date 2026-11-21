@@ -1,8 +1,8 @@
 //! The tray icon: Sumi's logo, with the microphone or camera dot or the music in its corner as the island has them,
 //! a tooltip that says what's going on, and the menu. The page decides all of it as it changes, in its language. A
 //! left click tucks the island or brings it back; a right click opens the menu, which pauses or clears the clipboard
-//! history while there is one. Icons are drawn here, at the size the taskbar shows them, so they stay sharp at every
-//! scale.
+//! history while there is one, and forgets the weather's yes while one is kept. Icons are drawn here, at the size the
+//! taskbar shows them, so they stay sharp at every scale.
 
 use std::sync::Mutex;
 
@@ -12,7 +12,7 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{App, AppHandle, Emitter, Manager, WindowEvent, Wry};
 
-use crate::clipboard;
+use crate::{clipboard, weather};
 
 /// The logo's tile and mark, as in the app's icon and the site's favicon.
 const INK: [u8; 3] = [0x0B, 0x0B, 0x0F];
@@ -44,6 +44,7 @@ pub struct Tray {
     tuck: String,
     pause: String,
     clear: String,
+    forget: String,
     quit: String,
 }
 
@@ -54,6 +55,7 @@ pub struct Parts {
     tuck: MenuItem<Wry>,
     pause: MenuItem<Wry>,
     clear: MenuItem<Wry>,
+    forget: MenuItem<Wry>,
     quit: MenuItem<Wry>,
     drawn: Mutex<(Badge, u32)>,
 }
@@ -64,9 +66,11 @@ pub fn build(app: &App, tip: String) -> tauri::Result<()> {
     let tuck = MenuItem::with_id(app, "tuck", "Tuck the island", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause", "Pause clipboard history", true, None::<&str>)?;
     let clear = MenuItem::with_id(app, "clear", "Clear clipboard history", true, None::<&str>)?;
+    let forget = MenuItem::with_id(app, "forget", "Forget the weather", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Sumi", true, None::<&str>)?;
     let size = side(scale(app.handle()));
-    // The clipboard history's items come in once clipboard::watch has read whether it is on.
+    // The clipboard history's items come in once clipboard::watch has read whether it is on, the weather's once
+    // weather::menu has looked for its yes.
     let menu = Menu::with_items(app, &[&tuck, &quit])?;
     let icon = TrayIconBuilder::new()
         .icon(image(Badge::Plain, size))
@@ -79,6 +83,7 @@ pub fn build(app: &App, tip: String) -> tauri::Result<()> {
             }
             "pause" => clipboard::pause(app),
             "clear" => clipboard::clear(app),
+            "forget" => weather::forget(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -99,6 +104,7 @@ pub fn build(app: &App, tip: String) -> tauri::Result<()> {
         tuck,
         pause,
         clear,
+        forget,
         quit,
         drawn: Mutex::new((Badge::Plain, size)),
     });
@@ -124,6 +130,7 @@ pub fn set_tray(app: AppHandle, tray: Tray) {
         let _ = parts.tuck.set_text(tray.tuck);
         let _ = parts.pause.set_text(tray.pause);
         let _ = parts.clear.set_text(tray.clear);
+        let _ = parts.forget.set_text(tray.forget);
         let _ = parts.quit.set_text(tray.quit);
     }
 }
@@ -143,6 +150,21 @@ pub fn clipboard(app: &AppHandle, on: bool, kept: bool) {
             let _ = parts.menu.insert(item, at);
             at += 1;
         }
+    }
+}
+
+/// Puts the weather's forget just before the quit while its yes is `kept`, so after the clipboard history's items, which
+/// go in from the tuck. Called on the main thread only, where the clipboard's changes, sent from its threads one at a
+/// time, can't land between the count and the insert.
+pub fn weather(app: &AppHandle, kept: bool) {
+    let Some(parts) = app.try_state::<Parts>() else {
+        return;
+    };
+    let _ = parts.menu.remove(&parts.forget);
+    if kept && let Ok(items) = parts.menu.items() {
+        let _ = parts
+            .menu
+            .insert(&parts.forget, items.len().saturating_sub(1));
     }
 }
 
@@ -381,10 +403,11 @@ mod tests {
     #[test]
     fn reads_the_page_words() {
         let tray: Tray = serde_json::from_str(
-            r#"{"badge":"camera","tip":"Sumi · caméra : Zoom","tuck":"Ranger l'île","pause":"Mettre en pause l'historique du presse-papiers","clear":"Effacer l'historique du presse-papiers","quit":"Quitter Sumi"}"#,
+            r#"{"badge":"camera","tip":"Sumi · caméra : Zoom","tuck":"Ranger l'île","pause":"Mettre en pause l'historique du presse-papiers","clear":"Effacer l'historique du presse-papiers","forget":"Oublier la météo","quit":"Quitter Sumi"}"#,
         )
         .expect("the page's shape");
         assert_eq!(tray.badge, Badge::Camera);
+        assert_eq!(tray.forget, "Oublier la météo");
         assert_eq!(tray.quit, "Quitter Sumi");
     }
 }
