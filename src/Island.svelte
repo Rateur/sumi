@@ -1120,7 +1120,7 @@
       listen('bar://toggle', () => toggleBar()),
       listen('clipboard://toggle', toggleHistory),
       listen('capture://toggle', toggleCapture),
-      listen<string>('capture://pixel', ({ payload }) => (hex = payload)),
+      listen<string>('capture://pixel', ({ payload }) => pixel(payload)),
       listen('capture://box', boxed),
       listen('island://tuck', toggleTuck),
       listen('island://elsewhere', elsewhere),
@@ -1914,6 +1914,13 @@
     if (barOpen) return closeBar()
     if (hidden || capturing) return
     if (greeting === 'playing') end()
+    // A capture's result gives way to the bar at once, its bead back into the island.
+    if (captureView) {
+      clearTimeout(gotTimer)
+      absorb()
+      captureView = undefined
+      spoken = ''
+    }
     expanded = false
     hovered = false
     closeCard()
@@ -2210,14 +2217,17 @@
       })
   }
 
-  // The list never shows in a screenshot or a shared screen. The island comes back to them once the list has left.
+  // The list never shows in a screenshot or a shared screen. The island comes back to them once the list has left,
+  // unless a capture started over it: that one keeps the island out until it ends, and Rust brings it back then.
   let unhide: ReturnType<typeof setTimeout> | undefined
   $effect(() => {
     if (!tauri || !history) return
     clearTimeout(unhide)
     invoke('clipboard_hide', { hidden: true }).catch(console.error)
     return () => {
-      unhide = setTimeout(() => invoke('clipboard_hide', { hidden: false }).catch(console.error), EXIT.duration)
+      unhide = setTimeout(() => {
+        if (!capturing) invoke('clipboard_hide', { hidden: false }).catch(console.error)
+      }, EXIT.duration)
     }
   })
 
@@ -2248,6 +2258,7 @@
     clearTimeout(gotTimer)
     absorb()
     capturing = true
+    taken = false
     hex = '#000000'
     textColour = false
     captureView = { name: 'capture', step: 'pick', width: wide(pickRow) }
@@ -2259,6 +2270,15 @@
     settleCapture = undefined
     capturing = false
     land(captured)
+  }
+
+  // The colour under the loupe. Rust takes the keys from its first one on: a Shift held before then is handed over
+  // again, so the colour it picks is the one the pill names.
+  let taken = false
+  function pixel(next: string) {
+    if (!taken && textColour) captureKey('shift', true)
+    taken = true
+    hex = next
   }
 
   // The press became a box: the pill says what letting go does.
@@ -2505,7 +2525,7 @@
         capture: toggleCapture,
         captured: (captured: Captured) => settleCapture?.(captured),
         boxed,
-        pixel: (next: string) => (hex = next),
+        pixel,
         set kept(next: string[] | null) {
           kept = next
         },

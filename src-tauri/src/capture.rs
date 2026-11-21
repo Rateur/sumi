@@ -6,6 +6,7 @@
 //! The frame never leaves RAM and is freed as the capture ends. Nothing here runs before the shortcut.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
@@ -34,6 +35,8 @@ const REDUCED: f64 = 120.0;
 /// The frozen frame fades out over `FADE` ms, `AFTER` ms after a result; the box outline at once.
 const FADE: f64 = 160.0;
 const AFTER: f64 = 60.0;
+/// The longest a press waits for the last capture's windows to go, twice what they take.
+const LINGER: Duration = Duration::from_secs(1);
 /// The box: a 1.5 px white line at 95 % under 1.5 px black dashes, 5 on and 4 off, round corners of 3 px, marching at
 /// 14 px a second.
 const LINE: f64 = 1.5;
@@ -84,7 +87,7 @@ pub enum Key {
 pub struct Capture {
     /// The first frame window while the capture takes input, which hears the page's keys; 0 otherwise.
     window: AtomicUsize,
-    /// From the press until the last window is gone: a second press meanwhile is ignored.
+    /// From the press until the last window is gone: a second press meanwhile waits for it.
     running: AtomicBool,
 }
 
@@ -92,23 +95,34 @@ pub struct Capture {
 /// `reduced` is the page's reduced motion.
 #[tauri::command]
 pub async fn capture_start(window: WebviewWindow, reduced: bool) -> Captured {
-    let state = window.state::<Capture>();
-    if state.running.swap(true, Ordering::SeqCst) {
-        return Captured::Cancelled;
-    }
-    // The island hears the keys: the frozen frame never takes the focus, so it never covers the island.
-    bar::take(&window);
-    let (tx, rx) = std::sync::mpsc::channel();
-    std::thread::spawn(move || {
-        os::run(&window, reduced, tx);
-        window
+    tauri::async_runtime::spawn_blocking(move || {
+        // A press as the last capture fades out waits for it: its loupe settles about half a second after the click.
+        let waited = Instant::now();
+        while window
             .state::<Capture>()
             .running
-            .store(false, Ordering::SeqCst);
-    });
-    tauri::async_runtime::spawn_blocking(move || rx.recv().unwrap_or(Captured::Failed))
-        .await
-        .unwrap_or(Captured::Failed)
+            .swap(true, Ordering::SeqCst)
+        {
+            if waited.elapsed() > LINGER {
+                return Captured::Cancelled;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        // The island hears the keys: the frozen frame never takes the focus, so it never covers the island.
+        bar::take(&window);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let island = window.clone();
+        std::thread::spawn(move || {
+            os::run(&island, reduced, tx);
+            island
+                .state::<Capture>()
+                .running
+                .store(false, Ordering::SeqCst);
+        });
+        rx.recv().unwrap_or(Captured::Failed)
+    })
+    .await
+    .unwrap_or(Captured::Failed)
 }
 
 /// A key pressed or let go on the island while the capture takes input.
@@ -170,7 +184,10 @@ fn host(text: &str) -> Option<String> {
     let rest = ["https://", "http://"]
         .iter()
         .find_map(|scheme| lower.strip_prefix(scheme))?;
-    let site = rest.split(['/', '?', '#']).next()?;
+    // A browser reads `\` as `/`, and what comes before an `@` as a user name: `https://bank.com@evil.example` opens
+    // evil.example.
+    let site = rest.split(['/', '\\', '?', '#']).next()?;
+    let site = site.rsplit('@').next()?;
     let site = site.strip_prefix("www.").unwrap_or(site);
     (!site.is_empty() && !text.trim().contains(char::is_whitespace)).then(|| site.to_string())
 }
@@ -555,58 +572,66 @@ impl Lens {
         // distance in the ellipse's own frame is close enough.
         let rim = |x: f64, y: f64| {
             let (u, v) = (x * cos + y * sin, -x * sin + y * cos);
-            ((u / rx).hypot(v / ry) - 1.0) * (rx + ry) / 2.0
+            (((u / rx).powi(2) + (v / ry).powi(2)).sqrt() - 1.0) * (rx + ry) / 2.0
         };
         let lens = (RADIUS - RIM) * s * grow;
         // A CSS px of the lens at its full size, in physical px.
         let unit = s * grow;
         let at = |css: f64| (css - (RADIUS - RIM)) * unit;
-        let (ci, cj) = (self.picked.0 as f64 * CELL, self.picked.1 as f64 * CELL);
-        // The ring's path runs 1 px outside the cell; black 3 px wide, white 1.5 px over it.
-        let ring = |x: f64, y: f64, width: f64| {
-            let band = |grow: f64| {
-                span(x, at(ci - 1.0 - grow), at(ci + CELL + 1.0 + grow))
-                    * span(y, at(cj - 1.0 - grow), at(cj + CELL + 1.0 + grow))
-            };
-            band(width / 2.0) - band(-width / 2.0)
-        };
-        let grid = |x: f64| {
-            (1..CELLS)
+        // All the disc shows depends on one axis at a time, so it is worked out once per column and once per row: at
+        // `v`, with the picked cell from `c`, the cell, the grid's line, and how much of the ring's outer and inner
+        // edges the pixel holds. The ring's path runs 1 px outside the cell; black 3 px wide, white 1.5 px over it.
+        let axis = |v: f64, c: f64| {
+            let cell = (((v + 0.5) / unit + RADIUS - RIM) / CELL)
+                .floor()
+                .clamp(0.0, (CELLS - 1) as f64) as usize;
+            let grid = (1..CELLS)
                 .map(|k| at(k as f64 * CELL))
-                .map(|line| span(x, line - unit / 2.0, line + unit / 2.0))
-                .fold(0.0, f64::max)
+                .map(|line| span(v, line - unit / 2.0, line + unit / 2.0))
+                .fold(0.0, f64::max);
+            let edge = |grow: f64| span(v, at(c - 1.0 - grow), at(c + CELL + 1.0 + grow));
+            (v, cell, grid, [1.5, -1.5, 0.75, -0.75].map(edge))
         };
-        for (n, pixel) in out.iter_mut().enumerate().take(side * side) {
-            let (x, y) = (
-                (n % side) as f64 - self.centre.0,
-                (n / side) as f64 - self.centre.1,
-            );
-            let (cx, cy) = (x + 0.5, y + 0.5);
-            let shadow = SHADOW.2
-                * 0.5
-                * (1.0
-                    - erf(rim(cx, cy - SHADOW.0 * s) / (SHADOW.1 * s * std::f64::consts::SQRT_2)));
-            let ink = (0.5 - rim(cx, cy)).clamp(0.0, 1.0);
-            let disc = (0.5 - (cx.hypot(cy) - lens)).clamp(0.0, 1.0);
-            let mut alpha = ink + shadow * (1.0 - ink);
-            let mut colour = [0.0; 3];
-            if disc > 0.0 && unit > 0.0 {
-                let cell = |v: f64| {
-                    ((v / unit + RADIUS - RIM) / CELL)
-                        .floor()
-                        .clamp(0.0, (CELLS - 1) as f64) as usize
-                };
-                let [b, g, r, _] = self.cells[cell(cy)][cell(cx)].to_le_bytes();
-                let mut c = [f64::from(b), f64::from(g), f64::from(r)];
-                let lines = 1.0 - (1.0 - grid(x)) * (1.0 - grid(y));
-                c = mix(c, [128.0; 3], GRID * lines);
-                c = mix(c, [0.0; 3], ring(x, y, 3.0 * unit).clamp(0.0, 1.0));
-                c = mix(c, [255.0; 3], ring(x, y, 1.5 * unit).clamp(0.0, 1.0));
-                colour = c.map(|v| v * disc);
-                alpha = disc + alpha * (1.0 - disc);
+        let (ci, cj) = (self.picked.0 as f64 * CELL, self.picked.1 as f64 * CELL);
+        let columns: Vec<_> = (0..side)
+            .map(|i| axis(i as f64 - self.centre.0, ci))
+            .collect();
+        for (j, row) in out.chunks_exact_mut(side).enumerate() {
+            let (y, cell_y, grid_y, ring_y) = axis(j as f64 - self.centre.1, cj);
+            for (pixel, &(x, cell_x, grid_x, ring_x)) in row.iter_mut().zip(&columns) {
+                let (cx, cy) = (x + 0.5, y + 0.5);
+                let disc = (0.5 - ((cx * cx + cy * cy).sqrt() - lens)).clamp(0.0, 1.0);
+                // The shadow never shows under a whole pixel of the rim, nor the rim under a whole pixel of the disc.
+                let mut alpha = 1.0;
+                if disc < 1.0 {
+                    let ink = (0.5 - rim(cx, cy)).clamp(0.0, 1.0);
+                    let shadow = if ink < 1.0 {
+                        SHADOW.2
+                            * 0.5
+                            * (1.0
+                                - erf(rim(cx, cy - SHADOW.0 * s)
+                                    / (SHADOW.1 * s * std::f64::consts::SQRT_2)))
+                    } else {
+                        0.0
+                    };
+                    alpha = ink + shadow * (1.0 - ink);
+                }
+                let mut colour = [0.0; 3];
+                if disc > 0.0 && unit > 0.0 {
+                    let [b, g, r, _] = self.cells[cell_y][cell_x].to_le_bytes();
+                    let mut c = [f64::from(b), f64::from(g), f64::from(r)];
+                    let lines = 1.0 - (1.0 - grid_x) * (1.0 - grid_y);
+                    let ring = |k: usize| ring_x[k] * ring_y[k] - ring_x[k + 1] * ring_y[k + 1];
+                    c = mix(c, [128.0; 3], GRID * lines);
+                    c = mix(c, [0.0; 3], ring(0).clamp(0.0, 1.0));
+                    c = mix(c, [255.0; 3], ring(2).clamp(0.0, 1.0));
+                    colour = c.map(|v| v * disc);
+                    alpha = disc + alpha * (1.0 - disc);
+                }
+                let [b, g, r] = colour.map(|v| v.round().clamp(0.0, 255.0) as u8);
+                *pixel =
+                    u32::from_le_bytes([b, g, r, (alpha * 255.0).round().clamp(0.0, 255.0) as u8]);
             }
-            let [b, g, r] = colour.map(|v| v.round().clamp(0.0, 255.0) as u8);
-            *pixel = u32::from_le_bytes([b, g, r, (alpha * 255.0).round().clamp(0.0, 255.0) as u8]);
         }
     }
 }
@@ -739,9 +764,9 @@ mod os {
     use windows_sys::Win32::Graphics::Gdi::{
         AC_SRC_ALPHA, AC_SRC_OVER, BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BLENDFUNCTION, BeginPaint,
         BitBlt, CAPTUREBLT, CreateCompatibleDC, CreateDIBSection, DIB_RGB_COLORS, DeleteDC,
-        DeleteObject, EndPaint, EnumDisplayMonitors, GdiFlush, GetDC, GetMonitorInfoW, HBITMAP,
-        HDC, HGDIOBJ, HMONITOR, InvalidateRect, MONITORINFO, PAINTSTRUCT, ReleaseDC, SRCCOPY,
-        SelectObject, UpdateWindow,
+        DeleteObject, EndPaint, EnumDisplayMonitors, ExcludeClipRect, GdiFlush, GetDC,
+        GetMonitorInfoW, HBITMAP, HDC, HGDIOBJ, HMONITOR, InvalidateRect, MONITORINFO, PAINTSTRUCT,
+        ReleaseDC, SRCCOPY, SelectObject, UpdateWindow,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::HiDpi::{
@@ -1034,65 +1059,93 @@ mod os {
     }
 
     impl Shown {
+        /// Each of the outline's bands where Windows asks, on a bitmap of the band's size, then the frame around
+        /// them: the clip is what changed, so a marching box never copies more than its edges.
         fn paint(&self, hwnd: HWND, dc: HDC, area: RECT) {
             let Some(&(_, left, top)) = self.windows.iter().find(|w| w.0 == hwnd) else {
                 return;
             };
-            let (width, height) = (area.right - area.left, area.bottom - area.top);
-            let (vx, vy) = (area.left + left, area.top + top);
-            let (fx, fy) = (vx - self.origin.0, vy - self.origin.1);
-            let blit = |from: HDC, x: i32, y: i32| unsafe {
-                BitBlt(dc, area.left, area.top, width, height, from, x, y, SRCCOPY);
-            };
+            let (left, top) = (i64::from(left), i64::from(top));
+            let (ox, oy) = (i64::from(self.origin.0), i64::from(self.origin.1));
             let painted = [
-                i64::from(vx),
-                i64::from(vy),
-                i64::from(vx + width),
-                i64::from(vy + height),
+                i64::from(area.left) + left,
+                i64::from(area.top) + top,
+                i64::from(area.right) + left,
+                i64::from(area.bottom) + top,
             ];
-            let crossing = |band: &[i64; 4]| {
-                band[0] < painted[2]
-                    && painted[0] < band[2]
-                    && band[1] < painted[3]
-                    && painted[1] < band[3]
+            // Copies `[l, t, r, b]` of the virtual screen onto the window from `from`, whose top left is at `(x, y)`.
+            let blit = |from: HDC, [l, t, r, b]: [i64; 4], (x, y): (i64, i64)| unsafe {
+                BitBlt(
+                    dc,
+                    (l - left) as i32,
+                    (t - top) as i32,
+                    (r - l) as i32,
+                    (b - t) as i32,
+                    from,
+                    (l - x) as i32,
+                    (t - y) as i32,
+                    SRCCOPY,
+                );
             };
-            let outline = self
-                .outline
-                .filter(|o| o.alpha > 0.0 && o.bands().iter().any(crossing));
-            let back = outline.and_then(|_| Dib::new(width as usize, height as usize));
-            let (Some(outline), Some(mut back)) = (outline, back) else {
-                return blit(self.frame, fx, fy);
-            };
-            unsafe {
-                BitBlt(back.dc, 0, 0, width, height, self.frame, fx, fy, SRCCOPY);
-                GdiFlush();
-            }
-            let row = width as usize;
-            let pixels = back.pixels_mut();
-            for band in outline.bands() {
-                let [l, t, r, b] = [
-                    band[0].max(painted[0]),
-                    band[1].max(painted[1]),
-                    band[2].min(painted[2]),
-                    band[3].min(painted[3]),
-                ];
-                for y in t..b {
-                    for x in l..r {
-                        let (white, black) = outline.cover(x as f64, y as f64);
-                        if white == 0.0 {
-                            continue;
-                        }
-                        let n = (y - painted[1]) as usize * row + (x - painted[0]) as usize;
-                        let [pb, pg, pr, _] = pixels[n].to_le_bytes();
-                        let mut c = [f64::from(pb), f64::from(pg), f64::from(pr)];
-                        c = super::mix(c, [255.0; 3], white * 0.95 * outline.alpha);
-                        c = super::mix(c, [0.0; 3], black * outline.alpha);
-                        let [b, g, r] = c.map(|v| v.round() as u8);
-                        pixels[n] = u32::from_le_bytes([b, g, r, 255]);
+            if let Some(outline) = self.outline.filter(|o| o.alpha > 0.0) {
+                for band in outline.bands() {
+                    let rect @ [l, t, r, b] = [
+                        band[0].max(painted[0]),
+                        band[1].max(painted[1]),
+                        band[2].min(painted[2]),
+                        band[3].min(painted[3]),
+                    ];
+                    let Some(mut back) = (l < r && t < b)
+                        .then(|| Dib::new((r - l) as usize, (b - t) as usize))
+                        .flatten()
+                    else {
+                        continue;
+                    };
+                    let row = (r - l) as usize;
+                    unsafe {
+                        BitBlt(
+                            back.dc,
+                            0,
+                            0,
+                            row as i32,
+                            (b - t) as i32,
+                            self.frame,
+                            (l - ox) as i32,
+                            (t - oy) as i32,
+                            SRCCOPY,
+                        );
+                        GdiFlush();
                     }
+                    let pixels = back.pixels_mut();
+                    for y in t..b {
+                        for x in l..r {
+                            let (white, black) = outline.cover(x as f64, y as f64);
+                            if white == 0.0 {
+                                continue;
+                            }
+                            let n = (y - t) as usize * row + (x - l) as usize;
+                            let [pb, pg, pr, _] = pixels[n].to_le_bytes();
+                            let mut c = [f64::from(pb), f64::from(pg), f64::from(pr)];
+                            c = super::mix(c, [255.0; 3], white * 0.95 * outline.alpha);
+                            c = super::mix(c, [0.0; 3], black * outline.alpha);
+                            let [b, g, r] = c.map(|v| v.round() as u8);
+                            pixels[n] = u32::from_le_bytes([b, g, r, 255]);
+                        }
+                    }
+                    blit(back.dc, rect, (l, t));
+                    // No pixel is painted twice: the frame goes around the band.
+                    unsafe {
+                        ExcludeClipRect(
+                            dc,
+                            (l - left) as i32,
+                            (t - top) as i32,
+                            (r - left) as i32,
+                            (b - top) as i32,
+                        )
+                    };
                 }
             }
-            blit(back.dc, 0, 0);
+            blit(self.frame, painted, (ox, oy));
         }
     }
 
@@ -1916,6 +1969,32 @@ mod tests {
     }
 
     #[test]
+    fn the_ring_keeps_its_widths_in_css_px_at_200_percent() {
+        let mut c = cells(0xFF1E_90FF);
+        c[4][4] = 0xFF00_FF00;
+        let side = 300;
+        let lens = Lens {
+            centre: (150.0, 150.0),
+            scale: 2.0,
+            radius: RADIUS,
+            stretch: 0.0,
+            angle: 0.0,
+            cells: c,
+            picked: (4, 4),
+        };
+        let mut out = vec![0; side * side];
+        lens.draw(side, &mut out);
+        let at = |y: usize| out[y * side + 150].to_le_bytes();
+        // Below the centre, the picked cell ends at 11 px; the black runs 6 px from 10, the white 3 px from 11.5.
+        assert_eq!(at(159), [0, 255, 0, 255]);
+        assert_eq!(at(160), [0, 0, 0, 255]);
+        assert_eq!(at(162), [255, 255, 255, 255]);
+        assert_eq!(at(163), [255, 255, 255, 255]);
+        assert_eq!(at(165), [0, 0, 0, 255]);
+        assert_eq!(at(166), [255, 144, 30, 255]);
+    }
+
+    #[test]
     fn a_disc_with_no_radius_draws_nothing() {
         let lens = Lens {
             centre: (10.0, 10.0),
@@ -2097,6 +2176,23 @@ mod tests {
         assert_eq!(host("WIFI:S:Maison;T:WPA;P:secret;;"), None);
         assert_eq!(host("https://"), None);
         assert_eq!(host("https://example.com and more"), None);
+    }
+
+    #[test]
+    fn names_the_site_a_link_opens_not_the_one_it_claims() {
+        assert_eq!(
+            host("https://www.paypal.com@phish.example/login").as_deref(),
+            Some("phish.example")
+        );
+        assert_eq!(
+            host("https://paypal.com:443@evil.example").as_deref(),
+            Some("evil.example")
+        );
+        assert_eq!(
+            host("https://evil.example\\@paypal.com").as_deref(),
+            Some("evil.example")
+        );
+        assert_eq!(host("https://user@"), None);
     }
 
     #[test]
