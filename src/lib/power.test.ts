@@ -8,6 +8,7 @@ import {
   fresh,
   info,
   items,
+  lands,
   layout,
   lines,
   opens,
@@ -22,6 +23,8 @@ import {
   waits,
   type Battery,
   type Device,
+  type Peeked,
+  type Power,
 } from './power'
 
 const head: Device = { name: 'Casque UGREEN HiTune Max5', kind: 'headset', percent: 80 }
@@ -223,8 +226,47 @@ describe('peeks', () => {
     expect(waits({ kind: 'device', device: head })).toBe(false)
   })
 
-  it("doesn't let the same device peek again within 30 min", () => {
-    const heard = new Map<string, number>()
+  it('says a device left in a calm word', () => {
+    const gone: Power = { kind: 'deviceGone', device: speaker }
+    expect(lines(gone, 'en')).toEqual(['Disconnected'])
+    expect(lines(gone, 'fr')).toEqual(['Déconnecté'])
+    expect(said(gone, 'en')).toBe('Enceinte JBL Flip 6 disconnected')
+    expect(said(gone, 'fr')).toBe('Enceinte JBL Flip 6 vient de se déconnecter')
+    expect(waits(gone)).toBe(false)
+    expect(lands(gone, true, 'auto')).toBe('show')
+    expect(lands(gone, true, 'move')).toBe('drop')
+    expect(lands(gone, false, undefined)).toBe('drop')
+  })
+
+  it('brings a device connecting out of the line, early or late, unless a window is moved', () => {
+    const device: Power = { kind: 'device', device: { ...speaker, percent: 64 } }
+    const late: Power = { kind: 'device', device: { name: 'JBL Go 4', kind: 'speaker', percent: null } }
+    for (const peek of [device, late, { kind: 'plugged', percent: 64 } as Power]) {
+      expect(lands(peek, true, undefined)).toBe('show')
+      expect(lands(peek, true, 'you')).toBe('show')
+      expect(lands(peek, true, 'auto')).toBe('show')
+      expect(lands(peek, true, 'move')).toBe('drop')
+      expect(lands(peek, false, 'you')).toBe('drop')
+    }
+    // A low battery comes out even then, or waits for the island.
+    const low: Power = { kind: 'deviceLow', device: pad }
+    expect(lands(low, true, 'move')).toBe('show')
+    expect(lands(low, false, 'auto')).toBe('wait')
+  })
+
+  it('says a device left, then keeps it quiet if it comes back within the pause', () => {
+    const heard = new Map<string, Peeked>()
+    expect(fresh(heard, speaker.name, 0)).toBe(true)
+    // Turned off a minute later: it says so.
+    expect(fresh(heard, speaker.name, 60_000, true)).toBe(true)
+    // Out of range for a moment, it neither comes back nor leaves again on the island.
+    expect(fresh(heard, speaker.name, 70_000)).toBe(false)
+    expect(fresh(heard, speaker.name, 80_000, true)).toBe(false)
+    expect(fresh(heard, speaker.name, 60_000 + QUIET)).toBe(true)
+  })
+
+  it("doesn't let the same device peek again within 2 min", () => {
+    const heard = new Map<string, Peeked>()
     expect(fresh(heard, head.name, 0)).toBe(true)
     expect(fresh(heard, head.name, QUIET - 1)).toBe(false)
     expect(fresh(heard, speaker.name, 1000)).toBe(true)

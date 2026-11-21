@@ -1,18 +1,27 @@
 import type { Lang } from './intent'
 import type { Axis } from './motion'
 import type { Size } from './shapes'
+import type { Tucker } from './tuck'
 
 /** What a device is, for its glyph and its place in the panel. Mirrored in src-tauri/src/power.rs. */
 export type Kind = 'headset' | 'speaker' | 'controller' | 'mouse' | 'keyboard' | 'other'
 
+/** Each bud's level and the case's, from Fast Pair, null when unknown. Mirrored in src-tauri/src/fastpair.rs. */
+export interface Buds {
+  left: number | null
+  right: number | null
+  case: number | null
+}
+
 /**
- * A connected device's battery: null for a headset, a speaker or a controller Windows gives no level for. Mirrored in
- * src-tauri/src/power.rs.
+ * A connected device's battery: null for a headset, a speaker or a controller Windows gives no level for, and each
+ * bud's and the case's when Fast Pair gives them. Mirrored in src-tauri/src/power.rs.
  */
 export interface Device {
   name: string
   kind: Kind
   percent: number | null
+  buds?: Buds
 }
 
 /**
@@ -39,10 +48,16 @@ export interface Low {
 export type Power =
   | { kind: 'plugged'; percent: number }
   | ({ kind: 'low' } & Low)
-  | { kind: 'device' | 'deviceLow'; device: Device }
+  | { kind: 'device' | 'deviceLow' | 'deviceGone'; device: Device }
 
 /** How long each peek shows, in ms. */
-export const POWER_PEEK: Record<Power['kind'], number> = { plugged: 2000, low: 3000, device: 3000, deviceLow: 3000 }
+export const POWER_PEEK: Record<Power['kind'], number> = {
+  plugged: 2000,
+  low: 3000,
+  device: 3000,
+  deviceLow: 3000,
+  deviceGone: 2000,
+}
 
 /** The bolt of the plug-in peek draws itself this fast, in ms, then the level comes in. */
 export const BOLT = 180
@@ -51,7 +66,7 @@ export const BOLT = 180
 export const LOW = 20
 
 /** The same device doesn't peek again this soon after its last peek, in ms: a headset out of range for a moment. */
-export const QUIET = 30 * 60_000
+export const QUIET = 2 * 60_000
 
 /** The ring colours: the camera's green, the timer's amber for energy saver, the low battery's red. */
 export const COLOR = { green: '#4ade80', amber: '#fbbf24', red: '#f87171' } as const
@@ -81,6 +96,17 @@ export const COMPACT = { width: 200, height: 34, ring: 18, stroke: 2.2 } as cons
  * connecting are dropped while the island can't show them, and come out of the line only for their peek.
  */
 export const waits = (power: Power): boolean => power.kind === 'low' || power.kind === 'deviceLow'
+
+/**
+ * What a battery peek does as it comes, early or late: shows, from the line too when the island is tucked by hand or
+ * by itself, which then comes out and goes back; waits for the island, a low battery only; or is dropped. `tucker` is
+ * who tucked the island, `undefined` while it is out. While a window is moved it stays tucked: Snap layouts has the
+ * top.
+ */
+export function lands(power: Power, free: boolean, tucker: Tucker | undefined): 'show' | 'wait' | 'drop' {
+  if (free && (waits(power) || tucker !== 'move')) return 'show'
+  return waits(power) ? 'wait' : 'drop'
+}
 
 /** A ring: one per device, `pc` for the PC's, which knows its supply, its time and energy saver. */
 export interface Item {
@@ -112,6 +138,8 @@ const WORDS = {
     state: { charging: 'en charge', low: 'faible', saver: 'économiseur' },
     saver: "économiseur d'énergie",
     connected: (name: string) => `${name} vient de se connecter`,
+    gone: 'Déconnecté',
+    disconnected: (name: string) => `${name} vient de se déconnecter`,
     unknown: 'niveau inconnu',
     unreported: 'Windows ne donne pas sa batterie',
     others: (n: number) => `${n} autres : `,
@@ -133,6 +161,8 @@ const WORDS = {
     state: { charging: 'charging', low: 'low', saver: 'energy saver' },
     saver: 'energy saver',
     connected: (name: string) => `${name} connected`,
+    gone: 'Disconnected',
+    disconnected: (name: string) => `${name} disconnected`,
     unknown: 'level unknown',
     unreported: "Windows doesn't report its battery",
     others: (n: number) => `${n} more: `,
@@ -358,6 +388,7 @@ export function lines(power: Power, lang: Lang): string[] {
   const words = WORDS[lang]
   if (power.kind === 'plugged') return [percent(power.percent)]
   if (power.kind === 'low') return [percent(power.percent), power.minutes ? words.left(duration(power.minutes)) : words.low]
+  if (power.kind === 'deviceGone') return [words.gone]
   const { name, percent: level } = power.device
   // Without a level, a device connecting shows its name instead.
   if (level === null) return [name]
@@ -373,18 +404,27 @@ export function said(power: Power, lang: Lang): string {
     return `${words.low}, ${percent(power.percent)}${left}`
   }
   const { name, percent: level } = power.device
+  if (power.kind === 'deviceGone') return words.disconnected(name)
   if (power.kind === 'deviceLow') return `${words.low}, ${name}, ${percent(level)}`
   if (level === null) return words.connected(name)
   return `${words.connected(name)}, ${percent(level)}${level <= LOW ? `, ${words.low.toLowerCase()}` : ''}`
 }
 
+/** When a device last peeked, and whether it was leaving. */
+export interface Peeked {
+  at: number
+  gone: boolean
+}
+
 /**
- * Whether a device connecting may peek: not when it peeked less than `QUIET` ago, as a headset out of range for a
- * moment. Records the peek. The times live in memory only.
+ * Whether a device connecting, or leaving when `gone`, may peek: not within `QUIET` of its last peek, as a headset out
+ * of range for a moment, which then neither says it left again nor that it came back. One that just connected may
+ * still say it left. Records the peek, so ask only once it would show: one dropped in a game or under the bar doesn't
+ * count. The times live in memory only.
  */
-export function fresh(heard: Map<string, number>, name: string, now: number): boolean {
+export function fresh(heard: Map<string, Peeked>, name: string, now: number, gone = false): boolean {
   const last = heard.get(name)
-  if (last !== undefined && now - last < QUIET) return false
-  heard.set(name, now)
+  if (last && now - last.at < QUIET && (last.gone || !gone)) return false
+  heard.set(name, { at: now, gone })
   return true
 }

@@ -3,7 +3,7 @@ title: Confidentialité
 description: Sumi ne collecte rien.
 ---
 
-Sumi n'a ni compte, ni télémétrie, ni statistiques d'usage. Ce qu'il affiche vient de Windows et reste sur votre PC : le titre, l'artiste et la pochette de la musique, les apps qui utilisent le micro ou la caméra, et la batterie de votre PC et de vos appareils Bluetooth.
+Sumi n'a ni compte, ni télémétrie, ni statistiques d'usage. Ce qu'il affiche vient de Windows et reste sur votre PC : le titre, l'artiste et la pochette de la musique, les apps qui utilisent le micro ou la caméra, et la batterie de votre PC et de vos appareils Bluetooth. Pour la batterie d'une enceinte JBL, Sumi se connecte un instant à votre propre enceinte en Bluetooth LE ; rien ne quitte le PC.
 
 ## Le réseau
 
@@ -17,7 +17,7 @@ Voir [Météo](../weather/). La recherche de mises à jour, dans une version sui
 
 ## Sur votre PC
 
-Ce que l'île affiche de votre PC n'est jamais écrit dans un journal ou un fichier. Les niveaux de batterie sont lus quand Windows dit qu'ils ont changé, et ne sont jamais gardés.
+Ce que l'île affiche de votre PC n'est jamais écrit dans un journal ou un fichier. Les niveaux de batterie sont lus quand Windows dit qu'ils ont changé, et ne sont jamais gardés. Les quelques-uns que Sumi lit lui-même, d'écouteurs Fast Pair et de manettes, ne passent qu'en Bluetooth ou par l'adaptateur Xbox, entre l'appareil et votre PC.
 
 La barre de commande ouvre l'app ou le site que vous choisissez avec votre question ; Sumi ne l'envoie nulle part, et la liste des apps reste en mémoire.
 

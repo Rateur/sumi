@@ -1,14 +1,24 @@
 //! The battery: the laptop's, from Windows' power manager, and the level a Bluetooth device reports, as Windows shows
-//! it in its Bluetooth settings. Everything comes from Windows' events on a thread of its own, which sleeps in
-//! between: plugging in, the laptop running low, a device with a battery connecting or running low, and what the
-//! batteries panel shows. What it reads goes to the page and nowhere else: nothing is logged or stored.
+//! it in its Bluetooth settings or as Sumi reads it where Windows doesn't (fastpair.rs, xbox.rs, pads.rs). Everything
+//! comes from events on a thread of its own, which sleeps in between: plugging in, the laptop running low, a device
+//! with a battery connecting, running low or leaving, and what the batteries panel shows. A JBL speaker, which gives Windows
+//! no level, is asked for its own: see jbl.rs. What it reads goes to the page and nowhere else: nothing is logged or
+//! stored.
+
+mod jbl;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
+#[cfg(windows)]
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager};
+
+use crate::fastpair::Buds;
+#[cfg(windows)]
+pub(crate) use win::Msg;
 
 /// The low peek fires at or under this level. Settings, in 0.9, will make it a choice.
 const LOW: u8 = 20;
@@ -17,8 +27,17 @@ const LOW: u8 = 20;
 /// watchers below don't keep each other's order.
 const FRESH: Duration = Duration::from_secs(5);
 
+/// Devices leave as the PC goes to sleep, and Windows may say so only as it wakes: none of that is news this long after.
+const WAKING: Duration = Duration::from_secs(30);
+
 /// The time to full shows once the PC has been on mains this long, while the charge rate settles.
 const SETTLE: Duration = Duration::from_secs(120);
+
+/// A speaker that connects without a level waits this long for its answer as a JBL: 5 s to find it, then the asking.
+const ASKING: Duration = Duration::from_secs(10);
+
+/// A JBL speaker is asked for its level again this often while it stays connected.
+const EVERY: Duration = Duration::from_secs(15 * 60);
 
 /// What the bar and the batteries panel show: the laptop's level, `None` without a battery, whether it is plugged
 /// in, the minutes left on battery and to full on mains when Windows knows them, energy saver, and the connected
@@ -33,13 +52,15 @@ pub struct Battery {
     devices: Vec<Device>,
 }
 
-/// A connected device's battery: `None` for a headset, a speaker or a controller Windows gives no level for.
-/// Mirrored in src/lib/power.ts.
+/// A connected device's battery: `None` for a headset, a speaker or a controller Windows gives no level for, and
+/// each bud's and the case's when Fast Pair gives them. Mirrored in src/lib/power.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Device {
     name: String,
     kind: Kind,
     percent: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    buds: Option<Buds>,
 }
 
 /// What a device is, for its glyph and its place in the panel. Mirrored in src/lib/power.ts.
@@ -61,13 +82,15 @@ pub struct Low {
     minutes: Option<u32>,
 }
 
-/// What a reading tells the page: power://plugged, power://low, power://device or power://device-low.
+/// What a reading tells the page: power://plugged, power://low, power://device, power://device-low or
+/// power://device-gone.
 #[derive(Debug, PartialEq)]
 enum Peek {
     Plugged(u8),
     Low(Low),
     Device(Device),
     DeviceLow(Device),
+    Gone(Device),
 }
 
 /// The connected devices with a battery as last read, and since when the PC has been on mains, `None` from before
@@ -76,6 +99,9 @@ enum Peek {
 pub struct Power {
     devices: Mutex<Vec<Device>>,
     since: Mutex<Option<Instant>>,
+    /// Where the batteries panel says it opened, once the watching thread runs.
+    #[cfg(windows)]
+    ask: OnceLock<std::sync::mpsc::Sender<win::Msg>>,
 }
 
 impl Power {
@@ -104,6 +130,16 @@ impl Power {
 #[tauri::command]
 pub fn battery(power: tauri::State<'_, Power>) -> Battery {
     power.now()
+}
+
+/// The batteries panel opened: a JBL speaker is asked for its level, which comes on power://battery.
+#[tauri::command]
+#[cfg_attr(not(windows), allow(unused_variables))]
+pub fn battery_ask(power: tauri::State<'_, Power>) {
+    #[cfg(windows)]
+    if let Some(ask) = power.ask.get() {
+        let _ = ask.send(win::Msg::Ask);
+    }
 }
 
 /// Starts watching on a thread of its own, as the music does: Tauri's main thread is single-threaded COM. Without
@@ -156,6 +192,14 @@ struct Gadget {
     warned: bool,
     /// Until when a level may still come after it connected: past that, it peeks without one.
     waiting: Option<Instant>,
+    /// When to ask a speaker for its level as a JBL: as it connects, then every `EVERY` once it answered.
+    ask: Option<Instant>,
+    /// Whether it answered as a JBL since it connected, and whether it is being asked.
+    jbl: bool,
+    asking: bool,
+    /// Whether Sumi reads its level itself while it stays connected, and the buds' from Fast Pair.
+    own: bool,
+    buds: Option<Buds>,
 }
 
 impl Gadget {
@@ -165,6 +209,7 @@ impl Gadget {
             name: self.name.clone(),
             kind: self.kind?,
             percent: self.percent.filter(|_| self.live),
+            buds: self.buds.filter(|_| self.live),
         })
     }
 
@@ -205,10 +250,21 @@ impl Gadgets {
         let connected = connected?;
         let was = std::mem::replace(&mut g.connected, connected);
         if !connected || was {
+            // A headset, a speaker or a controller that leaves says so; a mouse or a keyboard sleeps all day.
+            let gone = (was && !connected && ready && g.shows_unknown())
+                .then(|| g.device())
+                .flatten()
+                .map(Peek::Gone);
             g.live &= connected;
+            g.jbl &= connected;
             g.waiting = g.waiting.filter(|_| connected);
-            return None;
+            g.ask = g.ask.filter(|_| connected);
+            g.own &= connected;
+            g.buds = g.buds.filter(|_| connected);
+            return gone;
         }
+        let speaker = g.kind == Some(Kind::Speaker);
+        g.ask = speaker.then_some(now);
         // At launch the level Windows has is the one it shows; later, only a fresh one counts, and one may still come.
         g.told = !ready;
         g.live = if ready {
@@ -219,14 +275,50 @@ impl Gadgets {
         if g.live {
             return tell(g, ready);
         }
-        g.waiting = ready.then_some(now + FRESH);
+        g.waiting = ready.then_some(now + if speaker { ASKING } else { FRESH });
         None
     }
 
-    /// A node's level. Windows keeps the last one of a device that left, so a level only counts while connected.
+    /// The speakers to ask for their level as a JBL now: one that just connected, a JBL every `EVERY`, and as the
+    /// batteries panel opens, a JBL or a speaker still without a level. Never twice at once.
+    fn asks(&mut self, now: Instant, panel: bool) -> Vec<String> {
+        let mut asks = Vec::new();
+        for (address, g) in &mut self.by_address {
+            let due = g.ask.is_some_and(|at| at <= now)
+                || panel && g.kind == Some(Kind::Speaker) && (g.jbl || !g.live);
+            if g.connected && !g.asking && due {
+                g.asking = true;
+                g.ask = None;
+                asks.push(address.clone());
+            }
+        }
+        asks
+    }
+
+    /// A speaker's answer as a JBL: its level, or `None` when it isn't one or didn't answer, and then the peek
+    /// waiting for its level goes without. A JBL is asked again in `EVERY`, even after a miss.
+    fn answer(&mut self, address: &str, percent: Option<u8>, now: Instant) -> Option<Peek> {
+        let g = self.by_address.get_mut(address)?;
+        g.asking = false;
+        g.jbl |= percent.is_some() && g.connected;
+        if g.jbl {
+            g.ask = Some(now + EVERY);
+        }
+        let Some(percent) = percent else {
+            g.waiting = g.waiting.map(|_| now);
+            return None;
+        };
+        self.level(address, percent, now)
+    }
+
+    /// A node's level. Windows keeps the last one of a device that left, so a level only counts while connected. One
+    /// Sumi reads itself goes over Windows' own.
     fn level(&mut self, address: &str, percent: u8, now: Instant) -> Option<Peek> {
         let ready = self.ready;
         let g = self.by_address.entry(address.to_string()).or_default();
+        if g.own {
+            return None;
+        }
         g.percent = Some(percent);
         g.read = ready.then_some(now);
         if percent > LOW {
@@ -240,9 +332,32 @@ impl Gadgets {
         tell(g, ready)
     }
 
-    /// When the next device that connected without a level stops waiting for one.
+    /// A level Sumi read itself (fastpair.rs, xbox.rs, pads.rs): it stands over Windows' own, which may be coarser or
+    /// from one bud, until the device disconnects.
+    fn own(
+        &mut self,
+        address: &str,
+        percent: u8,
+        buds: Option<Buds>,
+        now: Instant,
+    ) -> Option<Peek> {
+        let g = self.by_address.entry(address.to_string()).or_default();
+        g.own = false;
+        g.buds = buds;
+        let peek = self.level(address, percent, now);
+        if let Some(g) = self.by_address.get_mut(address) {
+            g.own = g.connected;
+        }
+        peek
+    }
+
+    /// When the next device that connected without a level stops waiting for one, or a JBL is asked again.
     fn next(&self) -> Option<Instant> {
-        self.by_address.values().filter_map(|g| g.waiting).min()
+        self.by_address
+            .values()
+            .flat_map(|g| [g.waiting, g.ask.filter(|_| !g.asking)])
+            .flatten()
+            .min()
     }
 
     /// The devices that connected without a level and waited long enough: a headset, a speaker or a controller peeks
@@ -314,7 +429,7 @@ fn tell(g: &mut Gadget, ready: bool) -> Option<Peek> {
 /// The Bluetooth address in an endpoint's or a node's id: its last run of exactly 12 hex digits, colons dropped.
 /// `Bluetooth#Bluetooth00:45:e2:3b:f6:80-d8:f0:c0:83:4a:ff` and `BTHENUM\{…}_VID&…\7&cd23df0&0&D8F0C0834AFF_C00000000`
 /// are both D8F0C0834AFF.
-fn address(id: &str) -> Option<String> {
+pub(crate) fn address(id: &str) -> Option<String> {
     id.replace(':', "")
         .split(|c: char| !c.is_ascii_hexdigit())
         .rfind(|run| run.len() == 12)
@@ -372,6 +487,12 @@ fn kind(cod: Option<(u32, u32)>, appearance: Option<u32>, categories: &[String])
     )
 }
 
+/// Whether a device leaving is news: not while the PC goes to sleep, nor in the first `WAKING` after it woke, `woke`
+/// ago, `None` when it never slept.
+fn awake(asleep: bool, woke: Option<Duration>) -> bool {
+    !asleep && woke.is_none_or(|since| since >= WAKING)
+}
+
 /// Minutes from Windows' 100 ns ticks. Windows gives the largest value when it doesn't know.
 fn minutes(ticks: i64) -> Option<u32> {
     if ticks <= 0 || ticks == i64::MAX {
@@ -403,8 +524,11 @@ fn run(app: &AppHandle) {
 
 #[cfg(windows)]
 mod win {
+    use std::ffi::c_void;
+    use std::ptr::null_mut;
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
     use std::sync::mpsc::{RecvTimeoutError, Sender, channel};
-    use std::time::Instant;
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
     use tauri::{AppHandle, Emitter, Manager};
     use windows::Devices::Enumeration::{
@@ -416,8 +540,63 @@ mod win {
     };
     use windows::core::{Array, HSTRING, IInspectable, Interface};
     use windows_collections::{IIterable, IMapView};
+    use windows_sys::Win32::System::Power::{
+        DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS, PowerRegisterSuspendResumeNotification,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DEVICE_NOTIFY_CALLBACK, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND, PBT_APMSUSPEND,
+    };
 
-    use super::{Battery, Gadgets, Kind, Laptop, Peek, Power, address, kind, minutes, to_full};
+    use super::{
+        Battery, Buds, Gadgets, Kind, Laptop, Peek, Power, address, awake, kind, minutes, to_full,
+    };
+
+    /// Whether the PC is going to sleep, and when it last woke, in ms since 1970, 0 until it first sleeps.
+    static ASLEEP: AtomicBool = AtomicBool::new(false);
+    static WOKE: AtomicU64 = AtomicU64::new(0);
+
+    fn ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(0))
+    }
+
+    /// Windows calls this, on a thread of its own, as the PC goes to sleep and as it wakes.
+    unsafe extern "system" fn slept(_: *const c_void, kind: u32, _: *const c_void) -> u32 {
+        match kind {
+            PBT_APMSUSPEND => ASLEEP.store(true, Ordering::Relaxed),
+            PBT_APMRESUMEAUTOMATIC | PBT_APMRESUMESUSPEND => {
+                WOKE.store(ms(), Ordering::Relaxed);
+                ASLEEP.store(false, Ordering::Relaxed);
+            }
+            _ => {}
+        }
+        0
+    }
+
+    /// Hears the PC sleep and wake for as long as Sumi runs. Without it, a device leaving always says so.
+    fn sleeps() {
+        let params = Box::leak(Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
+            Callback: Some(slept),
+            Context: null_mut(),
+        }));
+        let mut registration = null_mut();
+        // SAFETY: `params` is leaked, so it outlives the registration, which lasts as long as Sumi.
+        let _ = unsafe {
+            PowerRegisterSuspendResumeNotification(
+                DEVICE_NOTIFY_CALLBACK,
+                std::ptr::from_mut(params).cast(),
+                &mut registration,
+            )
+        };
+    }
+
+    /// Whether a device leaving is news now, from what `slept` heard.
+    fn news() -> bool {
+        let woke = WOKE.load(Ordering::Relaxed);
+        let since = (woke > 0).then(|| Duration::from_millis(ms().saturating_sub(woke)));
+        awake(ASLEEP.load(Ordering::Relaxed), since)
+    }
 
     /// The level Windows shows in its Bluetooth settings, on a device's own nodes.
     const LEVEL: &str = "{104EA319-6EE2-4701-BD47-8DDBF425BBE5} 2";
@@ -433,7 +612,7 @@ mod win {
     /// The nodes Bluetooth makes for a device. AQS can't filter on the level itself.
     const NODES: &str = "System.Devices.DeviceInstanceId:~<\"BTH\"";
 
-    enum Msg {
+    pub(crate) enum Msg {
         /// The laptop's supply, level or energy saver changed.
         Laptop,
         Endpoint {
@@ -445,8 +624,14 @@ mod win {
         /// An endpoint was unpaired.
         Gone(String),
         Level(String, u8),
+        /// A level Sumi read itself, and the buds' from Fast Pair.
+        Own(String, u8, Option<Buds>),
         /// A watcher listed what was there at launch.
         Listed,
+        /// The batteries panel opened.
+        Ask,
+        /// A speaker's answer as a JBL: its level, `None` when it gave none.
+        Answer(String, Option<u8>),
     }
 
     fn plugged() -> bool {
@@ -526,11 +711,17 @@ mod win {
         let watchers = endpoints(&tx)
             .and_then(|e| nodes(&tx).inspect_err(|_| drop(e.Stop())).map(|n| (e, n)))
             .inspect_err(|e| log::warn!("power: Bluetooth levels can't be heard: {e}"));
-        drop(tx);
         if watchers.is_err() && !heard {
             return;
         }
+        sleeps();
+        // The levels Windows doesn't read, which Sumi reads itself.
+        crate::fastpair::watch(&tx);
+        crate::xbox::watch(&tx);
+        crate::pads::watch(&tx);
         let power = app.state::<Power>();
+        // The panel, and the speakers asked as a JBL, answer through the same channel.
+        let _ = power.ask.set(tx.clone());
         let mut gadgets = Gadgets {
             ready: watchers.is_err(),
             ..Gadgets::default()
@@ -538,7 +729,8 @@ mod win {
         let mut listed = 0;
         let mut shown = None;
         loop {
-            // Asleep until Windows calls, or until a device that connected without a level stops waiting for one.
+            // Asleep until Windows calls, until a device that connected without a level stops waiting for one, or until
+            // a JBL is asked again.
             let msg = match gadgets.next() {
                 Some(at) => match rx.recv_timeout(at.saturating_duration_since(Instant::now())) {
                     Ok(msg) => Some(msg),
@@ -551,31 +743,44 @@ mod win {
                 },
             };
             let now = Instant::now();
-            let mut peeks = gadgets.due(now);
-            let Some(msg) = msg else {
-                after(app, &power, &gadgets, &mut shown, peeks);
-                continue;
-            };
+            let mut panel = false;
             let peek = match msg {
-                Msg::Laptop => read(&mut laptop, &power, now),
-                Msg::Endpoint {
+                None => None,
+                Some(Msg::Laptop) => read(&mut laptop, &power, now),
+                Some(Msg::Endpoint {
                     address,
                     name,
                     kind,
                     connected,
-                } => gadgets.endpoint(&address, name, kind, connected, now),
-                Msg::Gone(address) => {
+                }) => gadgets.endpoint(&address, name, kind, connected, now),
+                Some(Msg::Gone(address)) => {
                     gadgets.by_address.remove(&address);
                     None
                 }
-                Msg::Level(address, percent) => gadgets.level(&address, percent, now),
-                Msg::Listed => {
+                Some(Msg::Level(address, percent)) => gadgets.level(&address, percent, now),
+                Some(Msg::Own(address, percent, buds)) => gadgets.own(&address, percent, buds, now),
+                Some(Msg::Listed) => {
                     listed += 1;
                     gadgets.ready = listed == 2;
                     None
                 }
+                Some(Msg::Ask) => {
+                    panel = true;
+                    None
+                }
+                Some(Msg::Answer(address, percent)) => gadgets.answer(&address, percent, now),
             };
+            // After the message, so that a speaker that didn't answer as a JBL stops waiting at once.
+            let mut peeks = gadgets.due(now);
             peeks.extend(peek);
+            peeks.retain(|p| !matches!(p, Peek::Gone(_)) || news());
+            for address in gadgets.asks(now, panel) {
+                let tx = tx.clone();
+                std::thread::spawn(move || {
+                    let percent = super::jbl::ask(&address);
+                    let _ = tx.send(Msg::Answer(address, percent));
+                });
+            }
             after(app, &power, &gadgets, &mut shown, peeks);
         }
     }
@@ -620,6 +825,7 @@ mod win {
             Peek::Low(low) => app.emit("power://low", low),
             Peek::Device(device) => app.emit("power://device", device),
             Peek::DeviceLow(device) => app.emit("power://device-low", device),
+            Peek::Gone(device) => app.emit("power://device-gone", device),
         };
     }
 
@@ -767,8 +973,62 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        Device, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, address, kind, minutes, to_full,
+        ASKING, Buds, Device, EVERY, FRESH, Gadgets, Kind, LOW, Laptop, Low, Peek, WAKING, address,
+        awake, kind, minutes, to_full,
     };
+
+    #[test]
+    fn a_headset_a_speaker_or_a_controller_that_leaves_says_so() {
+        for k in [Kind::Headset, Kind::Speaker, Kind::Controller] {
+            let (mut g, t) = listed(k, 90);
+            g.endpoint("A", None, None, Some(true), t);
+            g.level("A", 60, t);
+            assert_eq!(
+                g.endpoint("A", None, None, Some(false), t),
+                Some(Peek::Gone(device(k, 60)))
+            );
+            // Said once: the next update while away is no news.
+            assert_eq!(g.endpoint("A", None, None, Some(false), t), None);
+        }
+        // Without a level, it still says so.
+        let (mut g, t) = unheard(Kind::Speaker);
+        g.endpoint("A", None, None, Some(true), t);
+        assert_eq!(
+            g.endpoint("A", None, None, Some(false), t),
+            Some(Peek::Gone(unknown(Kind::Speaker)))
+        );
+    }
+
+    #[test]
+    fn a_mouse_a_keyboard_a_phone_or_what_left_before_launch_says_nothing() {
+        for k in [Kind::Mouse, Kind::Keyboard] {
+            let (mut g, t) = listed(k, 90);
+            g.endpoint("A", None, None, Some(true), t);
+            assert_eq!(g.endpoint("A", None, None, Some(false), t), None);
+        }
+        let mut g = Gadgets::default();
+        let t = Instant::now();
+        g.endpoint("P", Some("iPhone".into()), Some(None), Some(true), t);
+        g.endpoint(
+            "A",
+            Some("Casque".into()),
+            Some(Some(Kind::Headset)),
+            Some(true),
+            t,
+        );
+        // Still listing what was there at launch.
+        assert_eq!(g.endpoint("A", None, None, Some(false), t), None);
+        g.ready = true;
+        assert_eq!(g.endpoint("P", None, None, Some(false), t), None);
+    }
+
+    #[test]
+    fn a_device_leaving_is_no_news_around_sleep() {
+        assert!(awake(false, None));
+        assert!(!awake(true, None));
+        assert!(!awake(false, Some(WAKING - Duration::from_secs(1))));
+        assert!(awake(false, Some(WAKING)));
+    }
 
     #[test]
     fn plugging_in_peeks_and_unplugging_says_nothing() {
@@ -901,6 +1161,7 @@ mod tests {
             name: "Casque".into(),
             kind,
             percent: Some(percent),
+            buds: None,
         }
     }
 
@@ -1013,23 +1274,87 @@ mod tests {
         (g, t)
     }
 
+    fn unknown(kind: Kind) -> Device {
+        Device {
+            name: "Casque".into(),
+            kind,
+            percent: None,
+            buds: None,
+        }
+    }
+
     #[test]
-    fn a_speaker_without_a_level_peeks_once_it_has_waited_for_one() {
-        let (mut g, t) = unheard(Kind::Speaker);
+    fn a_controller_without_a_level_peeks_once_it_has_waited_for_one() {
+        let (mut g, t) = unheard(Kind::Controller);
         assert_eq!(g.endpoint("A", None, None, Some(true), t), None);
         assert_eq!(g.next(), Some(t + FRESH));
         assert!(g.due(t + Duration::from_secs(1)).is_empty());
-        let unknown = Device {
-            name: "Casque".into(),
-            kind: Kind::Speaker,
-            percent: None,
-        };
+        let unknown = unknown(Kind::Controller);
         assert_eq!(g.due(t + FRESH), vec![Peek::Device(unknown.clone())]);
         assert_eq!(g.next(), None);
         assert_eq!(g.connected(), vec![unknown]);
         // A level that comes later shows, without a second peek.
         assert_eq!(g.level("A", 70, t + FRESH), None);
-        assert_eq!(g.connected(), vec![device(Kind::Speaker, 70)]);
+        assert_eq!(g.connected(), vec![device(Kind::Controller, 70)]);
+    }
+
+    #[test]
+    fn a_speaker_is_asked_as_a_jbl_and_peeks_with_its_answer() {
+        let (mut g, t) = unheard(Kind::Speaker);
+        assert_eq!(g.endpoint("A", None, None, Some(true), t), None);
+        assert_eq!(g.asks(t, false), vec!["A".to_string()]);
+        // Once at a time, and its peek waits longer than for Windows.
+        assert!(g.asks(t, true).is_empty());
+        assert_eq!(g.next(), Some(t + ASKING));
+        assert!(g.due(t + FRESH).is_empty());
+        let later = t + Duration::from_secs(3);
+        assert_eq!(
+            g.answer("A", Some(100), later),
+            Some(Peek::Device(device(Kind::Speaker, 100)))
+        );
+        assert_eq!(g.next(), Some(later + EVERY));
+    }
+
+    #[test]
+    fn a_jbl_is_asked_again_every_15_minutes_and_as_the_panel_opens() {
+        let (mut g, t) = unheard(Kind::Speaker);
+        g.endpoint("A", None, None, Some(true), t);
+        g.asks(t, false);
+        g.answer("A", Some(80), t);
+        let minute = t + Duration::from_secs(60);
+        assert!(g.asks(minute, false).is_empty());
+        assert_eq!(g.asks(minute, true), vec!["A".to_string()]);
+        // A miss keeps the level and the next ask.
+        assert_eq!(g.answer("A", None, minute), None);
+        assert_eq!(g.connected(), vec![device(Kind::Speaker, 80)]);
+        assert_eq!(g.next(), Some(minute + EVERY));
+        assert_eq!(g.asks(minute + EVERY, false), vec!["A".to_string()]);
+        assert_eq!(
+            g.answer("A", Some(19), minute + EVERY),
+            Some(Peek::DeviceLow(device(Kind::Speaker, 19)))
+        );
+        // Gone: nothing waits.
+        g.endpoint("A", None, None, Some(false), minute + EVERY);
+        assert_eq!(g.next(), None);
+    }
+
+    #[test]
+    fn a_speaker_that_does_not_answer_peeks_without_a_level() {
+        let (mut g, t) = unheard(Kind::Speaker);
+        g.endpoint("A", None, None, Some(true), t);
+        g.asks(t, false);
+        assert_eq!(g.answer("A", None, t + FRESH), None);
+        assert_eq!(g.due(t + FRESH), vec![Peek::Device(unknown(Kind::Speaker))]);
+        // Not asked again on its own, but the panel tries while it has no level.
+        assert_eq!(g.next(), None);
+        assert_eq!(g.asks(t + FRESH, true), vec!["A".to_string()]);
+    }
+
+    #[test]
+    fn only_a_speaker_is_asked() {
+        let (mut g, t) = listed(Kind::Headset, 90);
+        g.endpoint("A", None, None, Some(true), t);
+        assert!(g.asks(t, true).is_empty());
     }
 
     #[test]
@@ -1066,6 +1391,49 @@ mod tests {
         );
         assert!(g.due(t + FRESH).is_empty());
         assert_eq!(g.connected(), vec![device(Kind::Headset, 60)]);
+    }
+
+    #[test]
+    fn a_level_sumi_reads_stands_over_windows_own_while_connected() {
+        let (mut g, t) = listed(Kind::Headset, 90);
+        g.endpoint("A", None, None, Some(true), t);
+        let buds = Buds::new(Some(47), Some(52), None);
+        let fast = Device {
+            buds: Some(buds),
+            ..device(Kind::Headset, 47)
+        };
+        assert_eq!(
+            g.own("A", 47, Some(buds), t),
+            Some(Peek::Device(fast.clone()))
+        );
+        // Windows' own, from one bud and in steps of 10, no longer moves the ring.
+        assert_eq!(g.level("A", 50, t), None);
+        assert_eq!(g.connected(), vec![fast]);
+        // Next time, without Fast Pair, Windows' counts again.
+        g.endpoint("A", None, None, Some(false), t);
+        g.endpoint("A", None, None, Some(true), t + Duration::from_secs(60));
+        g.level("A", 40, t);
+        assert_eq!(g.connected(), vec![device(Kind::Headset, 40)]);
+    }
+
+    #[test]
+    fn a_controller_sumi_reads_off_bluetooth_peeks_as_it_comes() {
+        let mut g = Gadgets {
+            ready: true,
+            ..Gadgets::default()
+        };
+        let t = Instant::now();
+        assert_eq!(g.own("xbox 1", 15, None, t), None);
+        assert_eq!(
+            g.endpoint(
+                "xbox 1",
+                Some("Casque".into()),
+                Some(Some(Kind::Controller)),
+                Some(true),
+                t
+            ),
+            Some(Peek::Device(device(Kind::Controller, 15)))
+        );
     }
 
     #[test]

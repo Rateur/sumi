@@ -212,6 +212,7 @@ const KEYS: Record<string, string> = {
   y: 'plugged',
   x: 'low',
   q: 'device',
+  Q: 'gone',
   s: 'batteries',
 }
 
@@ -229,11 +230,11 @@ const KEYS: Record<string, string> = {
  edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
  'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does, and drains the open panel (E) up
  into the edge; a rest, a click, a scroll down or a pull down on the line brings it back. Y plugs the PC in ('plugged'),
- X runs its battery low ('low'), Q connects a speaker ('device'), and S opens the batteries panel ('batteries'), as the
+ X runs its battery low ('low'), Q connects a speaker ('device') and Shift+Q disconnects it ('gone'), and S opens the batteries panel ('batteries'), as the
  bar's `batterie` and Enter do; 'one', 'three' and 'five' give it that many rings, 'mains' and 'saver' turn those on,
- 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, and 'unknown'
- adds it to the panel. `météo Lyon`, `Paris` or `Oslo` in the bar answers from recorded forecasts, never the network;
- 'offline' cuts it or brings it back.
+ 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, 'late' connects it with the level
+ it gives 8 s later, and 'unknown' adds it to the panel. `météo Lyon`, `Paris` or `Oslo` in the bar answers from
+ recorded forecasts, never the network; 'offline' cuts it or brings it back.
  */
 export function demo(island: {
   activities: Activity[]
@@ -307,7 +308,10 @@ export function demo(island: {
     low: () => island.power({ kind: 'low', percent: 20, minutes: 65 }),
     device: () => island.power({ kind: 'device', device: DEVICES[2] }),
     'device-low': () => island.power({ kind: 'deviceLow', device: DEVICES[3] }),
+    gone: () => island.power({ kind: 'deviceGone', device: DEVICES[2] }),
     jbl: () => island.power({ kind: 'device', device: JBL }),
+    // As Rust tells it: a speaker's peek waits for the level Sumi asks it for.
+    late: () => setTimeout(() => island.power({ kind: 'device', device: { ...JBL, percent: 64 } }), 8000),
     batteries: island.batteries,
     offline: () => (offline = !offline),
     ...Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, () => (island.battery = set)])),
