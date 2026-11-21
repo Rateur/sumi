@@ -332,15 +332,19 @@ mod os {
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetForegroundWindow, GetMessageW,
-        GetWindowThreadProcessId, HWND_MESSAGE, MSG, PostMessageW, RegisterClassW,
-        SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_APP, WM_CLIPBOARDUPDATE,
-        WNDCLASSW,
+        GetWindowThreadProcessId, HWND_MESSAGE, KillTimer, MSG, PostMessageW, RegisterClassW,
+        SetTimer, SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE, WDA_NONE, WM_APP,
+        WM_CLIPBOARDUPDATE, WM_TIMER, WNDCLASSW,
     };
 
     use super::{Clipboard, ITEM_BYTES, Landed, Marks};
 
     /// Posted to the window: `wparam` 1 starts listening to copies, 0 stops.
     const LISTEN: u32 = WM_APP;
+    /// The timer that reads a copy once the app that made it is done. Reading at once holds the clipboard while
+    /// that app flushes it (OleFlushClipboard), and its copy then fails: 7 times in 8 in a test with .NET apps.
+    const SETTLE: usize = 1;
+    const SETTLE_MS: u32 = 150;
     /// How long the window the bar came from may take to come back to the front.
     const FRONT: Duration = Duration::from_millis(100);
     static APP: OnceLock<AppHandle> = OnceLock::new();
@@ -404,6 +408,12 @@ mod os {
     ) -> LRESULT {
         match msg {
             WM_CLIPBOARDUPDATE => {
+                // A copy right behind restarts the wait, so a burst is read once, at its end.
+                unsafe { SetTimer(hwnd, SETTLE, SETTLE_MS, None) };
+                0
+            }
+            WM_TIMER if wparam == SETTLE => {
+                unsafe { KillTimer(hwnd, SETTLE) };
                 if let Some(app) = APP.get() {
                     super::copied(app);
                 }
