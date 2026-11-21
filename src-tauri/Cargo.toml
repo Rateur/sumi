@@ -22,6 +22,8 @@ log = "0.4"
 tauri = { version = "2.12.5", features = ["tray-icon"] }
 tauri-plugin-global-shortcut = "2.4.1"
 tauri-plugin-log = "2"
+# Reads a QR code in the screen capture's box: pure Rust, without its image crate (issue #91).
+rqrr = { version = "0.11", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 # windows is for COM, WinRT (media, privacy, apps) and a Win32 call that takes or returns a windows type in that code

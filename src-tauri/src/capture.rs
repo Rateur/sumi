@@ -1,7 +1,7 @@
 //! The screen capture. `Win+Alt+C`, or « capture » in the command bar, freezes the screen: one BitBlt copies every
 //! monitor into RAM, and a window per monitor shows that copy as it was, with no veil, so clicks reach no app. An ink
 //! loupe, drawn here, follows the cursor over the frozen pixels. A click copies the colour under it as HEX; a box
-//! copies its text through Windows' own OCR. The copy goes on the clipboard, and into the
+//! copies the QR code it holds, or its text through Windows' own OCR. The copy goes on the clipboard, and into the
 //! history while that is on. The island stays out of the frame and out of screen captures while the capture lasts.
 //! The frame never leaves RAM and is freed as the capture ends. Nothing here runs before the shortcut.
 
@@ -40,6 +40,8 @@ const LINE: f64 = 1.5;
 const DASH: (f64, f64) = (5.0, 4.0);
 const CORNER: f64 = 3.0;
 const MARCH: f64 = 14.0;
+/// How far a QR code may reach past the box and still be whole in it.
+const TOLERANCE: f64 = 4.0;
 
 /// How a capture ended. Mirrored as `Captured` in src/lib/capture.ts.
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -49,6 +51,10 @@ pub enum Captured {
     Colour { hex: String },
     /// A box's text, copied, and how many words it holds.
     Text { words: usize },
+    /// A QR code holding a link, copied, and the link's site.
+    Link { host: String },
+    /// A QR code holding anything else, copied.
+    Code,
     /// A box with no text in it. Nothing was copied.
     Empty,
     /// Windows has no OCR language. Nothing was copied.
@@ -109,16 +115,23 @@ pub fn capture_key(state: State<'_, Capture>, key: Key, down: bool) {
     os::key(state.window.load(Ordering::SeqCst), key, down);
 }
 
-/// Puts a box's text on the clipboard and in the history.
-fn recognise(app: &AppHandle, text: &Crop) -> Captured {
-    match os::read(text) {
-        Read::Text(lines, n) if n > 0 => {
-            if clipboard::keep(app, lines) {
-                Captured::Text { words: n }
-            } else {
-                Captured::Failed
-            }
+/// Puts a box's result on the clipboard and in the history: a QR code's content, or else its text.
+fn recognise(app: &AppHandle, text: &Crop, wide: &Crop) -> Captured {
+    let copy = |content: String, captured: Captured| {
+        if clipboard::keep(app, content) {
+            captured
+        } else {
+            Captured::Failed
         }
+    };
+    if let Some(content) = qr(wide) {
+        return match host(&content) {
+            Some(host) => copy(content, Captured::Link { host }),
+            None => copy(content, Captured::Code),
+        };
+    }
+    match os::read(text) {
+        Read::Text(lines, n) if n > 0 => copy(lines, Captured::Text { words: n }),
         Read::Text(..) => Captured::Empty,
         Read::Unreadable => Captured::Unreadable,
         Read::Failed => Captured::Failed,
@@ -130,6 +143,34 @@ enum Read {
     Text(String, usize),
     Unreadable,
     Failed,
+}
+
+/// A QR code in `crop` and its content. The box is taken a little wider, so a code drawn up to its edges counts.
+fn qr(crop: &Crop) -> Option<String> {
+    let mut image = rqrr::PreparedImage::prepare_from_greyscale(crop.width, crop.height, |x, y| {
+        luma(crop.pixels[y * crop.width + x])
+    });
+    image
+        .detect_grids()
+        .into_iter()
+        .find_map(|grid| grid.decode().ok().map(|(_, content)| content))
+}
+
+/// A pixel's lightness for the QR reader, by Rec. 601.
+fn luma(pixel: u32) -> u8 {
+    let [b, g, r, _] = pixel.to_le_bytes();
+    ((299 * u32::from(r) + 587 * u32::from(g) + 114 * u32::from(b)) / 1000) as u8
+}
+
+/// The site of a link, as the island shows it: `example.com` for `https://www.example.com/a?b`.
+fn host(text: &str) -> Option<String> {
+    let lower = text.trim().to_ascii_lowercase();
+    let rest = ["https://", "http://"]
+        .iter()
+        .find_map(|scheme| lower.strip_prefix(scheme))?;
+    let site = rest.split(['/', '?', '#']).next()?;
+    let site = site.strip_prefix("www.").unwrap_or(site);
+    (!site.is_empty() && !text.trim().contains(char::is_whitespace)).then(|| site.to_string())
 }
 
 /// How many words the OCR read: those with a letter or a digit, so a lone dash or bullet doesn't count.
@@ -685,7 +726,8 @@ mod os {
 
     use super::{
         AFTER, CELLS, Capture, Captured, Crop, FADE, FOLLOW, Fade, GROW, Key, Lens, MARCH, MARGIN,
-        MERGE, Outline, Pixels, RADIUS, REDUCED, Read, Spring, grown, hex, picked, spanned, squash,
+        MERGE, Outline, Pixels, RADIUS, REDUCED, Read, Spring, TOLERANCE, grown, hex, picked,
+        spanned, squash,
     };
     use crate::{bar, clipboard, island};
 
@@ -1526,7 +1568,11 @@ mod os {
             let [l, t, r, b] = outline.rect.map(|v| v as i64);
             let rect = [l - ox, t - oy, r - ox, b - oy];
             let bounds = [0, 0, self.frame.width as i64, self.frame.height as i64];
-            let text = self.pixels().crop(grown(rect, 0, bounds));
+            let by = (TOLERANCE * outline.scale).round() as i64;
+            let (text, wide) = (
+                self.pixels().crop(grown(rect, 0, bounds)),
+                self.pixels().crop(grown(rect, by, bounds)),
+            );
             self.release(AFTER);
             let app = self.island.app_handle().clone();
             if let Some(tx) = self.tx.take() {
@@ -1534,7 +1580,7 @@ mod os {
                     let captured = if text.width == 0 || text.height == 0 {
                         Captured::Empty
                     } else {
-                        super::recognise(&app, &text)
+                        super::recognise(&app, &text, &wide)
                     };
                     let _ = tx.send(captured);
                 });
@@ -1902,7 +1948,7 @@ mod tests {
     }
 
     #[test]
-    fn a_box_holds_both_pixels_and_stays_on_the_screen() {
+    fn a_box_holds_both_pixels_and_a_qr_code_a_little_past_it() {
         assert_eq!(spanned((40, 30), (10, 50)), [10, 30, 41, 51]);
         assert_eq!(
             grown([10, 30, 41, 51], 4, [0, 0, 100, 100]),
@@ -1932,6 +1978,83 @@ mod tests {
     fn counts_words_with_a_letter_or_a_digit() {
         assert_eq!(words(["La", "0.9", "—", "apporte", "•", "l’historique"]), 4);
         assert_eq!(words([]), 0);
+    }
+
+    /// The lab's QR code, version 2-M, holding `https://example.com`.
+    const EXAMPLE: [&str; 25] = [
+        "#######..#######..#######",
+        "#.....#.#.###.###.#.....#",
+        "#.###.#...##...##.#.###.#",
+        "#.###.#....##.##..#.###.#",
+        "#.###.#.#....###..#.###.#",
+        "#.....#.....####..#.....#",
+        "#######.#.#.#.#.#.#######",
+        "...........####.#........",
+        "#.#.#.#..##.#.###...#..#.",
+        "#...#..##.#.#.....#.....#",
+        "##....#...#..#.....##.###",
+        "...##..##.#.#..###.....#.",
+        ".#..#.#.#####...###..#.##",
+        "..####.##.####..###..#..#",
+        "#.###.####.##.#.#.##..###",
+        ".#.#.#......#####...#..#.",
+        "#..####....#..########...",
+        "........##.#..###...##.##",
+        "#######..##..#.##.#.##.##",
+        "#.....#..#.#....#...##..#",
+        "#.###.#.#...#...######..#",
+        "#.###.#....###.#...####..",
+        "#.###.#.#..##.#.#...#...#",
+        "#.....#.....###.#.#.##.#.",
+        "#######.#.##..######...##",
+    ];
+
+    /// `EXAMPLE` drawn at 4 px a module on white, with 2 modules of quiet zone, as a screen shows it.
+    fn drawn() -> Crop {
+        let side = (EXAMPLE.len() + 4) * 4;
+        let pixels = (0..side * side)
+            .map(|n| {
+                let (i, j) = ((n % side) / 4, (n / side) / 4);
+                let dark = (2..EXAMPLE.len() + 2).contains(&i)
+                    && (2..EXAMPLE.len() + 2).contains(&j)
+                    && EXAMPLE[j - 2].as_bytes()[i - 2] == b'#';
+                if dark { 0xFF11_1111 } else { 0xFFFF_FFFF }
+            })
+            .collect();
+        Crop {
+            pixels,
+            width: side,
+            height: side,
+        }
+    }
+
+    #[test]
+    fn reads_a_whole_qr_code_and_not_a_cut_one() {
+        let whole = drawn();
+        assert_eq!(qr(&whole).as_deref(), Some("https://example.com"));
+        let half = whole.width / 2;
+        let cut = Crop {
+            pixels: whole
+                .pixels
+                .chunks(whole.width)
+                .flat_map(|row| row[..half].to_vec())
+                .collect(),
+            width: half,
+            height: whole.height,
+        };
+        assert_eq!(qr(&cut), None);
+    }
+
+    #[test]
+    fn names_a_link_by_its_site() {
+        assert_eq!(host("https://example.com").as_deref(), Some("example.com"));
+        assert_eq!(
+            host("HTTP://www.Example.com/a?b#c").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(host("WIFI:S:Maison;T:WPA;P:secret;;"), None);
+        assert_eq!(host("https://"), None);
+        assert_eq!(host("https://example.com and more"), None);
     }
 
     #[test]
