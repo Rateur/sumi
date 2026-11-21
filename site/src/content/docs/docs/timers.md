@@ -1,6 +1,6 @@
 ---
 title: Timers
-description: Type a length in the command bar, and the island counts it down.
+description: Type a length in the command bar and the island counts it down.
 ---
 
 Press `Win+Alt+S`, type a length, then press Enter. The bar folds into the timer. Timers count from the clock, so they stay right when the PC sleeps.

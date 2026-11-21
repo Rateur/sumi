@@ -1,9 +1,9 @@
 ---
 title: Météo
-description: La météo d'une ville, quand vous la demandez dans la barre de commande.
+description: La météo d'une ville, depuis la barre de commande.
 ---
 
-Tapez `météo à Lyon` dans la barre de commande et appuyez sur Entrée. L'île affiche la météo un instant, puis reprend ce qu'elle faisait. Rien ne s'y installe au repos, et rien n'est demandé tant que vous ne demandez pas.
+Tapez `météo à Lyon` dans la barre de commande et appuyez sur Entrée. L'île affiche la météo 4 secondes, puis ce qu'elle montrait avant. Rien n'est envoyé avant que vous appuyiez sur Entrée.
 
 ## Que taper
 

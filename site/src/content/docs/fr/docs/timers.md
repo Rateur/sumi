@@ -1,9 +1,9 @@
 ---
 title: Minuteurs
-description: Tapez une durée dans la barre de commande, et l'île la décompte.
+description: Tapez une durée dans la barre de commande et l'île lance le compte à rebours.
 ---
 
-Appuyez sur `Win+Alt+S`, tapez une durée, puis appuyez sur Entrée. La barre se replie en minuteur. Les minuteurs se règlent sur l'horloge : ils restent justes quand le PC se met en veille.
+Appuyez sur `Win+Alt+S`, tapez une durée, puis appuyez sur Entrée. La barre se replie en minuteur. Les minuteurs suivent l'horloge et restent justes quand le PC se met en veille.
 
 ## Que taper
 

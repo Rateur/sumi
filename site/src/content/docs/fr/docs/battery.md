@@ -3,7 +3,7 @@ title: Batterie
 description: Toutes les batteries dans un panneau, et un coup d'œil au branchement, quand la batterie faiblit, et quand un casque se connecte.
 ---
 
-L'île affiche la batterie de votre portable et celle des appareils Bluetooth qui la donnent à Windows, comme les casques, les enceintes, les manettes, les souris et les claviers. Rien de nouveau ne s'y installe au repos : les batteries s'ouvrent quand vous le demandez, et un coup d'œil arrive quand il se passe quelque chose.
+L'île affiche la batterie de votre portable et celle des appareils Bluetooth qui la communiquent à Windows, comme les casques, les enceintes, les manettes, les souris et les claviers. Au repos, rien ne change. Tapez `batterie` pour le panneau des batteries, et un coup d'œil s'affiche au branchement, quand la batterie faiblit ou quand un casque se connecte.
 
 Certains appareils ne donnent aucun niveau à Windows : Sumi en lit plusieurs lui-même, des enceintes JBL aux manettes de jeu, voir [Au-delà de Windows](#au-delà-de-windows).
 

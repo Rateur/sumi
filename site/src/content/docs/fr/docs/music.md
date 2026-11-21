@@ -1,6 +1,6 @@
 ---
 title: Musique
-description: L'île affiche ce qui joue, dans tout lecteur que Windows sait piloter.
+description: L'île affiche le morceau en cours, dans tout lecteur que Windows sait piloter.
 ---
 
 Quand la musique joue, l'île affiche la pochette et un égaliseur de sa couleur, et l'heure passe dans une petite bulle à côté. Sumi lit la musique dans les contrôles multimédias de Windows : ça marche avec Spotify, les navigateurs, VLC et tout lecteur que ces contrôles voient.

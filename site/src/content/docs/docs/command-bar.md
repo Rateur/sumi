@@ -1,6 +1,6 @@
 ---
 title: Command bar
-description: A timer, an app or a question, from one shortcut.
+description: Press Win+Alt+S and type a timer, an app or a question.
 ---
 
 Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the right, then press Enter. Press the shortcut again or Esc to close it. If another app already uses it, the shortcut is `Alt+Shift+S`.
