@@ -85,11 +85,12 @@ const APPS: Listed[] = [
   { name: 'Mail', color: '#0A66C2' },
 ]
 
-// Devices that report their battery, as the lab's: the panel shows the first one, three or five of this PC.
+// Devices that report their battery, as the lab's: the panel shows the first one, three or five of this PC. Three is
+// the PC, a headset and a JBL speaker, one Windows doesn't show.
 const DEVICES: Device[] = [
   { name: 'Casque UGREEN HiTune Max5', kind: 'headset', percent: 80 },
-  { name: 'Souris MX Master 3S', kind: 'mouse', percent: 52 },
   { name: 'Enceinte JBL Flip 6', kind: 'speaker', percent: 45 },
+  { name: 'Souris MX Master 3S', kind: 'mouse', percent: 52 },
   { name: 'Manette Xbox', kind: 'controller', percent: 15 },
 ]
 // A speaker Windows gives no level for.
@@ -99,7 +100,7 @@ const SETS: Record<string, Battery> = {
   one: { ...pc, devices: [] },
   three: { ...pc, devices: DEVICES.slice(0, 2) },
   five: { ...pc, devices: DEVICES },
-  unknown: { ...pc, devices: [...DEVICES.slice(0, 2), JBL] },
+  unknown: { ...pc, devices: [DEVICES[0], DEVICES[2], JBL] },
 }
 
 // Open-Meteo's forecast for Lyon, recorded on 20 November 2026 at 21:15 there, cut to that day's hours. The demo
@@ -234,7 +235,8 @@ const KEYS: Record<string, string> = {
  bar's `batterie` and Enter do; 'one', 'three' and 'five' give it that many rings, 'mains' and 'saver' turn those on,
  'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, 'late' connects it with the level
  it gives 8 s later, and 'unknown' adds it to the panel. `météo Lyon`, `Paris` or `Oslo` in the bar answers from
- recorded forecasts, never the network; 'offline' cuts it or brings it back.
+ recorded forecasts, never the network; 'weather' shows Lyon's peek without the bar, and 'offline' cuts the network or
+ brings it back.
  */
 export function demo(island: {
   activities: Activity[]
@@ -253,6 +255,7 @@ export function demo(island: {
   power: (power: Power) => void
   batteries: () => void
   battery: Battery | undefined
+  forecast: (city: string) => void
   shortcut: string | undefined
   lookup: (url: string) => Promise<unknown>
   apps: Listed[]
@@ -306,14 +309,15 @@ export function demo(island: {
     'tuck-right': () => island.swipe('right'),
     plugged: () => island.power({ kind: 'plugged', percent: 64 }),
     low: () => island.power({ kind: 'low', percent: 20, minutes: 65 }),
-    device: () => island.power({ kind: 'device', device: DEVICES[2] }),
+    device: () => island.power({ kind: 'device', device: DEVICES[1] }),
     'device-low': () => island.power({ kind: 'deviceLow', device: DEVICES[3] }),
-    gone: () => island.power({ kind: 'deviceGone', device: DEVICES[2] }),
+    gone: () => island.power({ kind: 'deviceGone', device: DEVICES[1] }),
     jbl: () => island.power({ kind: 'device', device: JBL }),
     // As Rust tells it: a speaker's peek waits for the level Sumi asks it for.
     late: () => setTimeout(() => island.power({ kind: 'device', device: { ...JBL, percent: 64 } }), 8000),
     batteries: island.batteries,
     offline: () => (offline = !offline),
+    weather: () => island.forecast('Lyon'),
     ...Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, () => (island.battery = set)])),
     mains: () => island.battery && (island.battery = { ...island.battery, plugged: !island.battery.plugged, full: 50 }),
     saver: () => island.battery && (island.battery = { ...island.battery, saver: !island.battery.saver }),
