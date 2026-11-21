@@ -5,7 +5,7 @@ description: Éditeur, hébergeur et données personnelles du site de Sumi.
 
 ## Éditeur
 
-Ce site est édité à titre non professionnel par Rateur, auteur de Sumi. Comme le permet l'article 6-III-2 de la loi n° 2004-575 du 21 juin 2004 (LCEN), son identité a été communiquée à l'hébergeur.
+Ce site est édité à titre non professionnel par Rateur, auteur de Sumi. Comme le permet l'article 1-1, II, de la loi n° 2004-575 du 21 juin 2004 (LCEN), son identité a été communiquée à l'hébergeur.
 
 Contact : [Discussions GitHub](https://github.com/Rateur/sumi/discussions) ou contact@rateur.fr.
 
