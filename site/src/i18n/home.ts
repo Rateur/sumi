@@ -35,8 +35,8 @@ export const home = {
 			{ title: 'Live taskbar icon', text: 'Sumi’s icon shows the microphone dot and the music. A click tucks the island.', tag: '0.7.0' },
 			{ title: 'Weather', text: 'Type weather Lyon. The city goes to Open-Meteo only after you allow it.', tag: '0.8.0' },
 			{ title: 'Battery', text: 'Your PC and your Bluetooth devices in one panel, even ones Windows can’t read.', tag: '0.8.0' },
-			{ title: 'Clipboard and capture', text: 'Your clipboard history in the command bar. Copy a color, text or a QR code off the screen.', tag: 'next' },
-			{ title: 'Settings', text: 'Choose the screen, theme, language and shortcuts. Sumi also comes to the Microsoft Store.', tag: 'planned' },
+			{ title: 'Clipboard and capture', text: 'Win + Alt + V opens your clipboard history. Win + Alt + C copies a color, text or a QR code off the screen.', tag: '0.9.0' },
+			{ title: 'Settings', text: 'Choose the screen, theme, language and shortcuts. Sumi also comes to the Microsoft Store.', tag: 'next' },
 		],
 		quietTitle: 'Never in the way.',
 		quiet: [
@@ -92,8 +92,8 @@ export const home = {
 			{ title: 'Icône près de l’horloge', text: 'L’icône de Sumi montre le point micro et la musique. Un clic range l’île.', tag: '0.7.0' },
 			{ title: 'Météo', text: 'Tapez météo Lyon. La ville n’est envoyée à Open-Meteo qu’après votre accord.', tag: '0.8.0' },
 			{ title: 'Batterie', text: 'Votre PC et vos appareils Bluetooth dans un panneau, même ceux que Windows ne sait pas lire.', tag: '0.8.0' },
-			{ title: 'Presse-papiers et capture', text: 'L’historique du presse-papiers dans la barre de commande. Copiez une couleur, un texte ou un QR code depuis l’écran.', tag: 'prochaine' },
-			{ title: 'Réglages', text: 'Choisissez l’écran, le thème, la langue et les raccourcis. Sumi arrive aussi sur le Microsoft Store.', tag: 'prévu' },
+			{ title: 'Presse-papiers et capture', text: 'Win + Alt + V ouvre l’historique du presse-papiers. Win + Alt + C copie une couleur, un texte ou un code QR depuis l’écran.', tag: '0.9.0' },
+			{ title: 'Réglages', text: 'Choisissez l’écran, le thème, la langue et les raccourcis. Sumi arrive aussi sur le Microsoft Store.', tag: 'prochaine' },
 		],
 		quietTitle: 'Jamais encombrante.',
 		quiet: [
