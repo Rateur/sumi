@@ -114,16 +114,17 @@ impl Move {
     }
 }
 
-/// How far the cursor goes each way, in pixels, before Windows calls it a drag.
+/// How far the cursor goes each way, in pixels, before Windows calls it a drag. A press on the screen capture that
+/// goes farther is a box.
 #[cfg(windows)]
-fn drag() -> (i32, i32) {
+pub fn drag() -> (i32, i32) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXDRAG, SM_CYDRAG};
     // SAFETY: no pointer and no handle; a failed read returns 0, and any move then counts.
     unsafe { (GetSystemMetrics(SM_CXDRAG), GetSystemMetrics(SM_CYDRAG)) }
 }
 
 #[cfg(not(windows))]
-fn drag() -> (i32, i32) {
+pub fn drag() -> (i32, i32) {
     (4, 4)
 }
 
