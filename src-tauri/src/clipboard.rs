@@ -1,7 +1,8 @@
 //! The clipboard history: the text you copy, newest first, once you allow it in the command bar. It is kept on this
-//! PC across restarts, sealed with Windows' per-user encryption (DPAPI) in the app's data folder. A message-only
-//! window hears each copy while the history is on, and sleeps otherwise. Enter on an item pastes it into the window
-//! the bar came from. A copy never wakes the island, and nothing here goes on the network.
+//! PC across restarts, sealed with Windows' per-user encryption (DPAPI) in the app's local data folder, which a
+//! roaming profile doesn't copy to a server. A message-only window hears each copy while the history is on, and
+//! sleeps otherwise. Enter on an item pastes it into the window the bar came from. A copy never wakes the island,
+//! and nothing here goes on the network.
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -17,7 +18,7 @@ const ITEMS: usize = 100;
 /// A copy past this size isn't kept, rather than cut, since a cut paste would be wrong. A long page or a source file
 /// fits; a log or a table export doesn't, and the whole history is sealed and written again at each copy.
 const ITEM_BYTES: usize = 64 * 1024;
-/// The sealed history, and the flag that holds the yes, in the app's data folder.
+/// The sealed history, and the flag that holds the yes, in the app's local data folder.
 const KEPT: &str = "clipboard_history";
 const ALLOWED: &str = "clipboard_allowed";
 
@@ -121,7 +122,7 @@ pub fn watch(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         let state = app.state::<Clipboard>();
-        if let Ok(dir) = app.path().app_data_dir()
+        if let Ok(dir) = app.path().app_local_data_dir()
             && dir.join(ALLOWED).exists()
         {
             if let Ok(mut history) = state.history.lock() {
@@ -152,7 +153,7 @@ fn copied(app: &AppHandle) {
         return;
     };
     if history.add(text)
-        && let Ok(dir) = app.path().app_data_dir()
+        && let Ok(dir) = app.path().app_local_data_dir()
     {
         let _ = history.save(&dir);
     }
@@ -178,7 +179,7 @@ pub fn clipboard_history(state: State<'_, Clipboard>) -> Option<Vec<String>> {
 /// clipboard holds now goes on top, since nothing was heard before.
 #[tauri::command]
 pub async fn clipboard_allow(app: AppHandle) -> Result<Vec<String>, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = app.path().app_local_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     std::fs::write(dir.join(ALLOWED), "").map_err(|e| e.to_string())?;
     let state = app.state::<Clipboard>();
@@ -222,7 +223,7 @@ fn paste(window: &WebviewWindow, text: String, plain: bool) -> Landed {
             state.top.store(os::sequence(), Ordering::SeqCst);
         }
         if history.add(text)
-            && let Ok(dir) = window.app_handle().path().app_data_dir()
+            && let Ok(dir) = window.app_handle().path().app_local_data_dir()
         {
             let _ = history.save(&dir);
         }
@@ -248,7 +249,7 @@ pub fn pause(app: &AppHandle) {
     let state = app.state::<Clipboard>();
     state.on.store(false, Ordering::SeqCst);
     os::listening(state.window.load(Ordering::SeqCst), false);
-    if let Ok(dir) = app.path().app_data_dir() {
+    if let Ok(dir) = app.path().app_local_data_dir() {
         let _ = std::fs::remove_file(dir.join(ALLOWED));
     }
     if let Ok(mut history) = state.history.lock() {
@@ -261,7 +262,7 @@ pub fn pause(app: &AppHandle) {
 pub fn clear(app: &AppHandle) {
     if let Ok(mut history) = app.state::<Clipboard>().history.lock() {
         *history = History::default();
-        if let Ok(dir) = app.path().app_data_dir() {
+        if let Ok(dir) = app.path().app_local_data_dir() {
             let _ = std::fs::remove_file(dir.join(KEPT));
         }
     }
@@ -274,7 +275,7 @@ fn menu(app: &AppHandle) {
     let kept = on
         || app
             .path()
-            .app_data_dir()
+            .app_local_data_dir()
             .is_ok_and(|dir| dir.join(KEPT).exists());
     tray::clipboard(app, on, kept);
 }
