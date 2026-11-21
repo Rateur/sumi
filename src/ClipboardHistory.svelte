@@ -93,7 +93,7 @@
   let sel = $state(0)
   let way = 0
   let shift = $state(false)
-  const label = $derived(shift ? words.plain : words.paste)
+  const label = $derived(shift ? words.actions.plain : words.actions.paste)
   // Empty as it arrives, since a live region that comes in filled isn't read. Island.svelte's says the opening.
   let heard = $state('')
 
