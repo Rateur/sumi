@@ -3,11 +3,11 @@ title: Historique du presse-papiers
 description: Appuyez sur Win+Alt+V pour retrouver ce que vous avez copié, puis sur Entrée pour le coller là où vous étiez.
 ---
 
-Appuyez sur `Win+Alt+V` et la barre de commande s'ouvre sur l'historique du presse-papiers, le plus récent en haut. Choisissez un élément et appuyez sur Entrée : il est collé dans l'app où vous étiez. Appuyez à nouveau sur le raccourci ou sur Échap pour refermer la liste. Si une autre app l'utilise déjà, le raccourci est `Alt+Maj+V`. Vous pouvez aussi taper `presse-papiers` ou `historique` dans la barre de commande.
+Appuyez sur `Win+Alt+V` et la barre de commande s'ouvre sur l'historique du presse-papiers, le plus récent en haut. Choisissez un élément et appuyez sur Entrée. Sumi le colle dans l'app où vous étiez. Appuyez à nouveau sur le raccourci ou sur Échap pour refermer la liste. Si une autre app l'utilise déjà, le raccourci est `Alt+Maj+V`. Vous pouvez aussi taper `presse-papiers` ou `historique` dans la barre de commande.
 
 ## La première fois
 
-La première fois, la barre affiche « Sumi gardera l'historique du presse-papiers sur ce PC, chiffré. » et la pastille « Autoriser ». Appuyez sur Entrée pour accepter, ou sur Échap pour refermer la barre. Après Échap, rien n'est gardé, et Sumi redemande au prochain `Win+Alt+V`, avec « Activer ». Une fois votre accord donné, Sumi s'en souvient après un redémarrage.
+La première fois, la barre affiche « Historique du presse-papiers, chiffré sur ce PC. » et la pastille « Autoriser ». Appuyez sur Entrée pour accepter, ou sur Échap pour refermer la barre. Après Échap, rien n'est gardé, et Sumi redemande au prochain `Win+Alt+V`, avec « Activer ». Une fois votre accord donné, Sumi s'en souvient après un redémarrage.
 
 La liste commence par ce que contient le presse-papiers au moment de votre accord. Rien de ce que vous avez copié avant n'y figure.
 

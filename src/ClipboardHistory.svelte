@@ -94,7 +94,8 @@
   let way = 0
   let shift = $state(false)
   const label = $derived(shift ? words.plain : words.paste)
-  let heard = $state(untrack(() => `${count(items.length, total, query, lang)}. ${words.help}`))
+  // Empty as it arrives, since a live region that comes in filled isn't read. Island.svelte's says the opening.
+  let heard = $state('')
 
   // Opening, rows pour down with the rest of the list. Once it is open, a row the filter brings in comes in where it
   // lands, a few at a time, in the order `arrivals` gives, and one it takes away leaves where it is.
@@ -108,9 +109,13 @@
   ): TransitionConfig {
     if (reduced) return { duration: 120, css: (t) => `opacity:${t}` }
     if (direction === 'out') {
+      // From its own middle, not from the point the opening poured it down from.
+      node.style.transformOrigin = ''
       return { duration: EXIT.duration, easing: leaving, css: (t, u) => `opacity:${t};scale:${1 - EXIT.scale * u}` }
     }
     if (opening) return i < LIST.rows ? enter(node, { step: 2 + i }) : {}
+    // The filter scrolls back to the top, so a row it brings in past the fifth lands out of sight.
+    if (i >= LIST.rows) return {}
     return {
       delay: ENTER.delay + ENTER.stagger * Math.min(arrivals[text] ?? 0, 3),
       duration: ENTER.duration,
@@ -137,6 +142,7 @@
       node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 120, fill: 'backwards' })
       return
     }
+    node.style.transformOrigin = ''
     node.animate(
       [
         { opacity: 0, filter: `blur(${ENTER.blur}px)`, scale: FILTER_IN },
@@ -158,6 +164,7 @@
       { opacity: 0, scale: reduced ? 1 : 1 - EXIT.scale },
     ]
     const easing = `cubic-bezier(${EXIT.easing.join(', ')})`
+    node.style.transformOrigin = ''
     const fade = node.animate(keyframes, { duration: reduced ? 120 : EXIT.duration, easing, fill: 'forwards' })
     fade.onfinish = () => {
       then()
@@ -169,12 +176,16 @@
   const to = (s: Spring, y: number, t: number) => (reduced ? s.jump(y) : s.to(y, 0.3, 0, t))
 
   // Typing filters: the selection goes back to the first row and the scroll to the top. Rows still in sight move up
-  // 60 ms after a shrink starts, as the content leaves first.
+  // 60 ms after a shrink starts, as the content leaves first. A fade's jump or a late move from an older filter is
+  // dropped, so the newest decides where each row ends up.
   let shown = untrack(() => items)
+  let filters = 0
   $effect.pre(() => {
     const next = items
     untrack(() => {
       if (next === shown) return
+      const mine = ++filters
+      const latest = () => mine === filters
       opening = false
       arrivals = Object.create(null)
       const t = performance.now()
@@ -195,10 +206,11 @@
         else if (was && is) {
           if (place.target !== y)
             setTimeout(() => {
+              if (!latest()) return
               to(place, y, performance.now())
               wake()
             }, lag)
-        } else if (was) fadeOut(nodes[text], () => place.jump(y))
+        } else if (was) fadeOut(nodes[text], () => latest() && place.jump(y))
         else {
           place.jump(y)
           fadeIn(nodes[text], k++)

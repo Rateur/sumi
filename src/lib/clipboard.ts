@@ -17,12 +17,13 @@ export const GLYPHS = {
 } as const
 
 /**
- * What the island says around the history. The consent comes in three parts, as the weather's does: the bar can't
- * hold it whole beside its chip, so the middle is cut first and the end always shows. A screen reader hears it whole.
+ * What the island says around the history. The consent fits whole beside its chip, about 335 px in French. It comes
+ * in three parts, as the weather's does, so a wider font cuts the middle first and the promise at the end always
+ * shows. A screen reader hears it whole.
  */
 export const CLIPBOARD_WORDS = {
   fr: {
-    consent: ['Sumi gardera ', 'l’historique du presse-papiers', ' sur ce PC, chiffré.'],
+    consent: ['', 'Historique du presse-papiers', ', chiffré sur ce PC.'],
     keys: 'Entrée pour accepter, Échap pour refuser.',
     allow: 'Autoriser',
     again: 'Activer',
@@ -40,7 +41,7 @@ export const CLIPBOARD_WORDS = {
     failed: 'Impossible de coller',
   },
   en: {
-    consent: ['Sumi will keep ', 'your clipboard history', ' on this PC, encrypted.'],
+    consent: ['', 'Clipboard history', ', encrypted on this PC.'],
     keys: 'Enter to allow, Esc to refuse.',
     allow: 'Allow',
     again: 'Turn on',
@@ -95,4 +96,9 @@ export function rows(matches: number, total: number, query: string, lang: Lang):
 export function count(matches: number, total: number, query: string, lang: Lang): string {
   const words = CLIPBOARD_WORDS[lang]
   return query.trim() ? words.of(matches, total) : words.count(total)
+}
+
+/** What a screen reader hears as the list opens: the count, then the keys. */
+export function arrived(total: number, lang: Lang): string {
+  return `${count(total, total, '', lang)}. ${CLIPBOARD_WORDS[lang].help}`
 }

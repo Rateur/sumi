@@ -4,6 +4,7 @@
 //! sleeps otherwise. Enter on an item pastes it into the window the bar came from. A copy never wakes the island,
 //! and nothing here goes on the network.
 
+use std::io::Write;
 use std::path::Path;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
@@ -20,6 +21,8 @@ const ITEMS: usize = 100;
 const ITEM_BYTES: usize = 64 * 1024;
 /// The sealed history, and the flag that holds the yes, in the app's local data folder.
 const KEPT: &str = "clipboard_history";
+/// The next history, written beside the kept one before it takes its place.
+const NEXT: &str = "clipboard_history.tmp";
 const ALLOWED: &str = "clipboard_allowed";
 
 /// Newest first, each text once.
@@ -66,15 +69,26 @@ impl History {
             .unwrap_or_default()
     }
 
-    /// Writes beside the file, then over it, so a crash never leaves half a history.
+    /// Writes beside the file, on the disk and not just in Windows' cache, then over it, so neither a crash nor a
+    /// power cut leaves half a history.
     fn save(&self, dir: &Path) -> std::io::Result<()> {
         let sealed = self
             .seal()
             .ok_or_else(|| std::io::Error::other("DPAPI refused"))?;
         std::fs::create_dir_all(dir)?;
-        let next = dir.join(format!("{KEPT}.tmp"));
-        std::fs::write(&next, sealed)?;
+        let next = dir.join(NEXT);
+        std::fs::File::create(&next).and_then(|mut file| {
+            file.write_all(&sealed)?;
+            file.sync_all()
+        })?;
         std::fs::rename(next, dir.join(KEPT))
+    }
+
+    /// Deletes the kept history, and the next one a crash or a refused rename left beside it.
+    fn forget(dir: &Path) {
+        for name in [KEPT, NEXT] {
+            let _ = std::fs::remove_file(dir.join(name));
+        }
     }
 }
 
@@ -148,6 +162,10 @@ fn copied(app: &AppHandle) {
     let Ok(mut history) = state.history.lock() else {
         return;
     };
+    // Paused while the clipboard was read: the pause stores `on` before it takes the lock, and the kept file stays.
+    if !state.on.load(Ordering::SeqCst) {
+        return;
+    }
     let Some(text) = text else {
         state.top.store(0, Ordering::SeqCst);
         return;
@@ -263,7 +281,7 @@ pub fn clear(app: &AppHandle) {
     if let Ok(mut history) = app.state::<Clipboard>().history.lock() {
         *history = History::default();
         if let Ok(dir) = app.path().app_local_data_dir() {
-            let _ = std::fs::remove_file(dir.join(KEPT));
+            History::forget(&dir);
         }
     }
     menu(app);
@@ -464,17 +482,17 @@ mod os {
     /// The clipboard's text, unless the app that copied it marked it private or it is too big to keep.
     // shortcut: text only, so copied files and images aren't kept; add them with a preview of their own.
     pub fn read(owner: usize) -> Option<String> {
-        let has = |name: &str| unsafe { IsClipboardFormatAvailable(format(name)) } != 0;
-        let mut marks = Marks {
-            exclude: has("ExcludeClipboardContentFromMonitorProcessing"),
-            ignore: has("Clipboard Viewer Ignore"),
-            history: None,
-        };
-        if marks.private() || !open(owner) {
+        if !open(owner) {
             return None;
         }
-        marks.history = data(format("CanIncludeInClipboardHistory"), 64)
-            .and_then(|b| Some(u32::from_le_bytes(b.get(..4)?.try_into().ok()?)));
+        // Read with the clipboard open, so the marks and the text belong to the same copy.
+        let has = |name: &str| unsafe { IsClipboardFormatAvailable(format(name)) } != 0;
+        let marks = Marks {
+            exclude: has("ExcludeClipboardContentFromMonitorProcessing"),
+            ignore: has("Clipboard Viewer Ignore"),
+            history: data(format("CanIncludeInClipboardHistory"), 64)
+                .and_then(|b| Some(u32::from_le_bytes(b.get(..4)?.try_into().ok()?))),
+        };
         // UTF-16 takes no more units than UTF-8 takes bytes: a larger one is past the cap either way.
         let text = (!marks.private())
             .then(|| data(u32::from(CF_UNICODETEXT), 2 * (ITEM_BYTES + 1)))
@@ -493,31 +511,42 @@ mod os {
         text
     }
 
-    /// Puts `text` alone on the clipboard, owned by `owner`, so its listener knows it for Sumi's.
+    /// Puts `text` alone on the clipboard, owned by `owner`, so its listener knows it for Sumi's. Marked first to
+    /// stay off Windows' cloud clipboard, which the app that copied it may have kept it from.
     pub fn write(owner: usize, text: &str) -> bool {
-        let units = wide(text);
+        let units: Vec<u8> = text
+            .encode_utf16()
+            .chain([0])
+            .flat_map(u16::to_le_bytes)
+            .collect();
         if !open(owner) {
             return false;
         }
-        // SAFETY: the block is allocated for `units`, which the copy fills exactly. Once SetClipboardData takes it,
-        // the clipboard owns it; until then it is Sumi's to free.
-        let written = unsafe {
-            EmptyClipboard() != 0 && {
-                let handle = GlobalAlloc(GMEM_MOVEABLE, units.len() * 2);
-                let ptr = GlobalLock(handle).cast::<u16>();
-                !ptr.is_null() && {
-                    std::ptr::copy_nonoverlapping(units.as_ptr(), ptr, units.len());
-                    GlobalUnlock(handle);
-                    let taken = !SetClipboardData(u32::from(CF_UNICODETEXT), handle).is_null();
-                    if !taken {
-                        GlobalFree(handle);
-                    }
-                    taken
-                }
-            }
-        };
+        let written = unsafe { EmptyClipboard() } != 0
+            && put(format("CanUploadToCloudClipboard"), &0u32.to_le_bytes())
+            && put(u32::from(CF_UNICODETEXT), &units);
         unsafe { CloseClipboard() };
         written
+    }
+
+    /// Hands `bytes` to the clipboard as `format`. Needs the clipboard open and emptied.
+    fn put(format: u32, bytes: &[u8]) -> bool {
+        // SAFETY: the block is allocated for `bytes`, which the copy fills exactly. Once SetClipboardData takes it,
+        // the clipboard owns it; until then it is Sumi's to free.
+        unsafe {
+            let handle = GlobalAlloc(GMEM_MOVEABLE, bytes.len());
+            let ptr = GlobalLock(handle).cast::<u8>();
+            if ptr.is_null() {
+                return false;
+            }
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len());
+            GlobalUnlock(handle);
+            let taken = !SetClipboardData(format, handle).is_null();
+            if !taken {
+                GlobalFree(handle);
+            }
+            taken
+        }
     }
 
     /// Waits for `target` to come to the front, then presses Ctrl+V. Keys still held from the bar, Shift from
@@ -791,7 +820,22 @@ mod tests {
         let h = history(&["deux", "un"]);
         h.save(&dir).expect("the temp folder is writable");
         assert_eq!(History::load(&dir), h);
-        assert!(!dir.join(format!("{KEPT}.tmp")).exists());
+        assert!(!dir.join(NEXT).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn clearing_leaves_no_history_behind() {
+        let dir = std::env::temp_dir().join(format!("sumi-clipboard-clear-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let h = history(&["deux", "un"]);
+        h.save(&dir).expect("the temp folder is writable");
+        // A save cut short before its rename.
+        std::fs::copy(dir.join(KEPT), dir.join(NEXT)).expect("the temp folder is writable");
+        History::forget(&dir);
+        assert!(!dir.join(KEPT).exists());
+        assert!(!dir.join(NEXT).exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

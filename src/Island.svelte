@@ -144,7 +144,7 @@
     type Tucker,
   } from './lib/tuck'
   import { TRAY, badge, tip, type Tray } from './lib/tray'
-  import { CLIPBOARD_WORDS, GLYPHS, matching, rows as listRows, type Landed } from './lib/clipboard'
+  import { CLIPBOARD_WORDS, GLYPHS, arrived, matching, rows as listRows, type Landed } from './lib/clipboard'
   import ClipboardHistory from './ClipboardHistory.svelte'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
@@ -1878,7 +1878,7 @@
     if (barOpen && tauri && giveBack) invoke('bar_focus', { open: false })
     barOpen = false
     line = ''
-    if (asking || allowing) spoken = ''
+    if (asking || allowing || history) spoken = ''
     asking = undefined
     // Closed while it asked: a no, so the next ask says « Activer ».
     if (allowing) refused = true
@@ -2048,6 +2048,7 @@
     spoken = ''
     if (items) {
       history = items
+      spoken = arrived(items.length, lang)
       return
     }
     allowing = true
@@ -2066,6 +2067,7 @@
     if (!items) return closeBar()
     line = ''
     history = items
+    spoken = arrived(items.length, lang)
   }
 
   // Enter on an item: the bar folds into the launch peek as Rust pastes it where you were. The peek says what

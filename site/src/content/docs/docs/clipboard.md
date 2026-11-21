@@ -3,11 +3,11 @@ title: Clipboard history
 description: Press Win+Alt+V for what you copied, and Enter to paste it where you were.
 ---
 
-Press `Win+Alt+V` and the command bar opens on your clipboard history, newest first. Pick an item and press Enter: it is pasted into the app you were in. Press the shortcut again or Esc to close it. If another app already uses it, the shortcut is `Alt+Shift+V`. You can also type `clipboard` or `clipboard history` in the command bar.
+Press `Win+Alt+V` and the command bar opens on your clipboard history, newest first. Pick an item and press Enter. Sumi pastes it into the app you were in. Press the shortcut again or Esc to close it. If another app already uses it, the shortcut is `Alt+Shift+V`. You can also type `clipboard` or `clipboard history` in the command bar.
 
 ## The first time
 
-The first time, the bar says "Sumi will keep your clipboard history on this PC, encrypted." and the chip says "Allow". Press Enter to allow it, or Esc to close the bar. After Esc nothing is kept, and Sumi asks again at your next `Win+Alt+V`, with "Turn on". Once you allow it, Sumi remembers your yes after a restart.
+The first time, the bar says "Clipboard history, encrypted on this PC." and the chip says "Allow". Press Enter to allow it, or Esc to close the bar. After Esc nothing is kept, and Sumi asks again at your next `Win+Alt+V`, with "Turn on". Once you allow it, Sumi remembers your yes after a restart.
 
 The list starts with what the clipboard holds as you allow it. Nothing you copied before is in it.
 
