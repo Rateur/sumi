@@ -1,7 +1,8 @@
 //! The tray icon: Sumi's logo, with the microphone or camera dot or the music in its corner as the island has them,
 //! a tooltip that says what's going on, and the menu. The page decides all of it as it changes, in its language. A
-//! left click tucks the island or brings it back; a right click opens the menu. Icons are drawn here, at the size the
-//! taskbar shows them, so they stay sharp at every scale.
+//! left click tucks the island or brings it back; a right click opens the menu, which pauses or clears the clipboard
+//! history while there is one. Icons are drawn here, at the size the taskbar shows them, so they stay sharp at every
+//! scale.
 
 use std::sync::Mutex;
 
@@ -10,6 +11,8 @@ use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{App, AppHandle, Emitter, Manager, WindowEvent, Wry};
+
+use crate::clipboard;
 
 /// The logo's tile and mark, as in the app's icon and the site's favicon.
 const INK: [u8; 3] = [0x0B, 0x0B, 0x0F];
@@ -39,13 +42,18 @@ pub struct Tray {
     badge: Badge,
     tip: String,
     tuck: String,
+    pause: String,
+    clear: String,
     quit: String,
 }
 
-/// The tray icon, its menu's items, and the corner and size it last drew.
+/// The tray icon, its menu and the menu's items, and the corner and size it last drew.
 pub struct Parts {
     icon: TrayIcon<Wry>,
+    menu: Menu<Wry>,
     tuck: MenuItem<Wry>,
+    pause: MenuItem<Wry>,
+    clear: MenuItem<Wry>,
     quit: MenuItem<Wry>,
     drawn: Mutex<(Badge, u32)>,
 }
@@ -54,17 +62,23 @@ pub struct Parts {
 /// page's fail, as they do while the taskbar isn't up at login, and Explorer shows them again when it restarts.
 pub fn build(app: &App, tip: String) -> tauri::Result<()> {
     let tuck = MenuItem::with_id(app, "tuck", "Tuck the island", true, None::<&str>)?;
+    let pause = MenuItem::with_id(app, "pause", "Pause clipboard history", true, None::<&str>)?;
+    let clear = MenuItem::with_id(app, "clear", "Clear clipboard history", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Sumi", true, None::<&str>)?;
     let size = side(scale(app.handle()));
+    // The clipboard history's items come in once clipboard::watch has read whether it is on.
+    let menu = Menu::with_items(app, &[&tuck, &quit])?;
     let icon = TrayIconBuilder::new()
         .icon(image(Badge::Plain, size))
         .tooltip(tip)
-        .menu(&Menu::with_items(app, &[&tuck, &quit])?)
+        .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "tuck" => {
                 let _ = app.emit("island://tuck", ());
             }
+            "pause" => clipboard::pause(app),
+            "clear" => clipboard::clear(app),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -81,7 +95,10 @@ pub fn build(app: &App, tip: String) -> tauri::Result<()> {
         .build(app)?;
     app.manage(Parts {
         icon,
+        menu,
         tuck,
+        pause,
+        clear,
         quit,
         drawn: Mutex::new((Badge::Plain, size)),
     });
@@ -105,7 +122,27 @@ pub fn set_tray(app: AppHandle, tray: Tray) {
     if let Some(parts) = app.try_state::<Parts>() {
         let _ = parts.icon.set_tooltip(Some(tray.tip));
         let _ = parts.tuck.set_text(tray.tuck);
+        let _ = parts.pause.set_text(tray.pause);
+        let _ = parts.clear.set_text(tray.clear);
         let _ = parts.quit.set_text(tray.quit);
+    }
+}
+
+/// Puts the clipboard history's items between the tuck and quit: the pause while it is `on`, the clear while one is
+/// `kept`.
+pub fn clipboard(app: &AppHandle, on: bool, kept: bool) {
+    let Some(parts) = app.try_state::<Parts>() else {
+        return;
+    };
+    // Removing an item the menu doesn't hold only fails.
+    let _ = parts.menu.remove(&parts.pause);
+    let _ = parts.menu.remove(&parts.clear);
+    let mut at = 1;
+    for (show, item) in [(on, &parts.pause), (kept, &parts.clear)] {
+        if show {
+            let _ = parts.menu.insert(item, at);
+            at += 1;
+        }
     }
 }
 
@@ -344,7 +381,7 @@ mod tests {
     #[test]
     fn reads_the_page_words() {
         let tray: Tray = serde_json::from_str(
-            r#"{"badge":"camera","tip":"Sumi · caméra : Zoom","tuck":"Ranger l'île","quit":"Quitter Sumi"}"#,
+            r#"{"badge":"camera","tip":"Sumi · caméra : Zoom","tuck":"Ranger l'île","pause":"Mettre en pause l'historique du presse-papiers","clear":"Effacer l'historique du presse-papiers","quit":"Quitter Sumi"}"#,
         )
         .expect("the page's shape");
         assert_eq!(tray.badge, Badge::Camera);
