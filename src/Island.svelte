@@ -2069,8 +2069,9 @@
   }
 
   // Enter on an item: the bar folds into the launch peek as Rust pastes it where you were. The peek says what
-  // happened, never what was pasted.
+  // happened, never what was pasted. A bar closed during the chip's press pastes nothing.
   function paste(text: string, plain: boolean) {
+    if (!history) return
     const words = CLIPBOARD_WORDS[lang]
     // Rust gives the focus back itself, then pastes.
     closeBar(false)

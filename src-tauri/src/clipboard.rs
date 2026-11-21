@@ -462,6 +462,7 @@ mod os {
     }
 
     /// The clipboard's text, unless the app that copied it marked it private or it is too big to keep.
+    // shortcut: text only, so copied files and images aren't kept; add them with a preview of their own.
     pub fn read(owner: usize) -> Option<String> {
         let has = |name: &str| unsafe { IsClipboardFormatAvailable(format(name)) } != 0;
         let mut marks = Marks {
