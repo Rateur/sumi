@@ -435,6 +435,11 @@ describe('natural phrasing', () => {
     ['météo', 'weather'],
     ['meteo', 'weather'],
     ['weat', 'weather'],
+    ['pres', 'clipboard'],
+    ['presse-pap', 'clipboard'],
+    ['histo', 'clipboard'],
+    ['cop', 'clipboard'],
+    ['clip', 'clipboard'],
   ] as const)('offers what %s is on its way to', (line, kind) => {
     expect(choices(line, options)[0].kind).toBe(kind)
   })
@@ -462,6 +467,32 @@ describe('natural phrasing', () => {
     for (const line of ['batman', 'timeline', 'ba', 'bat signal', 'database']) {
       expect(choices(line, options)[0].kind, line).toBe('ask')
     }
+  })
+
+  it.each([
+    'presse',
+    'presse-papiers',
+    'Presse papier',
+    'historique',
+    'historique du presse-papiers',
+    'copies',
+    'clipboard',
+    'Clipboard history',
+  ])('opens the clipboard history on %s', (line) => {
+    expect(choices(line, options)[0]).toEqual({ kind: 'clipboard', label: 'Presse-papiers' })
+    expect(choices(line, { ...options, lang: 'en' })[0]).toEqual({ kind: 'clipboard', label: 'Clipboard' })
+  })
+
+  it('keeps a longer line about the clipboard a question, and an app it starts one Tab away', () => {
+    for (const line of ['historique de la france', 'clipboard manager', 'copier coller', 'presse écrite']) {
+      expect(choices(line, options)[0].kind, line).toBe('ask')
+    }
+    const list = { ...options, apps: [{ name: 'Copilot' }] }
+    expect(choices('copi', list).map((c) => (c.kind === 'app' ? c.app.name : c.kind)).slice(0, 2)).toEqual([
+      'clipboard',
+      'Copilot',
+    ])
+    expect(choices('copil', list)[0]).toMatchObject({ kind: 'app' })
   })
 
   it('names the battery until Rust answers, and keeps its questions', () => {
@@ -682,13 +713,14 @@ describe('corpus', () => {
   })
 
   // While a command is typed, each prefix of 3 letters or more shows its chip or a question: never another app, nor
-  // a timer of another length once the right one has shown. The time and the battery may show, as they only answer:
-  // 'time' is on the way to 'timer', 'batt' to 'Battle.net'.
+  // a timer of another length once the right one has shown. The time, the battery and the clipboard history may show,
+  // as they only answer or open in the bar: 'time' is on the way to 'timer', 'batt' to 'Battle.net', 'copi' to Copilot.
   it.each(corpus.filter(([, , kind]) => kind !== 'ask'))('stays put while %s is typed', (line, _, kind, to) => {
     let shown = false
     for (let n = 3; n <= line.length; n++) {
       const c = read(line.slice(0, n))
-      if (c.kind === 'ask' || ((c.kind === 'clock' || c.kind === 'battery') && kind !== c.kind)) continue
+      const answers = c.kind === 'clock' || c.kind === 'battery' || c.kind === 'clipboard'
+      if (c.kind === 'ask' || (answers && kind !== c.kind)) continue
       const where = `${line.slice(0, n)} → ${c.kind} ${target(c)}`
       expect(c.kind, where).toBe(kind)
       if (kind === 'timer' && !shown) shown = target(c) === to
