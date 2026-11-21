@@ -13,7 +13,7 @@ The list starts with what the clipboard holds as you allow it. Nothing you copie
 
 ## In the list
 
-- **Type** to filter. Capitals and accents don't count. The count on the right becomes "2 of 12".
+- **Type** to filter. Capitals and accents don't count. The count on the right becomes "2 of 12". Type `colour`, `link`, `folder`, `email` or `code` to keep only those items.
 - **↑ and ↓** move the highlight. Past the fifth row, the list scrolls.
 - **Enter** pastes the item into the app you were in. The island says "Pasted" for a moment, never what was pasted.
 - **Shift+Enter** pastes it as plain text, without the formatting it was copied with. While you hold Shift, the chip says "Plain text".
@@ -22,6 +22,20 @@ The list starts with what the clipboard holds as you allow it. Nothing you copie
 If the app you were in runs as administrator, Windows doesn't let Sumi type into it. The item is copied, the island says "Copied · Ctrl+V", and you paste it yourself.
 
 Copying never wakes the island. Nothing shows until you press `Win+Alt+V`.
+
+## Tab
+
+Each row shows what it holds: a link, a colour, a file or a folder, an email address, code or text. The dim word on the right says what Tab gives. The chip says what Enter does.
+
+- **A link**: Tab gives "Open", which opens it in your browser. When the link has trackers such as `utm_source`, `fbclid` or `gclid`, Tab then gives "No trackers", which pastes it without them. The rest of the link stays.
+- **A colour**, such as `#1E90FF`, `rgb(30, 144, 255)` or `hsl(210, 100%, 56%)`: Tab turns it to HEX, RGB and HSL. Enter pastes the one shown.
+- **A file or a folder** on this PC: Tab gives "Folder", which opens File Explorer on its folder with it selected. Sumi never opens or runs the file.
+- **An email address**: Tab gives "Compose", which opens a new message to it in your mail app.
+- **Code** shows in a fixed-width font with its number of lines. Enter pastes it as plain text.
+
+Shift+Tab goes back. A row you leave goes back to its first action. The island shows the link's domain, the folder's name or "New message" for a moment.
+
+Sumi reads the item again before it opens anything. Only http and https links open.
 
 ## What Sumi keeps
 
@@ -43,4 +57,5 @@ Right-click Sumi's icon by the clock:
 - Text only: no images or files yet.
 - Only the app you copy from can mark a copy as private. Sumi keeps what it doesn't mark.
 - Only the newest item, while it is still on the clipboard, keeps the formatting it was copied with. The others paste as plain text.
+- Only addresses without accents get "Compose". A network path, such as `\\server\share`, gets no "Folder". Colours with transparency, such as `rgba()`, stay text.
 - While the island is hidden in fullscreen, the shortcut does nothing.
