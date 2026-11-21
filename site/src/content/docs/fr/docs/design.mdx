@@ -17,7 +17,7 @@ Cette page décrit l'île de la 1.0. Ce que fait déjà chaque version est dans 
 | Au repos | 132 × 34 px | Rien ne se passe. Affiche l'heure, ou la météo si elle est choisie. |
 | Survol | 152 × 36 px | Le curseur s'est posé un instant sur l'île. Ajoute la date, ou le nom d'un minuteur. |
 | Compacte | Appel 144, minuteur 112 (128 à partir d'une heure), musique 200 × 34 px* | Une activité est en cours : son contenu se place à gauche et à droite. |
-| Coup d'œil | Musique 300 × 56 px*, 3 s au plus ; minuteur fini 300 × 56 px*, 6 s ; chargeur branché 200 × 34 px*, 2 s, appareil qui se connecte, 3 s, et qui part, 2 s ; batterie faible 300 × 56 px*, 3 s | Il vient de se passer quelque chose : un minuteur a fini, le chargeur est branché, la batterie est faible, un appareil avec une batterie se connecte. Un nouveau morceau fait plutôt gonfler l'île, voir [Musique](#musique). Ceux de la batterie sont dans [Batterie](#batterie). |
+| Coup d'œil | Musique 300 × 56 px*, 3 s au plus ; minuteur fini 300 × 56 px*, 6 s ; chargeur branché 200 × 34 px*, 2 s, appareil qui se connecte, 3 s, et qui part, 2 s ; batterie faible 300 × 56 px*, 3 s ; la météo 300 × 56 px*, 4 s | Il vient de se passer quelque chose : un minuteur a fini, le chargeur est branché, la batterie est faible, un appareil avec une batterie se connecte, la météo est demandée dans la barre de commande. Un nouveau morceau fait plutôt gonfler l'île, voir [Musique](#musique). Ceux de la batterie sont dans [Batterie](#batterie), celui de la météo dans [Météo](#météo). |
 | Pastille de fin | Minuteur 150 × 34 px* au moins | Un minuteur a fini et attend un OK. |
 | Ouverte | Horloge et minuteur 280 × 120 px*, musique 360 × 164 px*, batteries 280 ou 360 × 120 px*, haut de 164 avec un anneau grandi, panneaux jusqu'à 560 px de large | Un clic. Se referme avec Échap ou un clic ailleurs. La musique affiche la pochette, le titre et l'artiste, la progression, et précédent, lecture ou pause, et suivant. Les batteries s'ouvrent depuis la barre de commande ou un coup d'œil de la batterie, voir [Batterie](#batterie). |
 | Bulle | Cercle de 34 px | Une deuxième activité, ou l'heure, à 8 px à droite de l'île. Un clic la fait passer sur l'île. |
@@ -45,7 +45,7 @@ L'heure passe en dernier : elle a l'île quand rien ne tourne, et la bulle quand
 
 Ce qui a été choisi depuis la bulle passe juste après un minuteur fini. Les minuteurs sont classés par leur fin, pas par ce qui est affiché : l'île garde toujours le prochain qui va sonner.
 
-Un coup d'œil de la batterie passe par-dessus cet ordre quelques secondes, et ne couvre jamais un appel ni le coup d'œil de fin d'un minuteur. Une batterie faible les attend, et attend aussi la barre, un panneau ouvert, l'accueil, la fin du plein écran et que Windows ne vous dise plus occupé. Le chargeur branché et un appareil qui se connecte sont abandonnés à la place.
+La météo demandée dans la barre passe par-dessus tout cela pendant 4 s, comme les réponses de la barre. Un coup d'œil de la batterie passe par-dessus cet ordre quelques secondes, et ne couvre jamais un appel ni le coup d'œil de fin d'un minuteur. Une batterie faible les attend, et attend aussi la barre, un panneau ouvert, l'accueil, la fin du plein écran et que Windows ne vous dise plus occupé. Le chargeur branché et un appareil qui se connecte sont abandonnés à la place.
 
 ## Musique
 
@@ -115,6 +115,23 @@ Un anneau par appareil, le PC d'abord, puis par sorte (casque, enceinte, manette
 - Les coups d'œil bougent comme celui d'un morceau ; le tracé de l'éclair est nouveau. **Animations réduites** : le contenu s'efface en 120 ms, la forme et les anneaux changent, le nouveau contenu apparaît en 120 ms ; les arcs sont tracés à leur niveau et l'éclair est là d'emblée. **Thème de contraste** : les anneaux gardent leurs couleurs, comme les points.
 - La batterie du portable est lue une fois au lancement : sans batterie, rien n'est écouté. Ensuite, seuls arrivent les événements de Windows : l'alimentation, le niveau et l'économiseur d'énergie, et pour les appareils la connexion et le niveau. Rien n'est écrit dans un journal ni stocké.
 
+## Météo
+
+Demandée dans la barre de commande seulement : pas de météo au repos, pas d'alerte et rien au lancement. C'est la seule requête réseau de Sumi, et elle attend un oui.
+
+- **Mots** : `météo`, `meteo` ou `weather` seuls sur la ligne, avec une ville ou non (`météo Lyon`, `météo à Lyon`, `weather in Paris`), finis par `demain` ou `tomorrow` ou non. Une ville n'a que des lettres, 4 mots au plus. `temps` n'est pas un mot de la météo. La pastille est calculée sur le PC pendant la frappe : « Météo Lyon », « Météo Lyon demain ». Ces mots passent avant le nom exact d'une app, car l'app météo de Windows s'appelle « Météo » ; Tab la propose toujours.
+- **Sans ville tapée** : la ville trouvée pendant la session. Avant, la pastille dit « Météo · tapez une ville » et Entrée ne fait rien.
+- **Le oui**, à la première Entrée météo d'une session. Rien n'est envoyé : le champ devient « Open-Meteo recevra « Lyon » et votre IP. », qu'on ne peut pas modifier et qui prend la place que laisse la pastille, qui devient « Autoriser ↵ ». Une ville longue est coupée par « … », jamais la fin de la phrase ; un lecteur d'écran l'entend en entier. Entrée vaut oui. Échap vaut non : la barre se ferme, rien n'est envoyé ni gardé. Pas de nouvelle forme ni de boutons.
+- **Pendant qu'Open-Meteo répond**, la barre se replie dans la forme du lancement, 200 × 34 px*, un nuage et « Météo Lyon ».
+- **Coup d'œil** : 300 × 56 px* pendant 4 s, toujours affiché : vous venez de demander. Un pictogramme de 28 px à 16 px du bord gauche, tracé en blanc sur 24 unités avec un trait de 1,6, puis 12 px plus loin deux lignes : « Lyon · 14° · Nuageux », ou « Lyon demain · Averses », en blanc, et dessous, à 60 %, la minimale et la maximale, « 9° / 17° ». Pour aujourd'hui, quand une heure encore à venir a 50 % de risque de pluie ou plus, la deuxième ligne devient « Pluie vers 16 h ». En bas à droite, à 18 px du bord et sur la ligne de base de la deuxième ligne, « Open-Meteo » en 11 px 500, blanc à 50 % (contraste AA) : un clic ouvre open-meteo.com. Le reste du coup d'œil ne prend pas de clic et ne cède pas sous l'appui.
+- **Six pictogrammes** : soleil, lune (ciel dégagé la nuit, d'après `is_day`), nuage (le brouillard aussi), pluie, neige et orage. La pastille et la forme du lancement montrent le nuage.
+- **Erreurs**, pendant 2 s dans la forme du lancement : « Ville introuvable », et « Pas de réseau », qui vaut aussi pour 8 s sans réponse.
+- **Degrés** : Celsius, ou Fahrenheit quand la langue de l'île a la région États-Unis (`en-US`).
+- **Requêtes** : la ville à `geocoding-api.open-meteo.com/v1/search` (un résultat, dans la langue de l'île), puis ses coordonnées, jamais les vôtres, à `api.open-meteo.com/v1/forecast`. Toutes deux avec `cache: 'no-store'`, pour que WebView2 n'écrive rien sur le disque, `credentials: 'omit'` et `referrerPolicy: 'no-referrer'`. La CSP autorise ces deux hôtes et aucun autre. Il n'y a pas de cache des prévisions.
+- **Gardé** : le oui et la ville trouvée, en mémoire pendant la session seulement. Quitter Sumi oublie les deux. Rien n'est écrit sur le disque ni dans un journal.
+- Le coup d'œil bouge comme celui d'un morceau : pictogramme, première ligne, deuxième ligne, puis la mention. **Animations réduites** et **thème de contraste** : comme les coups d'œil de la batterie.
+- Données météo d'[Open-Meteo](https://open-meteo.com), sous licence [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.fr).
+
 ## Interactions
 
 Les clics hors de l'île atteignent la fenêtre en dessous. L'île ne prend jamais le focus, sauf quand la barre de commande est ouverte : un jeu ou un appel le garde.
@@ -130,7 +147,7 @@ Limites connues : au toucher ou au stylet, le premier appui sur l'île atteint l
 | `Tab` / `Maj+Tab` | Cible suivante / précédente |
 | `Échap` | Fermer |
 
-Dans la barre de commande, `25m`, `90s` ou `1h30` est un minuteur, le nom d'une app l'ouvre, `quelle heure est-il` affiche l'heure, `batterie` donne les batteries sur la pastille et ouvre leur panneau, et tout le reste est une question. Un mot seul de trois lettres ou plus qui commence les mots de la barre d'une seule sorte donne cette réponse : `bat` et `autono` les batteries, `heu` et `tim` l'heure, `dat` la date. Une app qu'il commence aussi vient ensuite avec Tab. La ligne est lue sans la ponctuation, les formules de politesse ne comptent qu'autour d'un verbe, et un verbe compte pareil sous toutes ses formes (`ouvre`, `ouvrir`, `lance`, `open`). Un mot seul de quatre lettres ou plus ouvre l'app dont le nom, ou un mot de ce nom, commence ainsi, s'il n'y en a qu'une : `disc` ouvre Discord, mais jamais tant que le mot peut encore devenir un mot de la barre ou une question. Dans le doute, la ligne est une question : des apps à égalité ou un verbe à la forme négative n'ouvrent rien. La pastille dit ce que fera Entrée, et Tab la fait passer à la cible suivante : les apps à égalité, l'assistant par défaut, les autres assistants, puis le moteur de recherche. Sur une ligne vide, Entrée ne fait rien.
+Dans la barre de commande, `25m`, `90s` ou `1h30` est un minuteur, le nom d'une app l'ouvre, `quelle heure est-il` affiche l'heure, `batterie` donne les batteries sur la pastille et ouvre leur panneau, `météo à Lyon` demande à Open-Meteo après un oui, voir [Météo](#météo), et tout le reste est une question. Un mot seul de trois lettres ou plus qui commence les mots de la barre d'une seule sorte donne cette réponse : `bat` et `autono` les batteries, `heu` et `tim` l'heure, `dat` la date, `mét` et `weat` la météo. Une app qu'il commence aussi vient ensuite avec Tab. La ligne est lue sans la ponctuation, les formules de politesse ne comptent qu'autour d'un verbe, et un verbe compte pareil sous toutes ses formes (`ouvre`, `ouvrir`, `lance`, `open`). Un mot seul de quatre lettres ou plus ouvre l'app dont le nom, ou un mot de ce nom, commence ainsi, s'il n'y en a qu'une : `disc` ouvre Discord, mais jamais tant que le mot peut encore devenir un mot de la barre ou une question. Dans le doute, la ligne est une question : des apps à égalité ou un verbe à la forme négative n'ouvrent rien. La pastille dit ce que fera Entrée, et Tab la fait passer à la cible suivante : les apps à égalité, l'assistant par défaut, les autres assistants, puis le moteur de recherche. Sur une ligne vide, Entrée ne fait rien.
 
 Le raccourci fait passer la barre au premier plan, avec le focus. Échap rend le focus à la fenêtre où vous étiez ; un clic ailleurs ou un changement d'app referme aussi la barre. Avant qu'une app ou un site s'ouvre, la barre lâche le focus, pour que ce qui s'ouvre passe au premier plan. Tant que l'île est masquée en plein écran, le raccourci ne fait rien.
 
@@ -184,7 +201,7 @@ Ce qu'affichent l'île et sa bulle décide si elle reste ou se range toute seule
 |---|---|
 | Point du micro ou de la caméra | Reste, et la fait revenir |
 | Appel | Reste, et la fait revenir |
-| Barre de commande ou sa réponse | Reste, et la fait revenir |
+| Barre de commande ou sa réponse, coup d'œil de la météo compris | Reste, et la fait revenir |
 | Accueil | Reste, et la fait revenir |
 | Coup d'œil de fin ou pastille de fin d'un minuteur | Reste, et la fait revenir |
 | Batterie faible, celle du PC ou d'un appareil | Reste, et la fait revenir |

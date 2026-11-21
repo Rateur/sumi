@@ -48,8 +48,8 @@ export function kindOf(activity: Activity, at: number, peeking?: string): Kind {
 }
 
 /**
- * Everything the island shows: the island, its bubble, the privacy tag, and the bar, the welcome or a battery peek
- * over them.
+ * Everything the island shows: the island, its bubble, the privacy tag, and the bar, the welcome or a battery or
+ * weather peek over them.
  */
 export function kinds(
   state: {

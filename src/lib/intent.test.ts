@@ -430,8 +430,25 @@ describe('natural phrasing', () => {
     ['heu', 'clock'],
     ['tim', 'clock'],
     ['dat', 'clock'],
+    ['mét', 'weather'],
+    ['mete', 'weather'],
+    ['météo', 'weather'],
+    ['meteo', 'weather'],
+    ['weat', 'weather'],
   ] as const)('offers what %s is on its way to', (line, kind) => {
     expect(choices(line, options)[0].kind).toBe(kind)
+  })
+
+  it("offers the weather on its way, in the session's city or asking for one, but not « met »", () => {
+    expect(choices('mét', options)[0]).toEqual({ kind: 'weather', day: 0, label: 'Météo · tapez une ville' })
+    expect(choices('weat', { ...options, lang: 'en', city: 'Paris' })[0].label).toBe('Weather Paris')
+    expect(choices('met', options)[0].kind).toBe('ask')
+    expect(choices('met un minuteur de 10s', options)[0].kind).toBe('timer')
+    const apps = [{ name: 'Météo' }]
+    expect(choices('mete', { ...options, apps }).map((c) => c.label).slice(0, 2)).toEqual([
+      'Météo · tapez une ville',
+      'Ouvrir Météo',
+    ])
   })
 
   it('puts the bar first, and an app the word also starts one Tab away', () => {
@@ -450,6 +467,44 @@ describe('natural phrasing', () => {
   it('names the battery until Rust answers, and keeps its questions', () => {
     expect(choices('batterie', options)[0].label).toBe('Batterie')
     expect(choices('batterie faible que faire', options)[0].kind).toBe('ask')
+  })
+
+  it.each([
+    ['météo', undefined, 0],
+    ['meteo', undefined, 0],
+    ['weather', undefined, 0],
+    ['météo Lyon', 'Lyon', 0],
+    ['météo à Lyon', 'Lyon', 0],
+    ['weather in Paris', 'Paris', 0],
+    ['météo Lyon demain', 'Lyon', 1],
+    ['weather Paris tomorrow', 'Paris', 1],
+    ['météo demain', undefined, 1],
+    ["météo aujourd'hui", undefined, 0],
+    ['météo Saint-Étienne', 'Saint-Étienne', 0],
+  ] as const)('reads %s as the weather', (line, city, day) => {
+    expect(choices(line, options)[0]).toMatchObject({ kind: 'weather', city, day })
+  })
+
+  it('names the weather on the chip, without a network request', () => {
+    expect(choices('météo à Lyon demain', options)[0].label).toBe('Météo Lyon demain')
+    expect(choices('weather in Paris tomorrow', { ...options, lang: 'en' })[0].label).toBe('Weather Paris tomorrow')
+    expect(choices('météo', options)[0].label).toBe('Météo · tapez une ville')
+    expect(choices('weather', { ...options, lang: 'en' })[0].label).toBe('Weather · type a city')
+    expect(choices('météo', { ...options, city: 'Lyon' })[0].label).toBe('Météo Lyon')
+  })
+
+  it('keeps temps and weather questions as questions', () => {
+    for (const line of ['temps', 'quel temps fait-il', 'temps à Lyon', 'weather forecast for next week', 'weather in 10 min'])
+      expect(choices(line, options)[0].kind, line).toBe('ask')
+  })
+
+  it("puts the weather before Windows' own Météo app, which Tab and a verb still open", () => {
+    const apps = [{ name: 'Météo' }]
+    expect(choices('météo', { ...options, apps }).map((c) => c.label).slice(0, 2)).toEqual([
+      'Météo · tapez une ville',
+      'Ouvrir Météo',
+    ])
+    expect(choices('ouvre météo', { ...options, apps })[0].kind).toBe('app')
   })
 
   it('holds an app or the time while a tail is typed after it', () => {
@@ -571,7 +626,17 @@ describe('corpus', () => {
   const options = { apps: installed.map((name) => ({ name })), lang: 'fr', claudeApp: true, now, locale: 'fr-FR' } as const
   const options2 = { ...options, apps: [...options.apps] }
   const target = (c: Choice) =>
-    c.kind === 'app' ? c.app.name : c.kind === 'ask' ? c.to : c.kind === 'timer' ? c.ms : c.kind === 'clock' ? c.what : ''
+    c.kind === 'app'
+      ? c.app.name
+      : c.kind === 'ask'
+        ? c.to
+        : c.kind === 'timer'
+          ? c.ms
+          : c.kind === 'clock'
+            ? c.what
+            : c.kind === 'weather'
+              ? (c.city ?? '')
+              : ''
   const read = (line: string) => choices(line, options)[0]
 
   it('is mostly questions, French and English alike', () => {
@@ -627,7 +692,8 @@ describe('corpus', () => {
       const where = `${line.slice(0, n)} → ${c.kind} ${target(c)}`
       expect(c.kind, where).toBe(kind)
       if (kind === 'timer' && !shown) shown = target(c) === to
-      else expect(target(c), where).toBe(to)
+      // A city grows letter by letter.
+      else if (kind !== 'weather') expect(target(c), where).toBe(to)
     }
   })
 })

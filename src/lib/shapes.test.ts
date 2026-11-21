@@ -75,6 +75,15 @@ describe('resolveView', () => {
     expect(resolveView({ ...all, clock: true })).toEqual({ name: 'hover' })
   })
 
+  it('shows the weather asked for over everything but the bar and its fold, as a 300 × 56 peek', () => {
+    const power = { kind: 'plugged', percent: 5 } as const
+    const all = { activity: call, hovered: true, expanded: true, welcome: hello, power }
+    expect(resolveView({ ...all, bar: true, weather: true })).toEqual({ name: 'bar' })
+    expect(resolveView({ ...all, launch: true, weather: true })).toEqual({ name: 'launch' })
+    expect(resolveView({ ...all, weather: true })).toEqual({ name: 'weather' })
+    expect(sizeOf({ name: 'weather' })).toEqual({ width: 300, height: 56 })
+  })
+
   it('shows the welcome under the command bar and over everything else, hover included', () => {
     const all = { activity: music, hovered: true, expanded: true, peeking: 'm', clock: true, welcome: hello }
     expect(resolveView({ ...all, bar: true })).toEqual({ name: 'bar' })

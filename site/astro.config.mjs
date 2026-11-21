@@ -54,6 +54,7 @@ export default defineConfig({
 						'docs/command-bar',
 						'docs/timers',
 						'docs/battery',
+						'docs/weather',
 					],
 				},
 				{
