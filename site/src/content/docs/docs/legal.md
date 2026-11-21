@@ -5,7 +5,7 @@ description: Publisher, host and personal data of the Sumi website.
 
 ## Publisher
 
-This site is published on a non-professional basis by Rateur, the author of Sumi. As French law allows (LCEN, article 6-III-2), the publisher's identity has been given to the host.
+This site is published on a non-professional basis by Rateur, the author of Sumi. As French law allows (LCEN, article 1-1, II), the publisher's identity has been given to the host.
 
 Contact: [GitHub Discussions](https://github.com/Rateur/sumi/discussions) or contact@rateur.fr.
 
