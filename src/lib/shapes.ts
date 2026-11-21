@@ -5,8 +5,9 @@ export type View =
   | { name: 'idle' }
   // A timer under the cursor shows its name, and a finished one its buttons. `size` is then worked out by timerSize.
   | { name: 'hover'; activity?: Activity; size?: Size }
-  // The command bar, and the peek it folds into after Enter: an app launching or a question handed off.
-  | { name: 'bar' }
+  // The command bar, with the clipboard history's list under it when it has `rows`, and the peek it folds into after
+  // Enter: an app launching, a question handed off or an item pasted.
+  | { name: 'bar'; rows?: number }
   | { name: 'launch' }
   // The weather the bar asked for, for a few seconds.
   | { name: 'weather' }
@@ -59,6 +60,15 @@ export function welcomeWidth(step: Welcome['step'], text: number): number {
 }
 
 const PLAYER: Size = { width: 360, height: 164 }
+
+/**
+ * The clipboard history: the bar's own row, then `rows` rows of `row` px under it, up to `rows`, and `inset` px below
+ * them. The list hangs under the bar, so nothing in the bar moves when it opens.
+ */
+export const LIST = { field: 44, row: 40, rows: 5, inset: 6 } as const
+
+/** The list's height for so many rows: 90 px for one, 250 for five. */
+export const listH = (rows: number) => LIST.field + rows * LIST.row + LIST.inset
 
 /** The privacy tag's card: a row per app, up to `rows` (the last one then counts the rest), then its buttons. */
 export const CARD = { width: 248, row: 38, frame: 64, rows: 4 }
@@ -133,6 +143,8 @@ export function resolveView(state: {
   expanded: boolean
   peeking?: string
   bar?: boolean
+  /** The rows of the clipboard history's list, while the bar shows it. */
+  rows?: number
   launch?: boolean
   /** The weather the bar asked for, which always shows. */
   weather?: boolean
@@ -146,9 +158,9 @@ export function resolveView(state: {
   /** The batteries panel's size, while it is open. */
   batteries?: Size
 }): View {
-  const { activity, hovered, expanded, peeking, bar, launch, weather, clock, timer, welcome, blank, power, batteries } =
-    state
-  if (bar) return { name: 'bar' }
+  const { activity, hovered, expanded, peeking, bar, rows, launch, weather, clock, timer, welcome, blank, power } = state
+  const { batteries } = state
+  if (bar) return rows ? { name: 'bar', rows } : { name: 'bar' }
   if (launch) return { name: 'launch' }
   if (weather) return { name: 'weather' }
   if (welcome) return welcome
@@ -180,6 +192,7 @@ export function sizeOf(view: View): Size {
   if (view.name === 'compact') return COMPACT[view.activity.kind]
   if (view.name === 'peek') return PEEK[view.activity.kind] ?? COMPACT[view.activity.kind]
   if (view.name === 'weather') return PEEKED
+  if (view.name === 'bar' && view.rows) return { width: SIZES.bar.width, height: listH(view.rows) }
   // Plugging in and a device connecting take the music's compact shape; a low battery, a song's peek.
   if (view.name === 'power') return ['plugged', 'device', 'deviceGone'].includes(view.power.kind) ? COMPACT.music : PEEKED
   return SIZES[view.name]
