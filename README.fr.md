@@ -36,7 +36,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [x] Une barre de commande (`Win+Alt+S`) : un minuteur, une app, une question pour Claude, ChatGPT, Gemini, Perplexity ou un moteur de recherche ; des minuteurs sur l'île, dès `25m` (0.6.0)
 - [x] Ranger l'île en un fin trait en haut d'un balayage, ou seule au repos ; une icône vivante dans la zone de notification, avec le micro, la caméra et la musique, qui la range ou la fait revenir (0.7.0)
 - [x] La météo depuis la barre de commande, via [Open-Meteo](https://open-meteo.com) ; les batteries du PC et de ses appareils Bluetooth, y compris celles que Windows n'affiche pas, avec un coup d'œil quand vous branchez le PC, quand sa batterie faiblit ou qu'un appareil se connecte (0.8.0)
-- [ ] Presse-papiers et capture : vos dernières copies dans la barre de commande (`Win+Alt+V`), collées là où vous étiez, chacune avec son action. Une capture (`Win+Alt+C`) copie depuis l’écran une couleur, un texte ou un QR code.
+- [ ] Presse-papiers et capture : l’historique du presse-papiers dans la barre de commande (`Win+Alt+V`), chaque élément collé là où vous étiez, avec son action. Une capture (`Win+Alt+C`) copie depuis l’écran une couleur, un texte ou un QR code.
 - [ ] Les réglages (écran, thème, langue, raccourcis), les mises à jour automatiques et le Microsoft Store
 
 ## Comment c'est fait
