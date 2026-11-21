@@ -53,7 +53,7 @@ Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec
 
 ## Confidentialité
 
-Sumi ne collecte rien. Sa seule requête réseau est la météo, et seulement après votre accord dans la barre de commande, une fois par session : [Open-Meteo](https://open-meteo.com) reçoit alors la ville tapée et votre adresse IP, qu'il garde dans ses journaux jusqu'à 90 jours ([conditions](https://open-meteo.com/en/terms)). Votre oui et la ville restent en mémoire jusqu'à ce que Sumi se ferme.
+Sumi ne collecte rien. Sa seule requête réseau est la météo, et seulement après votre accord dans la barre de commande, une fois par session : [Open-Meteo](https://open-meteo.com) reçoit alors la ville tapée et votre adresse IP, qu'il garde dans ses journaux jusqu'à 90 jours ([conditions](https://open-meteo.com/en/terms)). Votre oui et la ville restent en mémoire jusqu'à ce que Sumi se ferme. L'historique du presse-papiers, une fois autorisé, reste sur ce PC, chiffré pour votre compte Windows, et n'est envoyé nulle part.
 
 ## Contribuer
 

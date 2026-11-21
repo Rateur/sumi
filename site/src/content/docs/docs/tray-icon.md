@@ -14,7 +14,7 @@ Sumi's icon sits in the notification area, by the clock. It shows the microphone
 ## Click it
 
 - **Left click** tucks the island, or brings it back. See [Tuck](../tuck/).
-- **Right click** opens the menu: **Tuck the island** or **Bring the island back**, then **Quit Sumi**.
+- **Right click** opens the menu: **Tuck the island** or **Bring the island back**, then **Quit Sumi**. Once you allow the clipboard history, **Pause clipboard history** and **Clear clipboard history** come before **Quit Sumi**. See [Clipboard history](../clipboard/).
 
 ## Keep it in sight
 

@@ -55,6 +55,7 @@ export default defineConfig({
 						'docs/timers',
 						'docs/battery',
 						'docs/weather',
+						'docs/clipboard',
 					],
 				},
 				{

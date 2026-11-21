@@ -63,7 +63,7 @@ The weather asked in the bar shows over all of it for 4 s, as the bar's answers 
 - A click on the done pill, or OK, dismisses it, and so does `stop` in the bar. Esc and a click elsewhere don't: you may not have seen it yet. +1 min starts a minute under the same name. There is no Repeat button.
 - A short, soft chime made by the app every 10 s for a minute, then silence, at Windows' volume. On by default; Settings, in 0.10, will turn it off. The browser demo stays silent.
 - While Windows says you're busy, a finished timer still peeks and rings: it is an alarm you set. In fullscreen only the chime plays; when the fullscreen app ends, the island drops back, swells once and shows the end.
-- Timers live in memory only: quitting Sumi or restarting Windows clears them. Nothing the island shows is written to disk.
+- Timers live in memory only: quitting Sumi or restarting Windows clears them. Nothing a timer shows is written to disk.
 
 ## Microphone and camera
 
@@ -126,6 +126,25 @@ Asked in the command bar only: no weather at rest, no alert and nothing at launc
 - The peek moves as a song's: glyph, first line, second line, then the credit. **Reduced motion** and **contrast theme**: as the battery's peeks.
 - Weather data by [Open-Meteo](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
+## Clipboard history
+
+Opened with `Win+Alt+V` or from the command bar, after a yes. A copy never wakes the island: no peek, no sound, no dot.
+
+- **Words**: `presse-papiers`, `presse`, `historique`, `copies`, `clipboard` or `clipboard history` on a line of their own, and `pres`, `histo`, `cop` or `clip` on their way. The chip reads "Clipboard ↵" with the clipboard mark, and Enter opens the list in place.
+- **The yes**, at the first press, in the bar's own 480 × 44 px: no new shape and no buttons. The field shows "Sumi will keep your clipboard history on this PC, encrypted." in 15 px 500, white, read-only, cut in its middle with "…" where the chip needs the room, never at its end. A screen reader hears it whole, then "Enter to allow, Esc to refuse." The chip reads "Allow ↵" with the clipboard mark. Enter is yes: the chip gives, and 110 ms later the sentence leaves and the list opens on what the clipboard holds now, over "What you copy will show here." in 13 px 500, white at 50 %. Esc is no: nothing is kept, and the next press asks again with "Turn on ↵". The yes is kept across restarts, until the tray's pause.
+- **Shape**: 480 px wide, the bar's own. The list hangs under the bar's row, so nothing in the bar moves. 44 + n × 40 + 6 px tall for 1 to 5 rows: 90, 130, 170, 210, 250. Radius 28.
+- **Rows**: 40 px tall, 6 px in from the sides, so 468 wide. A text glyph in the bar's 16 px slot, 18 px from the panel's left, drawn on 16 units with a 1.5 stroke, white at 78 %. The text from 44 px, in 14 px 500 white, on one line ending in "…". Past 5 rows the list scrolls by whole rows (0.3 s, no bounce), and rows clip under the bar's row.
+- **Field and count**: "Search clipboard history", and in the bar's chip place "12 items", then "2 of 12" while filtering, in 13 px 500, white at 45 %.
+- **Highlight**: a 468 × 40 px pill, radius 20, white at 10 %, concentric with the 28 px corner 6 px in. On ↑ or ↓ the edge in the direction of travel leads (0.22 s, no bounce) and the other trails (0.34 s, no bounce), so it stretches to about 49 px and gathers, never bouncing.
+- **Chip**: the bar's, 28 px tall, 6 px in from the highlight's right end, without a mark since the row has its glyph. It rides the leading edge, so it lands on the new row first. "Paste ↵", or "Plain text ↵" while Shift is held, the label sliding 4 px up or down.
+- **Opening**: from the island on the panel's springs; from the bar, only the height opens, on the panel's height. Content comes in as everywhere, scaled from the panel's top centre so the rows pour down out of the bar: the field at 50 ms, the count at 85, the first row and the highlight at 120, the chip and row 2 at 155, rows 3 to 5 at 190, 225 and 260. The list never bounces.
+- **Filter**: on the text, capitals and accents aside. The selection goes back to the first row and the scroll to the top. Rows that go leave in place (`EXIT`, scale 0.94). Rows in sight before and after move 60 ms later (0.3 s, no bounce); the others fade out where they were or in where they land, from a 6 px blur at scale 0.97, 35 ms apart, four at most. The height follows (0.3 s, no bounce) both ways. With nothing left, "Nothing contains "xyz"" in 13 px 500, white at 50 %, in a 90 px panel; the highlight fades and the chip shrinks away.
+- **Enter**: the chip gives, and 110 ms later the bar folds into the launch shape, 200 × 34 px, height first, with the text glyph and "Pasted", "Pasted as plain text", or "Copied · Ctrl+V" when the app runs as administrator, for 1.2 s. Never what was pasted. Meanwhile Sumi puts the item on the clipboard, gives the focus back, waits up to 100 ms for that window and sends Ctrl+V. The item moves to the top. Only the newest one, while the clipboard still holds it, keeps the formatting it was copied with.
+- **Esc** folds the list back into what the island showed.
+- **Kept**: text only (`CF_UNICODETEXT`), 100 items at most, the oldest going first, and no copy over 64 KB. Never kept: copies marked `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` = 0 or `Clipboard Viewer Ignore`, and Sumi's own writes. The history is sealed with DPAPI for the Windows user, in the app's local data folder, and locking or sleep keeps it. The tray's pause forgets the yes and keeps the history; its clear deletes the file.
+- While the list shows, the island stays out of screenshots and shared screens (`WDA_EXCLUDEFROMCAPTURE`).
+- **Reduced motion**: shapes change at once, content fades out in 120 ms and the new content in over 120 ms, the highlight jumps, filtered rows crossfade, and the chip neither gives nor slides. **Contrast theme**: the highlight and the chip are outlined.
+
 ## Input
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
@@ -137,15 +156,16 @@ Known limits: with touch or a pen, the first tap on the island reaches the app u
 | Shortcut | Action |
 |---|---|
 | `Win+Alt+S` | Open or close the command bar |
+| `Win+Alt+V` | Open or close the clipboard history |
 | `Enter` | Run what the chip shows |
 | `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, `battery` gives the batteries on the chip and opens their panel, `weather in Paris` asks Open-Meteo after a yes, see [Weather](#weather), and anything else is a question. A word alone of three letters or more that starts the bar's own words of one kind gives that answer: `bat` and `autono` the batteries, `heu` and `tim` the time, `dat` the date, `mét` and `weat` the weather. An app it also starts comes next on Tab. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, `battery` gives the batteries on the chip and opens their panel, `weather in Paris` asks Open-Meteo after a yes, see [Weather](#weather), `clipboard` opens the clipboard history, see [Clipboard history](#clipboard-history), and anything else is a question. A word alone of three letters or more that starts the bar's own words of one kind gives that answer: `bat` and `autono` the batteries, `heu` and `tim` the time, `dat` the date, `mét` and `weat` the weather, `pres` and `clip` the clipboard history. An app it also starts comes next on Tab. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
 
 The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
 
-If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are taken, the bar has no shortcut, and nothing pops up to say so. Settings, in 0.10, will let you change it. `Ctrl+Alt+S` is left alone, since some keyboards type a letter with AltGr+S, and so is `Ctrl+Shift+S`, Save As. So are `Alt+Space` (Windows and PowerToys Run) and `Ctrl+Alt+Space` (Claude's quick entry).
+If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are taken, the bar has no shortcut, and nothing pops up to say so. Settings, in 0.10, will let you change it. `Ctrl+Alt+S` is left alone, since some keyboards type a letter with AltGr+S, and so is `Ctrl+Shift+S`, Save As. So are `Alt+Space` (Windows and PowerToys Run) and `Ctrl+Alt+Space` (Claude's quick entry). The clipboard history takes `Win+Alt+V`, or `Alt+Shift+V` the same way; `Win+V` is Windows' own.
 
 ## Staying out of the way
 
@@ -244,7 +264,7 @@ Sumi's logo in the notification area, drawn at the taskbar's small icon size (16
 
 The first row that applies wins, as on the island: green over orange, any dot over the music. A paused song shows nothing here. The corner sits around the tile's corner arc, as the island's disc holds its dot: a ring of the tile, as wide as the icon over 16, all around it. With several apps on the device, the tooltip names the first and counts the others. It is cut to the 127 characters Windows keeps.
 
-A left click tucks the island or brings it back; a right click opens the menu: "Tuck the island" or "Bring the island back", then "Quit Sumi", in the island's language. The icon and its tooltip change only when what they show changes.
+A left click tucks the island or brings it back; a right click opens the menu: "Tuck the island" or "Bring the island back", then "Pause clipboard history" while the history is on and "Clear clipboard history" while one is kept, then "Quit Sumi", in the island's language. The icon and its tooltip change only when what they show changes.
 
 ## Welcome
 
