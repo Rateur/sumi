@@ -114,15 +114,15 @@ One ring per device, the PC first, then by kind (headset, speaker, controller, m
 Asked in the command bar only: no weather at rest, no alert and nothing at launch. It is Sumi's only network request, and it waits for a yes.
 
 - **Words**: `météo`, `meteo` or `weather` on a line of their own, with a city or not (`météo Lyon`, `météo à Lyon`, `weather in Paris`), ending with `demain` or `tomorrow` or not. A city is letters only, 4 words at most. `temps` is no weather word. The chip is worked out on the PC as you type: "Weather Paris", "Weather Paris tomorrow". These words come before an app's exact name, since Windows' own weather app is called "Weather"; Tab still offers it.
-- **No city typed**: the city found this session. Before one, the chip reads "Weather · type a city" and Enter does nothing.
-- **The yes**, on the first weather Enter of a session. Nothing is sent: the field becomes "Open-Meteo will get "Lyon" and your IP.", which can't be edited and takes the room the chip leaves, and the chip becomes "Allow ↵". A long city is cut with "…", never the end of the sentence; a screen reader hears it whole. Enter is yes. Esc is no: the bar closes, and nothing is sent or kept. No new shape and no buttons.
+- **No city typed**: the city last found, kept across restarts. Before one, the chip reads "Weather · type a city" and Enter does nothing.
+- **The yes**, on the first weather Enter, and again after "Forget the weather". Nothing is sent: the field becomes "Open-Meteo will get "Lyon" and your IP.", which can't be edited and takes the room the chip leaves, and the chip becomes "Allow ↵". A long city is cut with "…", never the end of the sentence; a screen reader hears it whole. Enter is yes. Esc is no: the bar closes, and nothing is sent or kept. No new shape and no buttons.
 - **While Open-Meteo answers**, the bar folds into the launch shape, 200 × 34 px*, a cloud and "Weather Lyon".
 - **Peek**: 300 × 56 px* for 4 s, which always shows: you just asked. A 28 px glyph 16 px from the left, drawn white on 24 units with a 1.6 stroke, then 12 px further two lines: "Lyon · 14° · Cloudy", or "Lyon tomorrow · Showers", in white, and under it, at 60 %, the low and the high, "9° / 17°". For today, when an hour still to come has a rain chance of 50 % or more, the second line is "Rain around 4 pm" instead. In the bottom right corner, 18 px in and on the second line's baseline, "Open-Meteo" in 11 px 500, white at 50 % (AA contrast): a click opens open-meteo.com. The rest of the peek takes no click and doesn't give under a press.
 - **Six glyphs**: sun, moon (a clear sky at night, from `is_day`), cloud (fog too), rain, snow and storm. The chip and the launch shape show the cloud.
 - **Errors**, for 2 s in the launch shape: "City not found", and "No connection", which 8 s without an answer counts as too.
 - **Degrees**: Celsius, or Fahrenheit when the island's language has the US region (`en-US`).
 - **Requests**: the city to `geocoding-api.open-meteo.com/v1/search` (one result, in the island's language), then its coordinates, never yours, to `api.open-meteo.com/v1/forecast`. Both with `cache: 'no-store'`, so WebView2 writes nothing to disk, `credentials: 'omit'` and `referrerPolicy: 'no-referrer'`. The CSP allows these two hosts and no other. There is no forecast cache.
-- **Kept**: the yes and the city found, in memory for the session only. Quitting Sumi forgets both. Nothing is written to disk or a log.
+- **Kept**: the yes and the city last found, sealed with DPAPI for the Windows user in the app's local data folder, as the clipboard history is. "Forget the weather" in the tray menu deletes them. Nothing goes to a log.
 - The peek moves as a song's: glyph, first line, second line, then the credit. **Reduced motion** and **contrast theme**: as the battery's peeks.
 - Weather data by [Open-Meteo](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
@@ -286,7 +286,7 @@ Sumi's logo in the notification area, drawn at the taskbar's small icon size (16
 
 The first row that applies wins, as on the island: green over orange, any dot over the music. A paused song shows nothing here. The corner sits around the tile's corner arc, as the island's disc holds its dot: a ring of the tile, as wide as the icon over 16, all around it. With several apps on the device, the tooltip names the first and counts the others. It is cut to the 127 characters Windows keeps.
 
-A left click tucks the island or brings it back; a right click opens the menu: "Tuck the island" or "Bring the island back", then "Pause clipboard history" while the history is on and "Clear clipboard history" while one is kept, then "Quit Sumi", in the island's language. The icon and its tooltip change only when what they show changes.
+A left click tucks the island or brings it back; a right click opens the menu: "Tuck the island" or "Bring the island back", then "Pause clipboard history" while the history is on and "Clear clipboard history" while one is kept, "Forget the weather" while its yes is kept, then "Quit Sumi", in the island's language. The icon and its tooltip change only when what they show changes.
 
 ## Welcome
 

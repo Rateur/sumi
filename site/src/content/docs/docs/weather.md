@@ -9,13 +9,15 @@ Type `weather in Paris` in the command bar and press Enter. The island shows the
 
 - **A city**: `weather Paris`, `weather in Paris`, or in French `météo Lyon` or `météo à Lyon`.
 - **Tomorrow**: add `tomorrow` or `demain`: `weather in Paris tomorrow`.
-- **The same city again**: `weather` alone, once a city has been found this session. Before that, the chip says "Weather · type a city" and Enter does nothing.
+- **The same city again**: `weather` alone, for the city you last asked for, even after a restart. Before the first one, the chip says "Weather · type a city" and Enter does nothing.
 
 The chip shows what Enter will ask, such as "Weather Paris tomorrow", before anything is sent. `temps` and questions such as `what's the weather like in Rome` stay questions for Claude.
 
 ## The first time
 
-The first time you press Enter on the weather after starting Sumi, nothing is sent yet. The bar says "Open-Meteo will get "Paris" and your IP." and the chip says "Allow". Press Enter to allow it, or Esc to close the bar: then nothing is sent and nothing is kept. Sumi asks again after each restart.
+The first time you press Enter on the weather, nothing is sent yet. The bar says "Open-Meteo will get "Paris" and your IP." and the chip says "Allow". Press Enter to allow it, or Esc to close the bar: then nothing is sent and nothing is kept.
+
+Your yes stays after a restart. To take it back, right-click Sumi's icon by the clock and pick **Forget the weather**. Sumi forgets the city too, and the bar asks again next time.
 
 ## The peek
 
@@ -30,8 +32,8 @@ For 4 seconds, a glyph, then "Paris · 12° · Cloudy" and below it the day's lo
 
 The weather is the only thing in Sumi that uses the network, and only after you allow it.
 
-- **What leaves your PC**: the city you typed goes to Open-Meteo's geocoding service, then its coordinates, never your own location, to their forecast service. Like any website, Open-Meteo sees your IP address, and keeps it in its logs for up to 90 days: see their [terms](https://open-meteo.com/en/terms).
-- **What Sumi keeps**: your yes and the city found, in memory only, until Sumi quits. Nothing is written to disk or to a log, and the answers are never cached.
+- **What leaves your PC**, each time you ask: the city you typed goes to Open-Meteo's geocoding service, then its coordinates, never your own location, to their forecast service. Like any website, Open-Meteo sees your IP address, and keeps it in its logs for up to 90 days: see their [terms](https://open-meteo.com/en/terms).
+- **What Sumi keeps**: your yes and the city you last asked for, on this PC, encrypted by Windows for your account, until you pick **Forget the weather**. Nothing goes to a log, and the answers are never cached.
 - Nothing is sent while you type, and nothing at launch.
 
 ## Limits

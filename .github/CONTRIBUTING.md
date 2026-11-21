@@ -45,7 +45,7 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 ## How the code is laid out
 
 - `src-tauri/src/lib.rs` starts the app, one copy at a time: the tray icon, the list of commands the page can call, and each module's watcher.
-- `src-tauri/src/tray.rs` draws the tray icon at the taskbar's size with the corner the page asks for (the microphone or camera dot, or the music), sets its tooltip and its menu's words, tucks the island on a left click, and offers the clipboard history's pause and clear while there is one.
+- `src-tauri/src/tray.rs` draws the tray icon at the taskbar's size with the corner the page asks for (the microphone or camera dot, or the music), sets its tooltip and its menu's words, tucks the island on a left click, and offers the clipboard history's pause and clear while there is one, and the weather's forget while its yes is kept.
 - `src-tauri/src/island.rs` keeps the window at the top of the screen, lets clicks through everywhere but the island, closes the panel, and tells the page when a window is dragged and of a click elsewhere while the island waits to tuck itself.
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen, and hears a window start and end a move or a resize.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
@@ -55,10 +55,11 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/fastpair.rs` reads earbuds' levels from Google's Fast Pair stream, `src-tauri/src/xbox.rs` Xbox controllers' on the Xbox Wireless Adapter from Windows' game input, and `src-tauri/src/pads.rs` the Switch Pro Controller's and PlayStation controllers' from their HID reports. Each hands `power.rs` the levels Windows doesn't read.
 - `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, opens a question in an assistant or the search engine, opens Open-Meteo's site from the weather peek's credit, and opens what the clipboard history checked: a link, a `mailto:`, or a file shown in File Explorer.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, the clipboard history's and the capture's, and gives focus to the bar and back.
-- `src-tauri/src/clipboard.rs` keeps the clipboard history once the user allows it in the bar: a message-only window listens to the clipboard and skips what is marked private, and the history is sealed with DPAPI in the app's local data folder. It pastes an item into the window the bar came from, or a colour in another format or a link without its trackers, and puts what the capture copies on top. It finds the items that name a file or a folder, reads an item again before Tab opens it, and keeps the island out of screen captures while the list shows.
+- `src-tauri/src/clipboard.rs` keeps the clipboard history once the user allows it in the bar: a message-only window listens to the clipboard and skips what is marked private, and the history is sealed with DPAPI in the app's local data folder, with a seal and a safe write that `weather.rs` uses too. It pastes an item into the window the bar came from, or a colour in another format or a link without its trackers, and puts what the capture copies on top. It finds the items that name a file or a folder, reads an item again before Tab opens it, and keeps the island out of screen captures while the list shows.
 - `src-tauri/src/capture.rs` runs the capture from its shortcut until its windows are gone: one BitBlt freezes every monitor into RAM, a window per monitor shows that frame, and a layered window draws the loupe. It copies a colour, or a box's QR code or its text through Windows' OCR, and frees the frame as the capture ends.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
+- `src-tauri/src/weather.rs` keeps the weather's yes and the city last found, sealed with DPAPI in the app's local data folder, until the tray's forget deletes them.
 - `src/Island.svelte` draws the island, and asks Open-Meteo for the weather after the bar's yes: Sumi's only network request. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/ClipboardHistory.svelte` draws the clipboard history's list under the bar and moves it. The capture's pill and its ink bead are in `Island.svelte`. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
 - `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), the weather's links, glyphs and words (`weather.ts`), the clipboard history's words, list, types and actions (`clipboard.ts`), the capture's words and results (`capture.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
@@ -101,6 +102,9 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `battery_ask` | page → Rust | nothing: the batteries panel opened, so a JBL speaker is asked for its level, which comes on `power://battery` | nothing |
 | `welcome_pending` | page → Rust | returns `bool` (`welcome.rs`) | `boolean` |
 | `welcome_done` | page → Rust | returns `Result<(), String>` | nothing, or an error |
+| `weather_kept` | page → Rust | returns `Kept` (`weather.rs`): the yes and the city kept from an earlier start, or no yes and no city | `Kept` (`src/lib/weather.ts`) |
+| `weather_allow` | page → Rust | `city: Option<City>`, returns `Result<(), String>`: keeps the yes, with the city found so far | `City` (`src/lib/weather.ts`) or `null`; nothing, or an error |
+| `weather_city` | page → Rust | `city: City`, returns `Result<(), String>`: keeps a new city, only while the yes is kept | `City`; nothing, or an error |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
 | `island://dismiss` | Rust → page | `bool`: whether Esc closed it, rather than a click elsewhere or another app | `boolean` |
@@ -121,6 +125,7 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `power://device-low` | Rust → page | `Device`, once per discharge | `Device` |
 | `power://device-gone` | Rust → page | `Device`, as a headset, a speaker or a controller disconnects, but not around sleep | `Device` |
 | `power://battery` | Rust → page | `Battery` (`power.rs`), when what the batteries panel shows changed | `Battery` (`src/lib/power.ts`) |
+| `weather://forget` | Rust → page | nothing: the tray's forget deleted the yes and the city, so the bar asks for the yes again | nothing |
 
 ## Before you push
 
@@ -143,7 +148,7 @@ On your first pull request, CI starts once I approve it. Leave **Allow edits by 
 - It does one thing, with tests for the logic.
 - It fails quietly. If a Windows API call fails, the module hides and the app keeps running. No `unwrap()` on Windows calls.
 - It costs nothing at rest: no timer or animation running when nothing changes.
-- It keeps your PC private. Nothing the island shows is written to a log. Only the clipboard history goes to a file, after the user's yes, sealed with DPAPI for their Windows account (`clipboard.rs`). The capture's frame stays in RAM and is freed as it ends (`capture.rs`). Nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
+- It keeps your PC private. Nothing the island shows is written to a log. Only the clipboard history and the weather's yes and city go to a file, after the user's yes, sealed with DPAPI for their Windows account (`clipboard.rs`, `weather.rs`). The capture's frame stays in RAM and is freed as it ends (`capture.rs`). Nothing leaves the PC unless the user turns that feature on. No telemetry, analytics or crash reports.
 - It adds no dependency, network request or Tauri permission (`src-tauri/capabilities/`) unless the issue agreed on it. Every package is code that each user runs.
 - The UI works with reduced motion and keeps AA contrast.
 - It reads like the code around it, so the next person, or an AI, can pick it up. Rust: `snake_case` for functions and modules, `CamelCase` for types, `UPPER_CASE` for constants. TypeScript: `camelCase`, `PascalCase` for types, `UPPER_CASE` for shared constants. Svelte components: `PascalCase.svelte`. Comments are short and say why, not what.

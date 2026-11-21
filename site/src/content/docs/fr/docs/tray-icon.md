@@ -14,7 +14,7 @@ L'icône de Sumi se trouve dans la zone de notification, près de l'horloge. Ell
 ## Cliquez dessus
 
 - **Un clic gauche** range l'île, ou la fait revenir. Voir [Ranger l'île](../tuck/).
-- **Un clic droit** ouvre le menu : **Ranger l'île** ou **Faire revenir l'île**, puis **Quitter Sumi**. Une fois l'historique du presse-papiers autorisé, **Mettre en pause l'historique du presse-papiers** et **Effacer l'historique du presse-papiers** s'ajoutent avant **Quitter Sumi**. Voir [Historique du presse-papiers](../clipboard/).
+- **Un clic droit** ouvre le menu : **Ranger l'île** ou **Faire revenir l'île**, puis **Quitter Sumi**. Une fois l'historique du presse-papiers autorisé, **Mettre en pause l'historique du presse-papiers** et **Effacer l'historique du presse-papiers** s'ajoutent avant **Quitter Sumi**. Une fois la météo autorisée, **Oublier la météo** s'ajoute juste avant **Quitter Sumi**. Voir [Historique du presse-papiers](../clipboard/) et [Météo](../weather/).
 
 ## La garder en vue
 
