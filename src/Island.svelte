@@ -2206,6 +2206,7 @@
         set lookup(next: (url: string) => Promise<unknown>) {
           lookup = next
         },
+        forecast: (city: string) => forecastFor(city, 0),
         get apps() {
           return apps
         },

@@ -11,12 +11,12 @@
   <p><b>English</b> · <a href="README.fr.md">Français</a></p>
 </div>
 
-![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, the command bar starting a timer, then the island swiped up into a line and brought back](.github/assets/demo.gif)
+![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, the command bar starting a timer, the island swiped up into a line and brought back, then the batteries panel from the command bar](.github/assets/demo.gif)
 
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.7.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app or a question, and tucks into a line at the top when you swipe it away or leave it at rest. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.8.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app, the weather or a question, tucks into a line at the top when you swipe it away or leave it at rest, and shows the batteries of your PC and your devices, even ones Windows doesn't show. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
@@ -35,7 +35,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] An orange or green dot when an app uses your microphone or camera, with the app and a mute under the cursor (0.5.0)
 - [x] A command bar (`Win+Alt+S`): a timer, an app, a question for Claude, ChatGPT, Gemini, Perplexity or a search engine; timers on the island, from `25m` (0.6.0)
 - [x] Tuck the island into a thin line at the top with a swipe, or by itself at rest; a live tray icon with the microphone, camera and music that tucks it or brings it back (0.7.0)
-- [ ] Weather from [Open-Meteo](https://open-meteo.com), charging and low-battery alerts on laptops
+- [x] The weather from the command bar, through [Open-Meteo](https://open-meteo.com); the batteries of the PC and its Bluetooth devices, including ones Windows doesn't show, with a peek as you plug in, run low or connect one (0.8.0)
 - [ ] Settings (screen, theme, language, shortcuts), automatic updates and a signed installer
 
 ## How it's built
@@ -48,7 +48,7 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
   <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white">
 </p>
 
-Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, reads media and microphone/camera state, and will read the battery. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
+Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, reads media, microphone/camera state and batteries. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
 
 ## Privacy
 

@@ -224,21 +224,15 @@ const island = `${base}island/index.html?lang=${lang}`;
 						<span class="rm-copy"><strong>{t.roadmap[8].title}</strong><span>{t.roadmap[8].text}</span></span>
 						<span class="rm-tag rm-done">{t.roadmap[8].tag}</span>
 					</li>
-					<li class="rm-row" data-reveal>
-						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 112px; --w1: 220px">
-							<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#facc15" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"></path></svg>
-							<span>12°</span><span class="rm-more rm-dim">{t.sunny}</span>
-						</span>
+					<li class="rm-row rm-tall" data-reveal>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-peek="weather" title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[9].title}</strong><span>{t.roadmap[9].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[9].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[9].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
-						<span class="rm-pill rm-battery" data-ui aria-hidden="true" style="--w0: 120px; --w1: 236px">
-							<span class="rm-more">{t.charging}</span><span>64%</span>
-							<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="18" height="10" rx="2.5"></rect><path d="M22 11v2"></path><path d="M12 8.5l-3 4h4l-2 3"></path></svg>
-						</span>
+						<span class="rm-live" data-ui aria-hidden="true"><iframe src={island} data-peek="device" title="" tabindex="-1" loading="lazy"></iframe></span>
 						<span class="rm-copy"><strong>{t.roadmap[10].title}</strong><span>{t.roadmap[10].text}</span></span>
-						<span class="rm-tag rm-next">{t.roadmap[10].tag}</span>
+						<span class="rm-tag rm-done">{t.roadmap[10].tag}</span>
 					</li>
 					<li class="rm-row" data-reveal>
 						<span class="rm-pill" data-ui aria-hidden="true" style="--w0: 64px; --w1: 150px">
@@ -246,7 +240,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 							<span class="rm-more rm-dim">{t.roadmap[11].title}</span>
 						</span>
 						<span class="rm-copy"><strong>{t.roadmap[11].title}</strong><span>{t.roadmap[11].text}</span></span>
-						<span class="rm-tag">{t.roadmap[11].tag}</span>
+						<span class="rm-tag rm-next">{t.roadmap[11].tag}</span>
 					</li>
 				</ol>
 			</section>
@@ -466,6 +460,8 @@ const island = `${base}island/index.html?lang=${lang}`;
 					if (!started || next === on) return;
 					on = next;
 					list('hover').forEach(say);
+					// A peek ends by itself: it's asked for on the way in only.
+					if (next) list('peek').forEach(say);
 					if (frame.dataset.type) type(next ? frame.dataset.type : '');
 				};
 				row.addEventListener('pointerenter', (e) => e.pointerType === 'mouse' && hover(true));
@@ -1436,13 +1432,6 @@ const island = `${base}island/index.html?lang=${lang}`;
 	.rm-live.split iframe {
 		left: calc(50% - var(--split));
 	}
-	.rm-battery {
-		color: #4ade80;
-	}
-	.rm-battery .rm-more {
-		color: #fff;
-		font-weight: 500;
-	}
 	.rm-tag {
 		padding: 6px 14px;
 		border-radius: 999px;
@@ -1737,6 +1726,10 @@ const island = `${base}island/index.html?lang=${lang}`;
 		.rm-live.split iframe {
 			left: 50%;
 			width: min(480px, 100vw);
+		}
+		/* The weather's peek is taller than the island: its track keeps it clear of the title. */
+		.rm-tall {
+			grid-template-rows: 68px auto;
 		}
 		.rm-pill,
 		.rm-live,

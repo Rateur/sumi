@@ -4,6 +4,27 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-21
+
+The batteries of your PC and your devices, even ones Windows doesn't show, and the weather from the command bar.
+
+### Added
+
+- Type `battery`, or just `bat`, in the command bar and press Enter: a panel with one ring per battery, the PC first, then your headsets, speakers, controllers, mice and keyboards. Green is fine, amber is energy saver, red is 20 % or less. A bolt on the PC's ring while it's plugged in. Click a ring for its detail, with the time left or until full.
+- Peeks when you plug in, when the battery reaches 20 %, and when a headset, a speaker or a controller connects, with its level and a ring, or leaves: "Disconnected". A tucked island comes out of its line for them, then goes back. A click on a peek opens the batteries panel.
+- Batteries Windows doesn't show: JBL speakers, 27 models, which Sumi asks over Bluetooth LE as JBL's app does, thanks to [JBLControl](https://github.com/ffrafat/JBLControl) and [OpenJBL](https://github.com/NiceDayZc/openjbl) (MIT); earbuds and headphones with Google Fast Pair; the Switch Pro Controller, the DualShock 4 and the DualSense on Bluetooth; Xbox controllers on the Xbox Wireless Adapter.
+- Type `weather in Paris`, `météo Lyon` or `weather Paris tomorrow` and press Enter: the island shows the sky, the temperature and the day's low and high, or the rain to come, for 4 seconds. Through [Open-Meteo](https://open-meteo.com), weather data under CC BY 4.0.
+- The first time after Sumi starts, the bar says what Open-Meteo will get, the city and your IP, and waits for your yes. Esc sends nothing. Your yes and the city are forgotten when Sumi quits.
+- The bar's own words answer from their first letters: `bat` the battery, `heu` or `tim` the time, `dat` the date, `mét` or `weat` the weather. An app that starts the same way is one Tab away.
+
+### Known limits
+
+- Of the batteries Windows doesn't show, only a JBL speaker was tried on a real device. Fast Pair earbuds and the controllers weren't yet.
+- The DualShock 4 and the DualSense give their level only while Steam or a game turns on their full reports.
+- The newest JBL speakers, such as the Go 5, Grip and Xtreme 5, speak a newer protocol and show without a level.
+- Still main screen only, with no settings and no automatic updates: install new versions by hand.
+- The installer isn't signed yet: your browser may hold the download, and Windows warns about an unknown publisher.
+
 ## [0.7.0] - 2026-11-20
 
 Tuck the island into a line at the top, and a tray icon that shows what it has.
@@ -147,7 +168,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Rateur/sumi/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Rateur/sumi/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Rateur/sumi/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Rateur/sumi/compare/v0.4.0...v0.5.0

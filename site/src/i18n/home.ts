@@ -22,8 +22,6 @@ export const home = {
 		askQuestion: 'claude what does sumi mean',
 		askNote: 'Claude opens in its app when it’s installed, otherwise in your browser. Sumi sends nothing.',
 		askDownload: 'Download for Windows',
-		sunny: 'Sunny',
-		charging: 'Charging',
 		roadmapTitle: 'Roadmap',
 		roadmap: [
 			{ title: 'The time', text: 'Centered at the top of your main screen.', tag: '0.1.0' },
@@ -35,9 +33,9 @@ export const home = {
 			{ title: 'Timers', text: 'Type 25m in the command bar.', tag: '0.6.0' },
 			{ title: 'Tuck it away', text: 'Swipe the island away, any way, and it tucks into a thin line at the top.', tag: '0.7.0' },
 			{ title: 'Live taskbar icon', text: 'Sumi’s icon shows the microphone dot and the music. A click tucks the island.', tag: '0.7.0' },
-			{ title: 'Weather', text: 'From Open-Meteo, for the city you choose.', tag: 'next' },
-			{ title: 'Battery', text: 'Charging and low-battery alerts on laptops.', tag: 'next' },
-			{ title: 'Settings', text: 'Screen, theme, language and shortcuts, in one window.', tag: 'planned' },
+			{ title: 'Weather', text: 'Type weather and a city: the island answers, through Open-Meteo, once you allow it.', tag: '0.8.0' },
+			{ title: 'Battery', text: 'Your PC’s and your devices’ batteries, even ones Windows doesn’t show.', tag: '0.8.0' },
+			{ title: 'Settings', text: 'Screen, theme, language and shortcuts, in one window.', tag: 'next' },
 		],
 		quietTitle: 'It stays out of the way.',
 		quiet: [
@@ -80,8 +78,6 @@ export const home = {
 		askQuestion: 'claude que veut dire sumi',
 		askNote: 'Claude s’ouvre dans son app si elle est installée, sinon dans votre navigateur. Sumi n’envoie rien.',
 		askDownload: 'Télécharger pour Windows',
-		sunny: 'Ensoleillé',
-		charging: 'En charge',
 		roadmapTitle: 'Feuille de route',
 		roadmap: [
 			{ title: 'L’heure', text: 'Centrée en haut de votre écran principal.', tag: '0.1.0' },
@@ -93,9 +89,9 @@ export const home = {
 			{ title: 'Minuteurs', text: 'Tapez 25m dans la barre de commande.', tag: '0.6.0' },
 			{ title: 'La ranger', text: 'Glissez l’île dans n’importe quel sens : elle se range en un fin trait.', tag: '0.7.0' },
 			{ title: 'Icône vivante', text: 'L’icône de Sumi montre le point micro et la musique. Un clic range l’île.', tag: '0.7.0' },
-			{ title: 'Météo', text: 'Depuis Open-Meteo, pour la ville de votre choix.', tag: 'prochaine' },
-			{ title: 'Batterie', text: 'Alertes de charge et de batterie faible sur portable.', tag: 'prochaine' },
-			{ title: 'Réglages', text: 'Écran, thème, langue et raccourcis, dans une seule fenêtre.', tag: 'prévu' },
+			{ title: 'Météo', text: 'Tapez météo et une ville : l’île répond, via Open-Meteo, une fois que vous l’autorisez.', tag: '0.8.0' },
+			{ title: 'Batterie', text: 'La batterie de votre PC et de vos appareils, même celle que Windows n’affiche pas.', tag: '0.8.0' },
+			{ title: 'Réglages', text: 'Écran, thème, langue et raccourcis, dans une seule fenêtre.', tag: 'prochaine' },
 		],
 		quietTitle: 'Elle se fait oublier.',
 		quiet: [
