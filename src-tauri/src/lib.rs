@@ -74,6 +74,8 @@ pub fn run() {
             clipboard::clipboard_history,
             clipboard::clipboard_allow,
             clipboard::clipboard_paste,
+            clipboard::clipboard_paths,
+            clipboard::clipboard_open,
             clipboard::clipboard_hide,
             media::media_control,
             media::media_seek,

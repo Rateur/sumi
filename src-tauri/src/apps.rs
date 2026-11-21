@@ -2,7 +2,7 @@
 //! read, so it is read at startup on a thread of its own, kept in memory only, and read again in the background when
 //! the bar opens if it is more than 10 minutes old. Only an app from that list can be launched, and an assistant's
 //! link is built here from a fixed table, as is Open-Meteo's for the weather's credit: the page never passes a path or
-//! a URL.
+//! a URL. The clipboard history's links, addresses and files come here once `clipboard.rs` has checked them.
 
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -22,7 +22,7 @@ const STALE: Duration = Duration::from_secs(10 * 60);
 const LONGEST: usize = 14_000;
 /// The longest link handed over. Windows passes it on a command line of at most 32,767 characters, and encoding
 /// makes an accent 6 characters and an emoji 12.
-const LONGEST_LINK: usize = 30_000;
+pub const LONGEST_LINK: usize = 30_000;
 /// How long what opens has to come to the front before the island gives focus back.
 const SETTLE: Duration = Duration::from_millis(1_500);
 /// Sumi's own id in Start: the identifier in tauri.conf.json, which its installer gives its shortcut.
@@ -205,28 +205,40 @@ pub async fn app_launch(window: WebviewWindow, id: String) -> bool {
         bar::give_back(&window);
         return false;
     }
-    hand_off(&window, format!("shell:AppsFolder\\{id}")).await
+    let target = format!("shell:AppsFolder\\{id}");
+    hand_off(&window, move || os::open(&target)).await
 }
 
 /// Opens a question in an assistant or the search engine: Claude's app when Windows knows its link, else the browser.
 #[tauri::command]
 pub async fn assistant_open(window: WebviewWindow, target: Target, query: String) -> bool {
     let claude_app = window.state::<Apps>().claude.load(Ordering::Relaxed);
-    hand_off(&window, link(target, &query, claude_app)).await
+    let link = link(target, &query, claude_app);
+    hand_off(&window, move || os::open(&link)).await
 }
 
 /// Opens Open-Meteo's site, from the weather peek's credit.
 #[tauri::command]
 pub async fn open_meteo(window: WebviewWindow) -> bool {
-    hand_off(&window, OPEN_METEO.to_owned()).await
+    hand_off(&window, || os::open(OPEN_METEO)).await
+}
+
+/// Opens a link or a `mailto:` that `clipboard.rs` checked, in the app Windows picks for it.
+pub async fn open_checked(window: &WebviewWindow, target: String) -> bool {
+    hand_off(window, move || os::open(&target)).await
+}
+
+/// Shows a file or a folder that `clipboard.rs` checked, selected in File Explorer. It is never run or opened.
+pub async fn reveal(window: &WebviewWindow, path: String) -> bool {
+    hand_off(window, move || os::reveal(&path)).await
 }
 
 /// Lets what opens come to the front, opens it off the main thread since an app can take seconds to start, and
 /// gives focus back to where it was if nothing opened, or if what opened never came to the front, as an app already
 /// running in the tray may not.
-async fn hand_off(window: &WebviewWindow, target: String) -> bool {
+async fn hand_off(window: &WebviewWindow, open: impl FnOnce() -> bool + Send + 'static) -> bool {
     bar::let_go(window);
-    let opened = tauri::async_runtime::spawn_blocking(move || os::open(&target))
+    let opened = tauri::async_runtime::spawn_blocking(open)
         .await
         .unwrap_or(false);
     if opened {
@@ -255,9 +267,10 @@ mod os {
     };
     use windows::Win32::UI::Shell::{
         ASSOCF_IS_PROTOCOL, ASSOCSTR_FRIENDLYAPPNAME, AssocQueryStringW, BHID_EnumItems,
-        FOLDERID_AppsFolder, IEnumShellItems, IShellItem, IShellItemImageFactory, KF_FLAG_DEFAULT,
-        SHCreateItemFromParsingName, SHGetKnownFolderItem, SIGDN, SIGDN_DESKTOPABSOLUTEPARSING,
-        SIGDN_NORMALDISPLAY, SIIGBF_ICONONLY,
+        FOLDERID_AppsFolder, IEnumShellItems, ILCreateFromPathW, ILFree, IShellItem,
+        IShellItemImageFactory, KF_FLAG_DEFAULT, SHCreateItemFromParsingName, SHGetKnownFolderItem,
+        SHOpenFolderAndSelectItems, SIGDN, SIGDN_DESKTOPABSOLUTEPARSING, SIGDN_NORMALDISPLAY,
+        SIIGBF_ICONONLY,
     };
     use windows::core::{PCWSTR, PWSTR, w};
 
@@ -356,6 +369,24 @@ mod os {
                 info.lpFile = file.as_ptr();
                 info.nShow = SW_SHOWNORMAL;
                 ShellExecuteExW(&mut info) != 0
+            }
+        })
+    }
+
+    /// Opens the folder that holds `path` in File Explorer, with it selected. Explorer runs nothing.
+    pub fn reveal(path: &str) -> bool {
+        let wide: Vec<u16> = path.encode_utf16().chain([0]).collect();
+        with_com(|| {
+            // SAFETY: COM is set up on this thread, `wide` is NUL-terminated and outlives the calls, and the item
+            // list Windows allocates is freed once, after Explorer has read it.
+            unsafe {
+                let item = ILCreateFromPathW(PCWSTR(wide.as_ptr()));
+                if item.is_null() {
+                    return false;
+                }
+                let shown = SHOpenFolderAndSelectItems(item, None, 0).is_ok();
+                ILFree(Some(item));
+                shown
             }
         })
     }
@@ -459,6 +490,10 @@ mod os {
     }
 
     pub fn open(_: &str) -> bool {
+        false
+    }
+
+    pub fn reveal(_: &str) -> bool {
         false
     }
 

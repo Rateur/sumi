@@ -220,6 +220,7 @@ describe('links', () => {
     expect(untracked('https://a.fr/?q=utm_source&utmost=1')).toBe('https://a.fr/?q=utm_source&utmost=1')
     expect(untracked('https://a.fr/#/route?utm_source=x')).toBe('https://a.fr/#/route?utm_source=x')
     expect(untracked('https://a.fr/p')).toBe('https://a.fr/p')
+    expect(untracked('https://a.fr/?a=1&&b=2&fbclid=3')).toBe('https://a.fr/?a=1&b=2')
   })
 
   it('cuts the line into the domain, the path and the query, trackers marked', () => {

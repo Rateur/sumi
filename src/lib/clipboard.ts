@@ -314,10 +314,10 @@ function tracked(url: string): boolean {
   return split(url).params.some(isTracker)
 }
 
-/** The link without its trackers, everything else in its place. */
+/** The link without its trackers, everything else in its place, as Rust checks it (`trims` in clipboard.rs). */
 export function untracked(url: string): string {
   const { head, params, hash } = split(url)
-  const kept = params.filter((param) => !isTracker(param))
+  const kept = params.filter((param) => param && !isTracker(param))
   return head + (kept.length ? `?${kept.join('&')}` : '') + hash
 }
 

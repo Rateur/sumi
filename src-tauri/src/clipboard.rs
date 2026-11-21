@@ -1,8 +1,10 @@
 //! The clipboard history: the text you copy, newest first, once you allow it in the command bar. It is kept on this
 //! PC across restarts, sealed with Windows' per-user encryption (DPAPI) in the app's local data folder, which a
 //! roaming profile doesn't copy to a server. A message-only window hears each copy while the history is on, and
-//! sleeps otherwise. Enter on an item pastes it into the window the bar came from. A copy never wakes the island,
-//! and nothing here goes on the network.
+//! sleeps otherwise. Enter on an item pastes it into the window the bar came from, or a form of it the list offers:
+//! a colour in another format, a link without its trackers. Tab's other actions open an item's link, write to its
+//! address or show its file in File Explorer, once Rust has read the text again: the page never says what to open,
+//! and no file is ever run. A copy never wakes the island, and nothing here goes on the network.
 
 use std::io::Write;
 use std::path::Path;
@@ -12,7 +14,7 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use serde::Serialize;
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
-use crate::{bar, tray};
+use crate::{apps, bar, tray};
 
 /// The oldest items drop off past this many.
 const ITEMS: usize = 100;
@@ -216,29 +218,39 @@ pub async fn clipboard_allow(app: AppHandle) -> Result<Vec<String>, String> {
 }
 
 /// Enter on an item: it moves to the top and goes on the clipboard, then into the window the bar came from. `plain`
-/// writes the text alone, even over the top item's own formatting.
+/// writes the text alone, even over the top item's own formatting. `form` lands in its place, as plain text: the
+/// colour in another format, or the link without its trackers.
 #[tauri::command]
-pub async fn clipboard_paste(window: WebviewWindow, text: String, plain: bool) -> Landed {
-    tauri::async_runtime::spawn_blocking(move || paste(&window, text, plain))
+pub async fn clipboard_paste(
+    window: WebviewWindow,
+    text: String,
+    plain: bool,
+    form: Option<String>,
+) -> Landed {
+    tauri::async_runtime::spawn_blocking(move || paste(&window, text, plain, form))
         .await
         .unwrap_or(Landed::Failed)
 }
 
-fn paste(window: &WebviewWindow, text: String, plain: bool) -> Landed {
+fn paste(window: &WebviewWindow, text: String, plain: bool, form: Option<String>) -> Landed {
     let state = window.state::<Clipboard>();
     let written = state.history.lock().is_ok_and(|mut history| {
-        // Only what the history holds: the page can't put anything else on the clipboard.
-        if !history.0.contains(&text) {
+        // Only what the history holds, or a form of it: the page can't put anything else on the clipboard.
+        if !history.0.contains(&text) || form.as_ref().is_some_and(|form| !offers(&text, form)) {
             return false;
         }
         let fresh = !plain
+            && form.is_none()
             && history.0.first() == Some(&text)
             && os::sequence() == state.top.load(Ordering::SeqCst);
         if !fresh {
-            if !os::write(state.window.load(Ordering::SeqCst), &text) {
+            let pasted = form.as_deref().unwrap_or(&text);
+            if !os::write(state.window.load(Ordering::SeqCst), pasted) {
                 return false;
             }
-            state.top.store(os::sequence(), Ordering::SeqCst);
+            // A form isn't the item as it was copied: Enter on the item writes it again.
+            let top = if form.is_none() { os::sequence() } else { 0 };
+            state.top.store(top, Ordering::SeqCst);
         }
         if history.add(text)
             && let Ok(dir) = window.app_handle().path().app_local_data_dir()
@@ -252,6 +264,189 @@ fn paste(window: &WebviewWindow, text: String, plain: bool) -> Landed {
         return Landed::Failed;
     }
     os::paste(target)
+}
+
+/// The items that name a file or a folder on this PC, which Tab offers to show in File Explorer. Looked up off the
+/// main thread: a mapped network drive may take seconds to answer.
+#[tauri::command]
+pub async fn clipboard_paths(app: AppHandle) -> Vec<String> {
+    let items = app
+        .state::<Clipboard>()
+        .history
+        .lock()
+        .map(|h| h.0.clone())
+        .unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || {
+        items
+            .into_iter()
+            .filter(|item| path(item).is_some_and(|path| Path::new(path).exists()))
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// Tab's open on an item: its link in the browser, a new message to its address, or its file selected in File
+/// Explorer. Only an item the history holds, and only what its text says it is.
+#[tauri::command]
+pub async fn clipboard_open(window: WebviewWindow, text: String) -> bool {
+    let held = window
+        .state::<Clipboard>()
+        .history
+        .lock()
+        .is_ok_and(|h| h.0.contains(&text));
+    let opening = if held {
+        tauri::async_runtime::spawn_blocking(move || opening(&text))
+            .await
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
+    match opening {
+        Some(Opening::Link(target) | Opening::Mail(target)) => {
+            apps::open_checked(&window, target).await
+        }
+        Some(Opening::Folder(path)) => apps::reveal(&window, path).await,
+        None => {
+            bar::give_back(&window);
+            false
+        }
+    }
+}
+
+/// What opening an item means, read from its text alone.
+#[derive(Debug, PartialEq)]
+enum Opening {
+    /// A web page, in the default browser.
+    Link(String),
+    /// A `mailto:` with the address alone, in the default mail app.
+    Mail(String),
+    /// A file or a folder on this PC, selected in the folder that holds it.
+    Folder(String),
+}
+
+fn opening(text: &str) -> Option<Opening> {
+    let text = text.trim();
+    if let Some(link) = link(text) {
+        return Some(Opening::Link(link));
+    }
+    if address(text) {
+        return Some(Opening::Mail(format!("mailto:{text}")));
+    }
+    path(text)
+        .filter(|path| Path::new(path).exists())
+        .map(|path| Opening::Folder(path.to_owned()))
+}
+
+/// An http or https link with a host, and no space or control character, as the page reads one (`isLink` in
+/// src/lib/clipboard.ts). A `"` is encoded, so it can't end the argument Windows hands the browser.
+fn link(text: &str) -> Option<String> {
+    let rest = ["https://", "http://"].iter().find_map(|scheme| {
+        text.get(..scheme.len())
+            .filter(|start| start.eq_ignore_ascii_case(scheme))
+            .map(|_| &text[scheme.len()..])
+    })?;
+    let host = !rest.is_empty() && !rest.starts_with(['/', '?', '#']);
+    let clean = !text.chars().any(|c| c.is_whitespace() || c.is_control());
+    (host && clean && text.len() <= apps::LONGEST_LINK).then(|| text.replace('"', "%22"))
+}
+
+/// An e-mail address in plain ASCII, as the page reads one (`isMail` in src/lib/clipboard.ts). With no `?`, `&` or
+/// `%`, its `mailto:` can't add a subject, a body or an attachment.
+fn address(text: &str) -> bool {
+    let Some((local, domain)) = text.rsplit_once('@') else {
+        return false;
+    };
+    let word = |part: &str, signs: &[u8]| {
+        !part.is_empty()
+            && part
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || signs.contains(&b))
+    };
+    let labels: Vec<&str> = domain.split('.').collect();
+    text.len() <= 254
+        && local.len() <= 64
+        && local.split('.').all(|part| word(part, b"_+-"))
+        && labels.len() > 1
+        && labels.iter().all(|label| {
+            label.len() <= 63
+                && word(label, b"-")
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+        })
+        && labels
+            .last()
+            .is_some_and(|end| end.len() > 1 && end.bytes().all(|b| b.is_ascii_alphabetic()))
+}
+
+/// A path from a drive's root, `C:\…` or `C:/…`, on one line, without the quotes of Explorer's "Copy as path". A
+/// network path (`\\server\share`) isn't one, so looking it up never reaches another machine.
+fn path(text: &str) -> Option<&str> {
+    let text = text.trim();
+    let path = text
+        .strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+        .unwrap_or(text);
+    let rooted =
+        matches!(path.as_bytes(), [drive, b':', b'\\' | b'/', ..] if drive.is_ascii_alphabetic());
+    (rooted && !path.contains('"') && !path.chars().any(char::is_control)).then_some(path)
+}
+
+/// Whether the list may paste `form` in place of `item`: a colour item's value in another format, or the item's link
+/// with some of its parameters taken out.
+fn offers(item: &str, form: &str) -> bool {
+    let item = item.trim();
+    let colour = ["#", "rgb(", "hsl("].iter().any(|start| {
+        item.get(..start.len())
+            .is_some_and(|s| s.eq_ignore_ascii_case(start))
+    });
+    (colour && item.len() < 64 && is_colour(form)) || trims(item, form)
+}
+
+/// A colour as the list writes it (`formatted` in src/lib/clipboard.ts): `#1E90FF`, `rgb(30, 144, 255)` or
+/// `hsl(210, 100%, 56%)`.
+fn is_colour(text: &str) -> bool {
+    if let Some(hex) = text.strip_prefix('#') {
+        return hex.len() == 6 && hex.bytes().all(|b| b.is_ascii_hexdigit());
+    }
+    let (inner, units) = if let Some(inner) = text.strip_prefix("rgb(") {
+        (inner, ["", "", ""])
+    } else if let Some(inner) = text.strip_prefix("hsl(") {
+        (inner, ["", "%", "%"])
+    } else {
+        return false;
+    };
+    let parts: Vec<&str> = inner.strip_suffix(')').unwrap_or("").split(", ").collect();
+    parts.len() == 3
+        && parts.iter().zip(units).all(|(part, unit)| {
+            part.strip_suffix(unit).is_some_and(|n| {
+                (1..=3).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit())
+            })
+        })
+}
+
+/// Whether `form` is `item`'s link with some of its query's parameters taken out and the others kept in order, as
+/// « Sans traqueurs » pastes it. Cut where the page cuts it (`split` in src/lib/clipboard.ts).
+fn trims(item: &str, form: &str) -> bool {
+    fn split(url: &str) -> (&str, Option<&str>, Option<&str>) {
+        let (rest, hash) = url
+            .split_once('#')
+            .map_or((url, None), |(rest, hash)| (rest, Some(hash)));
+        let (head, query) = rest
+            .split_once('?')
+            .map_or((rest, None), |(head, query)| (head, Some(query)));
+        (head, query, hash)
+    }
+    let (head, query, hash) = split(item);
+    let (kept_head, kept, kept_hash) = split(form);
+    let mut params = query.unwrap_or_default().split('&');
+    link(item).is_some()
+        && head == kept_head
+        && hash == kept_hash
+        && kept.is_none_or(|kept| {
+            !kept.is_empty() && kept.split('&').all(|param| params.any(|p| p == param))
+        })
 }
 
 /// Keeps the island out of screenshots and screen sharing while the list shows.
@@ -806,6 +1001,139 @@ mod tests {
             }
             .private()
         );
+    }
+
+    #[test]
+    fn opens_only_http_and_https_links() {
+        assert_eq!(link("https://a.fr").as_deref(), Some("https://a.fr"));
+        assert_eq!(
+            link("HTTP://A.fr/p?q=1#x").as_deref(),
+            Some("HTTP://A.fr/p?q=1#x")
+        );
+        assert_eq!(
+            link("https://a.fr/\"x").as_deref(),
+            Some("https://a.fr/%22x")
+        );
+        for text in [
+            "https://",
+            "https:///a",
+            "https://?q",
+            "https://a.fr/a b",
+            "https://a.fr/\u{7}",
+            "ftp://a.fr",
+            "file:///C:/Windows/System32/calc.exe",
+            "javascript:alert(1)",
+            "ms-settings:privacy",
+            "C:\\Windows",
+            "httpé://a.fr",
+        ] {
+            assert_eq!(link(text), None, "{text}");
+        }
+        assert!(link(&format!("https://a.fr/{}", "a".repeat(apps::LONGEST_LINK))).is_none());
+    }
+
+    #[test]
+    fn writes_only_to_a_plain_address() {
+        for text in ["camille.martin@exemple.fr", "a+b_c-d@sub.example.co.uk"] {
+            assert!(address(text), "{text}");
+        }
+        for text in [
+            "camille@exemple",
+            "a@b.c",
+            ".a@exemple.fr",
+            "a..b@exemple.fr",
+            "a@-exemple.fr",
+            "a@exemple-.fr",
+            "a?subject=x@exemple.fr",
+            "a@exemple.fr?attach=C:\\x",
+            "a%40b@exemple.fr",
+            "a&b@exemple.fr",
+            "josé@exemple.fr",
+            "a b@exemple.fr",
+            "@exemple.fr",
+        ] {
+            assert!(!address(text), "{text}");
+        }
+    }
+
+    #[test]
+    fn reads_a_path_from_a_drive_only() {
+        assert_eq!(path("C:\\Users\\x"), Some("C:\\Users\\x"));
+        assert_eq!(path(" d:/Photos \n"), Some("d:/Photos"));
+        assert_eq!(path("\"C:\\a b\\c.txt\""), Some("C:\\a b\\c.txt"));
+        assert_eq!(path("C:\\"), Some("C:\\"));
+        for text in [
+            "\\\\server\\share\\a.txt",
+            "\\\\?\\C:\\a",
+            "C:relative",
+            "C:",
+            "file:///C:/a",
+            "1:\\a",
+            "C:\\a\nC:\\b",
+            "\"C:\\a",
+            "C:\\a\"b",
+        ] {
+            assert_eq!(path(text), None, "{text}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn opens_what_the_text_is_and_shows_files_without_running_them() {
+        assert_eq!(
+            opening(" https://a.fr \n"),
+            Some(Opening::Link("https://a.fr".into()))
+        );
+        assert_eq!(
+            opening("a@b.fr"),
+            Some(Opening::Mail("mailto:a@b.fr".into()))
+        );
+        let windows = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
+        let calc = format!("{windows}\\System32\\calc.exe");
+        assert_eq!(opening(&calc), Some(Opening::Folder(calc.clone())));
+        assert_eq!(
+            opening(&format!("\"{windows}\"")),
+            Some(Opening::Folder(windows.clone()))
+        );
+        assert_eq!(opening("C:\\sumi-nothing-here\\a.txt"), None);
+        assert_eq!(opening("Réunion jeudi"), None);
+        assert_eq!(opening("#1E90FF"), None);
+    }
+
+    #[test]
+    fn pastes_only_a_colour_or_the_link_with_less() {
+        for (item, form) in [
+            ("#1e90ff", "rgb(30, 144, 255)"),
+            ("rgb(30 144 255)", "#1E90FF"),
+            ("HSL(210, 100%, 56%)", "hsl(210, 100%, 56%)"),
+            ("#123", "rgb(17, 34, 51)"),
+            (
+                "https://a.fr/p?id=5&utm_source=x#top",
+                "https://a.fr/p?id=5#top",
+            ),
+            ("https://a.fr/?utm_source=x&utm_medium=y", "https://a.fr/"),
+            ("https://a.fr/?a=1&&b=2&fbclid=3", "https://a.fr/?a=1&b=2"),
+            (" https://a.fr/?gclid=1 \n", "https://a.fr/"),
+        ] {
+            assert!(offers(item, form), "{item} → {form}");
+        }
+        for (item, form) in [
+            ("#1e90ff", "rm -rf ~"),
+            ("#1e90ff", "#1E90FF\n"),
+            ("#1e90ff", "rgb(30,144,255)"),
+            ("#1e90ff", "rgb(1000, 0, 0)"),
+            ("#1e90ff", "hsl(210, 100, 56)"),
+            ("Réunion jeudi", "#1E90FF"),
+            ("https://a.fr/?a=1", "https://a.fr/?a=1&b=2"),
+            ("https://a.fr/?a=1&b=2", "https://a.fr/?b=2&a=1"),
+            ("https://a.fr/?a=1", "https://b.fr/?a=1"),
+            ("https://a.fr/?a=1#x", "https://a.fr/?a=1"),
+            ("https://a.fr/?a=1", "https://a.fr/?"),
+            ("https://a.fr/p", "https://a.fr/p\nrm -rf ~"),
+            ("ftp://a.fr/?a=1", "ftp://a.fr/"),
+        ] {
+            assert!(!offers(item, form), "{item} → {form}");
+        }
     }
 
     #[cfg(windows)]
