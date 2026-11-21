@@ -20,7 +20,7 @@ export const home = {
 		askLine: 'Win + Alt + S: a timer, an app, a question.',
 		askApp: 'open discord',
 		askQuestion: 'claude what does sumi mean',
-		askNote: 'Claude opens in its app when it’s installed, otherwise in your browser. Sumi sends nothing.',
+		askNote: 'Claude opens in its app when it’s installed, otherwise in your browser. Your question goes nowhere else.',
 		askDownload: 'Download for Windows',
 		roadmapTitle: 'Roadmap',
 		roadmap: [
@@ -76,7 +76,7 @@ export const home = {
 		askLine: 'Win + Alt + S : un minuteur, une app, une question.',
 		askApp: 'ouvre discord',
 		askQuestion: 'claude que veut dire sumi',
-		askNote: 'Claude s’ouvre dans son app si elle est installée, sinon dans votre navigateur. Sumi n’envoie rien.',
+		askNote: 'Claude s’ouvre dans son app si elle est installée, sinon dans votre navigateur. Votre question ne va nulle part ailleurs.',
 		askDownload: 'Télécharger pour Windows',
 		roadmapTitle: 'Feuille de route',
 		roadmap: [
