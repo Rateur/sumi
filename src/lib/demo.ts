@@ -1,10 +1,12 @@
 import { isTauri } from '@tauri-apps/api/core'
 import type { Listed } from '../CommandBar.svelte'
-import { langOf } from './intent'
+import { fold, langOf } from './intent'
 import type { Activity } from './activities'
 import type { Player } from './music'
+import type { Battery, Device, Power } from './power'
 import type { Privacy, PrivacyApp } from './privacy'
 import { ended, isTimer, order, pause, resume } from './timers'
+import type { Forecast } from './weather'
 
 const SONGS = [
   { title: 'Midnight City', artist: 'M83', color: '#A78BFA' },
@@ -83,6 +85,68 @@ const APPS: Listed[] = [
   { name: 'Mail', color: '#0A66C2' },
 ]
 
+// Devices that report their battery, as the lab's: the panel shows the first one, three or five of this PC. Three is
+// the PC, a headset and a JBL speaker, one Windows doesn't show.
+const DEVICES: Device[] = [
+  { name: 'Casque UGREEN HiTune Max5', kind: 'headset', percent: 80 },
+  { name: 'Enceinte JBL Flip 6', kind: 'speaker', percent: 45 },
+  { name: 'Souris MX Master 3S', kind: 'mouse', percent: 52 },
+  { name: 'Manette Xbox', kind: 'controller', percent: 15 },
+]
+// A speaker Windows gives no level for.
+const JBL: Device = { name: 'JBL Go 4', kind: 'speaker', percent: null }
+const pc = { percent: 64, plugged: false, minutes: 190, full: null, saver: false }
+const SETS: Record<string, Battery> = {
+  one: { ...pc, devices: [] },
+  three: { ...pc, devices: DEVICES.slice(0, 2) },
+  five: { ...pc, devices: DEVICES },
+  unknown: { ...pc, devices: [DEVICES[0], DEVICES[2], JBL] },
+}
+
+// Open-Meteo's forecast for Lyon, recorded on 20 November 2026 at 21:15 there, cut to that day's hours. The demo
+// answers from it and never touches the network: Paris gets that morning, with rain at 14 h, and Oslo a clear night.
+// Any other city is not found, and 'offline' cuts the network.
+const LYON: Forecast = {
+  current: { time: '2026-11-20T21:15', temperature_2m: 11.5, weather_code: 2, is_day: 0 },
+  hourly: {
+    time: Array.from({ length: 24 }, (_, h) => `2026-11-20T${String(h).padStart(2, '0')}:00`),
+    precipitation_probability: [0, 0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 3, 5, 25, 65, 38, 18, 20, 10, 8, 15, 10, 8, 8],
+  },
+  daily: {
+    time: ['2026-11-20', '2026-11-21'],
+    weather_code: [80, 80],
+    temperature_2m_max: [14.3, 14.1],
+    temperature_2m_min: [10.3, 9.4],
+  },
+}
+const PLACES: Record<string, { name: string; latitude: number; longitude: number; forecast: Forecast }> = {
+  lyon: { name: 'Lyon', latitude: 45.74906, longitude: 4.84789, forecast: LYON },
+  paris: {
+    name: 'Paris',
+    latitude: 48.85341,
+    longitude: 2.3488,
+    forecast: { ...LYON, current: { ...LYON.current, time: '2026-11-20T11:15', temperature_2m: 12.4, is_day: 1 } },
+  },
+  oslo: {
+    name: 'Oslo',
+    latitude: 59.91273,
+    longitude: 10.74609,
+    forecast: { ...LYON, current: { ...LYON.current, temperature_2m: 1.6, weather_code: 0 } },
+  },
+}
+let offline = false
+
+// Answers as Open-Meteo would, a moment later, so the bar's fold shows.
+async function recorded(url: string): Promise<unknown> {
+  await new Promise((done) => setTimeout(done, 250))
+  if (offline) throw new TypeError('Failed to fetch')
+  const query = new URL(url).searchParams
+  const name = query.get('name')
+  const place = name === null ? undefined : PLACES[fold(name.trim())]
+  if (name !== null) return place ? { results: [place] } : { generationtime_ms: 0.08 }
+  return Object.values(PLACES).find((p) => String(p.latitude) === query.get('latitude'))?.forecast
+}
+
 const fakes: Record<string, () => Activity> = {
   call: () => ({ id: 'call', kind: 'call', mic: true, camera: true }),
   timer: () => ({ id: 'timer', kind: 'timer', endsAt: Date.now() + 25 * 60_000, total: 25 * 60_000 }),
@@ -146,6 +210,11 @@ const KEYS: Record<string, string> = {
   z: 'pause',
   w: 'welcome',
   r: 'tuck',
+  y: 'plugged',
+  x: 'low',
+  q: 'device',
+  Q: 'gone',
+  s: 'batteries',
 }
 
 /**
@@ -161,7 +230,13 @@ const KEYS: Record<string, string> = {
  * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
  edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
  'tuck-right'), as a wheel or touchpad swipe after the hover dwell, or a drag, does, and drains the open panel (E) up
- into the edge; a rest, a click, a scroll down or a pull down on the line brings it back.
+ into the edge; a rest, a click, a scroll down or a pull down on the line brings it back. Y plugs the PC in ('plugged'),
+ X runs its battery low ('low'), Q connects a speaker ('device') and Shift+Q disconnects it ('gone'), and S opens the batteries panel ('batteries'), as the
+ bar's `batterie` and Enter do; 'one', 'three' and 'five' give it that many rings, 'mains' and 'saver' turn those on,
+ 'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, 'late' connects it with the level
+ it gives 8 s later, and 'unknown' adds it to the panel. `météo Lyon`, `Paris` or `Oslo` in the bar answers from
+ recorded forecasts, never the network; 'weather' shows Lyon's peek without the bar, and 'offline' cuts the network or
+ brings it back.
  */
 export function demo(island: {
   activities: Activity[]
@@ -177,7 +252,12 @@ export function demo(island: {
   welcome: () => void
   tuck: () => void
   swipe: (way: 'up' | 'down' | 'left' | 'right') => void
+  power: (power: Power) => void
+  batteries: () => void
+  battery: Battery | undefined
+  forecast: (city: string) => void
   shortcut: string | undefined
+  lookup: (url: string) => Promise<unknown>
   apps: Listed[]
   claudeApp: boolean
 }) {
@@ -227,6 +307,23 @@ export function demo(island: {
     'tuck-down': () => island.swipe('down'),
     'tuck-left': () => island.swipe('left'),
     'tuck-right': () => island.swipe('right'),
+    plugged: () => island.power({ kind: 'plugged', percent: 64 }),
+    low: () => island.power({ kind: 'low', percent: 20, minutes: 65 }),
+    device: () => island.power({ kind: 'device', device: DEVICES[1] }),
+    'device-low': () => island.power({ kind: 'deviceLow', device: DEVICES[3] }),
+    gone: () => island.power({ kind: 'deviceGone', device: DEVICES[1] }),
+    jbl: () => island.power({ kind: 'device', device: JBL }),
+    // As Rust tells it: a speaker's peek waits for the level Sumi asks it for.
+    late: () => setTimeout(() => island.power({ kind: 'device', device: { ...JBL, percent: 64 } }), 8000),
+    batteries: island.batteries,
+    offline: () => (offline = !offline),
+    weather: () => island.forecast('Lyon'),
+    ...Object.fromEntries(Object.entries(SETS).map(([name, set]) => [name, () => (island.battery = set)])),
+    mains: () => island.battery && (island.battery = { ...island.battery, plugged: !island.battery.plugged, full: 50 }),
+    saver: () => island.battery && (island.battery = { ...island.battery, saver: !island.battery.saver }),
+    drain: () =>
+      island.battery &&
+      (island.battery = { ...island.battery, ...(island.battery.percent === 18 ? pc : { percent: 18, minutes: 50 }) }),
     // Without the app, Windows knows no `claude:` link either: questions open the website.
     claude: () => {
       island.claudeApp = !island.claudeApp
@@ -237,7 +334,9 @@ export function demo(island: {
   if (!isTauri()) {
     island.apps = APPS
     island.claudeApp = true
+    island.battery = SETS.three
     island.shortcut = (new URLSearchParams(location.search).get('shortcut') ?? 'Win+Alt+S') || undefined
+    island.lookup = recorded
   }
   addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {

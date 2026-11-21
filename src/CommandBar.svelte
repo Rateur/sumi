@@ -1,5 +1,6 @@
 <script lang="ts" module>
   import { ASSISTANTS, type App, type Choice, type Lang, type Target } from './lib/intent'
+  import { DRAWINGS, type Glyph } from './lib/weather'
 
   /** An app from the list, with the color of the monogram that stands in until its icon loads. Start's apps have
    * the id Rust opens them by, and their icon once it is read. */
@@ -15,11 +16,15 @@
     search: '#5F6368',
   }
 
-  /** What fills the 16 px icon slot: the app's icon, a monogram, a clock, or the timer's amber ring. */
-  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon } {
+  /**
+   * What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, a cloud for the weather, or the
+   * timer's amber ring.
+   */
+  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon; glyph?: Glyph } {
     if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
     if (choice.kind === 'ask') return { letter: ASSISTANTS[choice.to].name[0], color: MARKS[choice.to] }
+    if (choice.kind === 'weather') return { glyph: 'cloud' }
     return {}
   }
 </script>
@@ -37,6 +42,7 @@
     choices,
     lang,
     reduced,
+    question,
     shortcut,
     enter,
     exit,
@@ -47,6 +53,8 @@
     choices: Choice<Listed>[]
     lang: Lang
     reduced: boolean
+    /** A question the chip answers, in three parts, the middle one cut first: the weather's consent. */
+    question?: [string, string, string]
     /** The shortcut that opens the bar, as Rust registered it: `Win+Alt+S`. */
     shortcut?: string
     enter: (node: HTMLElement, params?: { step?: number }) => TransitionConfig
@@ -147,7 +155,11 @@
         scale.kick(-80, t)
         wake()
       }
-      setTimeout(() => onrun(picked), reduced ? 0 : 110)
+      // The bar may stay open, as for the weather's consent: the next Enter counts.
+      setTimeout(() => {
+        onrun(picked)
+        running = false
+      }, reduced ? 0 : 110)
     } else if (event.key === 'Escape') {
       event.preventDefault()
       onclose()
@@ -168,6 +180,10 @@
       {mark.letter}
     {:else if choice.kind === 'clock'}
       <svg class="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /><path d="M8 5v3.5l2 1.5" /></svg>
+    {:else if choice.kind === 'battery'}
+      <svg class="battery" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="11" height="7" rx="2" /><path d="M14.5 7v2" /></svg>
+    {:else if mark.glyph}
+      <svg class="sky" viewBox="0 0 24 24"><path d={DRAWINGS[mark.glyph]} /></svg>
     {:else}
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
     {/if}
@@ -178,8 +194,10 @@
 
 <input
   class="field"
+  class:asking={!!question}
   type="text"
   bind:value={line}
+  readonly={!!question}
   placeholder={lang === 'fr' ? 'Minuteur, app, question…' : 'Timer, app, question…'}
   aria-label={lang === 'fr' ? 'Barre de commande' : 'Command bar'}
   aria-keyshortcuts={shortcut?.replace('Win', 'Meta')}
@@ -191,6 +209,12 @@
   in:enter|global
   out:exit|global
 />
+{#if question}
+  <!-- The field keeps the focus and the whole sentence, out of sight; this shows it with the city cut first. -->
+  <span class="field question" aria-hidden="true" out:exit|global>
+    <span>{question[0]}</span><span class="city">{question[1]}</span><span>{question[2]}</span>
+  </span>
+{/if}
 <span
   class="chip"
   role="status"
@@ -204,14 +228,17 @@
     <!-- The ellipsis waits for the chip to settle, so a growing label is revealed, not cut. -->
     <span class="row" class:moving={drawn.moving}>{@render face(shown, mark)}</span>
     <!-- Laid out at its own width, out of sight: the chip springs to it. -->
-    <span class="row ghost" aria-hidden="true" bind:offsetWidth={natural}>{@render face(choice ?? shown, mark)}</span>
+    <!-- The battery's answer may list devices: it may take room from the field. -->
+    <span class="row ghost" class:wide={(choice ?? shown).kind === 'battery'} aria-hidden="true" bind:offsetWidth={natural}>
+      {@render face(choice ?? shown, mark)}
+    </span>
   {/if}
 </span>
 
 <style>
   .field {
-    flex: none;
-    width: 240px;
+    flex: 0 1 240px;
+    min-width: 0;
     padding: 0;
     border: 0;
     outline: none;
@@ -225,6 +252,32 @@
 
   .field::placeholder {
     color: rgb(255 255 255 / 0.6);
+  }
+
+  .field.asking {
+    position: absolute;
+    width: 0;
+    opacity: 0;
+  }
+
+  /* A question takes the room the chip leaves. A long city gets an ellipsis, so the end always shows. */
+  .question {
+    display: flex;
+    flex: 1 1 auto;
+    margin-right: 12px;
+    overflow: hidden;
+    white-space: pre;
+  }
+
+  .question > span {
+    flex: none;
+  }
+
+  .question > .city {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* The chip has no padding of its own, so it can spring down to nothing. */
@@ -258,6 +311,10 @@
     visibility: hidden;
   }
 
+  .ghost.wide {
+    max-width: 300px;
+  }
+
   .mark {
     display: grid;
     flex: none;
@@ -283,9 +340,17 @@
     stroke-width: 2;
   }
 
-  .mark svg.clock {
+  .mark svg.clock,
+  .mark svg.battery,
+  .mark svg.sky {
     stroke: #fff;
     stroke-linecap: round;
+  }
+
+  /* Drawn on 24 units, so its stroke matches the clock's at 14 px. */
+  .mark svg.sky {
+    stroke-width: 2.8;
+    stroke-linejoin: round;
   }
 
   .label {

@@ -155,7 +155,12 @@ const ESCAPE: u8 = 0b1000;
 /// Whether the keys read in two ticks in a row close the panel: Esc pressed anywhere,
 /// or a mouse button pressed outside the island. Only a new press counts, not one held down.
 pub fn dismisses(before: u8, now: u8, inside: bool) -> bool {
-    (now & !before) & ESCAPE != 0 || elsewhere(before, now, inside)
+    escaped(before, now) || elsewhere(before, now, inside)
+}
+
+/// Whether Esc was just pressed: the batteries panel goes back from a ring's detail before it closes.
+pub fn escaped(before: u8, now: u8) -> bool {
+    (now & !before) & ESCAPE != 0
 }
 
 /// Whether a mouse button was just pressed outside the island.
@@ -422,6 +427,7 @@ pub fn follow_cursor(
             let expanded = app.state::<IslandExpanded>();
             if expanded.0.load(Ordering::Relaxed) {
                 let now = (keys, foreground());
+                let esc = before.is_some_and(|(keys, _)| escaped(keys, now.0));
                 if before
                     // A press the island took is on it, even when a quick drag left its edge before this tick.
                     .is_some_and(|(keys, front)| {
@@ -430,7 +436,7 @@ pub fn follow_cursor(
                     })
                 {
                     expanded.0.store(false, Ordering::Relaxed);
-                    let _ = app.emit("island://dismiss", ());
+                    let _ = app.emit("island://dismiss", esc);
                 }
                 before = Some(now);
             } else {
@@ -488,6 +494,8 @@ mod tests {
     fn esc_closes_wherever_the_cursor_is() {
         assert!(dismisses(0, ESCAPE, true));
         assert!(dismisses(0, ESCAPE, false));
+        assert!(escaped(0, ESCAPE));
+        assert!(!escaped(0, 0b001) && !escaped(ESCAPE, ESCAPE));
     }
 
     #[test]

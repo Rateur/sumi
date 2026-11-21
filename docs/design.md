@@ -11,9 +11,9 @@ This is the design for 1.0. What each release already does is in the [changelog]
 | Idle | 132 × 34 px | Nothing happening. Shows the time, or the weather if chosen. |
 | Hover | 152 × 36 px | Cursor on the island, after a short rest. Adds the date, or a timer's name. |
 | Compact | Call 144, timer 112 (128 from an hour), music 200 × 34 px* | An activity runs: content on the left and right ends. |
-| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s | Something just happened: timer ended, charger, low battery. A new song swells instead, see [Music](#music). |
+| Peek | Music 300 × 56 px*, up to 3 s; a finished timer 300 × 56 px*, 6 s; plugging in 200 × 34 px*, 2 s, a device connecting, 3 s, and leaving, 2 s; a low battery 300 × 56 px*, 3 s; the weather 300 × 56 px*, 4 s | Something just happened: timer ended, charger, low battery, a device with a battery connecting, the weather asked in the command bar. A new song swells instead, see [Music](#music). The battery's are in [Battery](#battery), the weather's in [Weather](#weather). |
 | Done | Timer 150 × 34 px* at least | A timer ended and waits for OK. |
-| Expanded | Clock and timer 280 × 120 px*, music 360 × 164 px*, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. |
+| Expanded | Clock and timer 280 × 120 px*, music 360 × 164 px*, batteries 280 or 360 × 120 px*, 164 tall with a ring grown, panels up to 560 px wide | Click. Closes on Esc or a click elsewhere. Music shows the artwork, title and artist, the progress, and previous, play or pause and next. The batteries open from the command bar or a battery peek, see [Battery](#battery). |
 | Bubble | 34 px circle | A second activity, or the time, 8 px right of the island. A click brings it to the island. |
 | Privacy tag | 20 px circle, card 248 px wide | An app uses the microphone or the camera, or the microphone is muted. 6 px right of everything else; opens into a card under the cursor. |
 | Hidden | — | A game, video or slideshow fills the main screen. Comes back compact. |
@@ -38,6 +38,8 @@ The time is last in line: it has the island when nothing runs, and the bubble wh
 6. Time or weather
 
 What was picked from the bubble comes right after a timer that ended. Timers go by their end rather than by what is shown, so the island always holds the next one to ring.
+
+The weather asked in the bar shows over all of it for 4 s, as the bar's answers do. A battery peek shows over this order for a few seconds, and never covers a call or a timer's end peek. A low battery waits for them, and for the bar, an open panel, the welcome, fullscreen and while Windows says you're busy. Plugging in and a device connecting are dropped instead.
 
 ## Music
 
@@ -74,6 +76,56 @@ What was picked from the bubble comes right after a timer that ended. Timers go 
 - Mute is Windows' own mute of the default microphones and of every microphone an app is capturing from at that moment, never an idle one. It counts as on only when all of those are muted. Unmute turns back on only the ones Sumi muted, or all of them when Sumi muted none. While it's on, a crossed microphone stays in the disc, even when no app listens.
 - Media Foundation is loaded at run time: Windows N editions ship without it, and Sumi must still start there, with the microphone alone.
 
+## Battery
+
+### The batteries panel
+
+One ring per device, the PC first, then by kind (headset, speaker, controller, mouse, keyboard, other), then by name. Waking up or reconnecting never reshuffles the row, and levels never reorder it.
+
+- **Opens** from the command bar's `battery`, whose Enter folds the bar into it, and from a click on any battery peek. Never from the idle island: its click stays the clock's panel, with no rings. It closes as every panel does. A PC without a battery shows its devices only; with none either, the bar says "This PC has no battery" and Enter does nothing.
+- **Size**: 280 × 120 px* for 2 to 4 slots, 360 × 120 px* for 5. At most 5 slots: past that, the fifth is "+N", a white track and "+N" in 13 px 600, with no level. It is no button: its spoken name lists the others, and so does the bar's chip. A device at 20 % or less swaps in for the last one shown.
+- **Rings**: slots min(72, (width − 40) / slots) px wide, centred. Each ring is 44 px with a 4 px stroke, its arc from 12 o'clock clockwise with round caps, its centre 48 px from the top. Inside, the device's glyph, 20 px, drawn white on 24 units with a 1.8 stroke. Under it, 6 px down, its level: "64 %", 13 px 600 white. No names under the rings: the glyph says what it is.
+- **Colours** say the state, the number the level: green `#4ADE80`; red `#F87171` at 20 % or less on battery, even with energy saver on, since Windows turns it on by itself at 20 %; amber `#FBBF24` while energy saver is on above that, for the PC only. On mains, green. The track is the ring's colour at 25 %. While on mains the PC's ring wears the plug-in bolt at 12 o'clock, white at 70 % size on a black disc of radius 6.5. Devices never do: Windows doesn't say when they charge.
+- **Seven glyphs**: laptop for the PC, headset, speaker, mouse, keyboard, controller, and a battery outline for the rest. Classic earbuds report as headphones and get the headset.
+- **Without a level**: a connected headset, speaker or controller Windows gives no level for comes after the devices that have one, as its glyph inside a white track at 25 %, no arc, and "—" for its level. Its spoken name is "JBL Go 4, level unknown". Grown, its detail is its name and, below, "Windows doesn't report its battery", in white, on two lines at most.
+- **One device**: the panel is its detail at once, laid out as the timer's panel: a 56 px ring 24 px from the left, its centre 60 px down, then 16 px further its lines in 13 px 500 white at 60 % and its level in Segoe UI Variable Display 40 px 600. The PC has three lines, centred 28, 60 and 92 px down: "This PC", with "· charging" on mains, "· low" at 20 % or less on battery, or "· energy saver"; its level; then "About 3 h 10 left", or on mains "Full in 50 min", rounded up to 10 min and shown after 2 min on mains, with "Plugged in" before that or when Windows gives no charge rate. A device has its name, cut with an ellipsis, and its level, centred on the ring at 44 and 76 px.
+- **A click on a ring grows it** to that detail, the panel 164 px tall: the ring to 56 px, its centre 58 px down, its lines 2 px higher. Every device but that one sits in a small row of 28 px rings, 40 px apart, centred 132 px down, hidden ones included, with a gap where the grown one came from. A click on a small ring grows it instead. A second click on the grown ring, or Esc, goes back to the row; Esc again closes.
+- **Growing**: the levels under the rings leave in 60 ms, opacity only. The height goes from 120 to 164 on `OPEN.height` (0.52 s, bounce 0.18), and the grown ring rides it. Rings that shrink move on 0.34 s without a bounce; those dropping to the small row drop at once and slide from 40 ms. The name and the level come in at 85 and 120 ms, the PC's third line at 155. At rest by about 760 ms. **Back**: after 60 ms, `OPEN.height` without a bounce; at rest by about 830. **From one grown ring to another**, the two would cross: they leave and come in as content does, and nothing else moves.
+- **Opening**, ring after ring comes in as content does, its level a step later, and its arc fills from empty on a 0.6 s spring that never bounces: an overshoot would show a level the device doesn't have. A level that changes while the panel is open springs the same way.
+- **Keyboard**: opened from the bar, the panel keeps the bar's focus. Left and Right walk the rings, the grown one first, Home and End go to the first and the last, Enter or Space grows one, Esc goes back, then closes and gives the focus back. Opened by a click, it takes no focus.
+- **Spoken**: as it opens, every device, hidden ones too: "Batteries. This PC, 64 %, about 3 h 10 left. UGREEN headset, 80 %." Each ring is named by its line, with "charging, full in 50 min", "energy saver" and "low battery" when they apply.
+
+### Peeks
+
+- **Plugging in**: the music's compact shape, 200 × 34 px*, for 2 s. A white bolt draws itself in 180 ms at the left end, then the level comes in at the right end, "64 %", then a 25 × 12 px battery after it, outlined in white at 45 %, filled green to the level. Tucked by hand or by itself, the island comes out of the line for it, as it comes back, and tucks again as the peek ends, unless you did something meanwhile. While a window is moved, in fullscreen, while you're busy or over a call, it is dropped.
+- **At 20 %**: a 300 × 56 px* peek for 3 s. A red `#F87171` battery outline filled to the level, then "20 %" and, below, "About 1 h 05 left" when Windows knows the time, otherwise "Low battery". Once per discharge: on the first reading at or under 20 %, never only an exact match, since some PCs step by more than 1 %. Plugging in starts a new discharge. It waits, and shows once the island is free if you're still on battery. It brings a tucked island back.
+- **A device connecting**, with the level Windows shows in its Bluetooth settings: the 200 × 34 px* compact for 3 s, its glyph at the left end, 14 px in, then at the right end its level, 14 px 600, and 6 px after it an 18 px ring with a 2.2 px stroke in the level's colour. Glyph at 50 ms, level at 85, ring at 120, its arc filling from there. No name: you just turned it on. Headsets, speakers, controllers and other devices only: a mouse or a keyboard reconnects each time it wakes, so it shows only its low peek. The same device doesn't peek again within 2 min, as a headset out of range for a moment; the time is kept in memory only. One that connects at 20 % or less shows the compact in red, and that counts as its low warning. A headset, a speaker or a controller Windows gives no level for still peeks once it has waited 5 s for one: its glyph, then its name at the right end, 13 px, cut with an ellipsis, with no level and no ring. It shows as plugging in does, out of the line and back.
+- **A device leaving**: the same compact for 2 s, its glyph at the left end in white at 45 %, then at the right end "Disconnected", 13 px 500 white at 60 %. No ring: an empty one would read as a flat battery. Glyph at 50 ms, word at 85. Headsets, speakers and controllers only, never a mouse or a keyboard. It shares the connect peek's 2 min pause: back within it, the device says nothing, and it doesn't say it left twice; one that just connected may still say it left. It comes out of the line and back as the connect peek does, and is dropped in fullscreen, while you're busy and while a window is moved. Nothing as the PC goes to sleep or in the 30 s after it wakes, nor when Sumi quits. Its spoken label is "JBL Go 4 disconnected".
+- **A device at 20 %**: a 300 × 56 px* peek for 3 s, its ring at 32 px, red, with its glyph, then its level and, below, its name. Once per discharge, as for the PC.
+- **A click on any battery peek** opens the batteries panel.
+- **Nothing** on unplugging, a full charge or energy saver.
+- Only a level read after a device connects counts: Windows keeps the last one of a device that left. Windows gives no level for many speakers, which report theirs only to their maker's app over a protocol of its own. A JBL speaker is asked for its own over Bluetooth LE as it connects, its peek waiting 10 s at most for the answer, as the panel opens, and every 15 min while connected. A mouse or a keyboard without one shows nothing. Phones and computers are left out: they show their own battery.
+- Some levels Sumi reads itself, where Windows has none or a coarser one: Fast Pair earbuds, Xbox controllers on the Xbox adapter, and the Switch Pro, DualShock 4 and DualSense on Bluetooth. They show and peek as Windows' do, and go over Windows' own for the same device.
+- The peeks move as a song's does; the bolt's stroke is new. **Reduced motion**: the content fades out in 120 ms, the shape and the rings change, the new content fades in over 120 ms; arcs are drawn at their level and the bolt is there at once. **Contrast theme**: the rings keep their own colours, as the dots do.
+- The laptop's battery is read once at launch: without one, nothing is listened to. Then only Windows' events come: the supply, the level and energy saver, and for devices the connection and the level. Nothing is logged or stored.
+
+## Weather
+
+Asked in the command bar only: no weather at rest, no alert and nothing at launch. It is Sumi's only network request, and it waits for a yes.
+
+- **Words**: `météo`, `meteo` or `weather` on a line of their own, with a city or not (`météo Lyon`, `météo à Lyon`, `weather in Paris`), ending with `demain` or `tomorrow` or not. A city is letters only, 4 words at most. `temps` is no weather word. The chip is worked out on the PC as you type: "Weather Paris", "Weather Paris tomorrow". These words come before an app's exact name, since Windows' own weather app is called "Weather"; Tab still offers it.
+- **No city typed**: the city found this session. Before one, the chip reads "Weather · type a city" and Enter does nothing.
+- **The yes**, on the first weather Enter of a session. Nothing is sent: the field becomes "Open-Meteo will get "Lyon" and your IP.", which can't be edited and takes the room the chip leaves, and the chip becomes "Allow ↵". A long city is cut with "…", never the end of the sentence; a screen reader hears it whole. Enter is yes. Esc is no: the bar closes, and nothing is sent or kept. No new shape and no buttons.
+- **While Open-Meteo answers**, the bar folds into the launch shape, 200 × 34 px*, a cloud and "Weather Lyon".
+- **Peek**: 300 × 56 px* for 4 s, which always shows: you just asked. A 28 px glyph 16 px from the left, drawn white on 24 units with a 1.6 stroke, then 12 px further two lines: "Lyon · 14° · Cloudy", or "Lyon tomorrow · Showers", in white, and under it, at 60 %, the low and the high, "9° / 17°". For today, when an hour still to come has a rain chance of 50 % or more, the second line is "Rain around 4 pm" instead. In the bottom right corner, 18 px in and on the second line's baseline, "Open-Meteo" in 11 px 500, white at 50 % (AA contrast): a click opens open-meteo.com. The rest of the peek takes no click and doesn't give under a press.
+- **Six glyphs**: sun, moon (a clear sky at night, from `is_day`), cloud (fog too), rain, snow and storm. The chip and the launch shape show the cloud.
+- **Errors**, for 2 s in the launch shape: "City not found", and "No connection", which 8 s without an answer counts as too.
+- **Degrees**: Celsius, or Fahrenheit when the island's language has the US region (`en-US`).
+- **Requests**: the city to `geocoding-api.open-meteo.com/v1/search` (one result, in the island's language), then its coordinates, never yours, to `api.open-meteo.com/v1/forecast`. Both with `cache: 'no-store'`, so WebView2 writes nothing to disk, `credentials: 'omit'` and `referrerPolicy: 'no-referrer'`. The CSP allows these two hosts and no other. There is no forecast cache.
+- **Kept**: the yes and the city found, in memory for the session only. Quitting Sumi forgets both. Nothing is written to disk or a log.
+- The peek moves as a song's: glyph, first line, second line, then the credit. **Reduced motion** and **contrast theme**: as the battery's peeks.
+- Weather data by [Open-Meteo](https://open-meteo.com), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## Input
 
 Clicks outside the island reach the window underneath. The island never takes focus, except while the command bar is open, so a game or a call keeps it.
@@ -89,7 +141,7 @@ Known limits: with touch or a pen, the first tap on the island reaches the app u
 | `Tab` / `Shift+Tab` | Next / previous target |
 | `Esc` | Close |
 
-In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, and anything else is a question. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
+In the command bar, `25m`, `90s` or `1h30` is a timer, an app's name opens it, `what time is it` shows the time, `battery` gives the batteries on the chip and opens their panel, `weather in Paris` asks Open-Meteo after a yes, see [Weather](#weather), and anything else is a question. A word alone of three letters or more that starts the bar's own words of one kind gives that answer: `bat` and `autono` the batteries, `heu` and `tim` the time, `dat` the date, `mét` and `weat` the weather. An app it also starts comes next on Tab. The line is read without punctuation, politeness counts only around a verb, and verbs in any form (`ouvre`, `ouvrir`, `lance`, `open`) count as one. One word of four letters or more opens the one app whose name, or a word in it, starts that way: `disc` opens Discord, but never while the word could still become one of the bar's own words or a question. When in doubt, the line is a question: a tie between apps or a verb in the negative opens nothing. The chip says what Enter will do, and Tab turns it to the next target: the apps that tied, the default assistant, the other assistants, then the search engine. On an empty line, Enter does nothing.
 
 The shortcut brings the bar to the front with the focus. Esc gives the focus back to the window you were in; a click elsewhere or switching apps closes the bar too. Before an app or a site opens, the bar lets go of the focus, so what opens comes to the front. While the island is hidden in fullscreen, the shortcut does nothing.
 
@@ -143,9 +195,11 @@ What the island and its bubble show decides whether it stays or tucks itself aft
 |---|---|
 | Microphone or camera dot | Stays, and brings it back |
 | Call | Stays, and brings it back |
-| Command bar or its answer | Stays, and brings it back |
+| Command bar or its answer, the weather's peek included | Stays, and brings it back |
 | Welcome | Stays, and brings it back |
 | A timer's end peek or done pill | Stays, and brings it back |
+| Low battery, the PC's or a device's | Stays, and brings it back |
+| Plugging in, or a device connecting | Comes out for its peek, then tucks again, unless you did something meanwhile. Not while a window is moved. |
 | Music, playing or paused | Stays, and brings it back |
 | Running timer | Tucks itself. Its end brings it back. |
 | Time alone | Tucks itself |

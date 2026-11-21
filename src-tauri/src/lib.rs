@@ -3,19 +3,25 @@
 //! window and window moves on the main thread and only feeds that poll. `tray` draws the tray icon as the page says
 //! and emits island://tuck from a left click or the menu's tuck item.
 //! `media` emits media://players and media://artwork, and `privacy` privacy://state, each from a thread of its own
-//! that sleeps until Windows calls back; media's also wakes to read a late artwork again. `apps` reads Start's list
-//! once on a thread that then ends, and `bar` hears the command bar's shortcut through Windows. `timers` and `welcome`
-//! only answer the page: one plays the timers' chime, the other keeps the first-launch welcome's flag.
+//! that sleeps until Windows calls back; media's also wakes to read a late artwork again. `power` emits power://plugged,
+//! power://low, power://device, power://device-low, power://device-gone and power://battery the same way, with the
+//! levels `fastpair`, `xbox` and `pads` read where Windows doesn't. `apps` reads Start's list once on a thread that
+//! then ends, and `bar` hears the command bar's shortcut through Windows. `timers` and `welcome` only answer the page:
+//! one plays the timers' chime, the other keeps the first-launch welcome's flag.
 
 mod apps;
 mod bar;
+mod fastpair;
 mod fullscreen;
 mod island;
 mod media;
+mod pads;
+mod power;
 mod privacy;
 mod timers;
 mod tray;
 mod welcome;
+mod xbox;
 
 use std::sync::Mutex;
 
@@ -43,7 +49,7 @@ pub fn run() {
     }
 
     tauri::Builder::default()
-        // media::watch and privacy::watch manage their own state.
+        // media::watch, privacy::watch and power::watch manage their own state.
         .manage(island::IslandRects::default())
         .manage(island::IslandExpanded::default())
         .manage(island::IslandWaiting::default())
@@ -59,11 +65,14 @@ pub fn run() {
             apps::app_icon,
             apps::app_launch,
             apps::assistant_open,
+            apps::open_meteo,
             bar::bar_shortcut,
             bar::bar_focus,
             media::media_control,
             media::media_seek,
             media::media_players,
+            power::battery,
+            power::battery_ask,
             privacy::privacy_state,
             privacy::privacy_mute,
             privacy::privacy_settings,
@@ -111,6 +120,7 @@ pub fn run() {
             island::follow_cursor(app.handle().clone(), window, trigger, presence);
             media::watch(app.handle());
             privacy::watch(app.handle());
+            power::watch(app.handle());
             apps::watch(app.handle());
             Ok(())
         })

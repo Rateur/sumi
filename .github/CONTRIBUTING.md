@@ -50,12 +50,15 @@ The island appears at the top of your primary screen. Quit it from the tray icon
 - `src-tauri/src/fullscreen.rs` hides the island while a game, a video or a slideshow fills the primary screen, and hears a window start and end a move or a resize.
 - `src-tauri/src/media.rs` reads the players Windows' media controls can see, and plays, pauses, skips and seeks.
 - `src-tauri/src/privacy.rs` finds the apps using the microphone or the camera, and mutes the microphone.
-- `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, and opens a question in an assistant or the search engine.
+- `src-tauri/src/power.rs` reads the laptop's battery and the level Bluetooth devices report, and tells the page when you plug in, when the battery runs low, and when a device with a battery connects, runs low or leaves.
+- `src-tauri/src/power/jbl.rs` asks a JBL speaker for the level Windows doesn't have: one short Bluetooth LE connection, one request, its reply's battery.
+- `src-tauri/src/fastpair.rs` reads earbuds' levels from Google's Fast Pair stream, `src-tauri/src/xbox.rs` Xbox controllers' on the Xbox Wireless Adapter from Windows' game input, and `src-tauri/src/pads.rs` the Switch Pro Controller's and PlayStation controllers' from their HID reports. Each hands `power.rs` the levels Windows doesn't read.
+- `src-tauri/src/apps.rs` reads Start's apps, opens the one picked in the command bar, opens a question in an assistant or the search engine, and opens Open-Meteo's site from the weather peek's credit.
 - `src-tauri/src/bar.rs` registers the command bar's shortcut, and gives focus to the bar and back.
 - `src-tauri/src/timers.rs` plays the timers' chime. The timers themselves live in the page's memory only.
 - `src-tauri/src/welcome.rs` keeps the first-launch welcome's flag, a file holding the version that said hello.
-- `src/Island.svelte` draws the island. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only these two files talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
-- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
+- `src/Island.svelte` draws the island, and asks Open-Meteo for the weather after the bar's yes: Sumi's only network request. `src/Batteries.svelte` draws the batteries panel's rings and moves them, and `src/Ring.svelte` one ring and the devices' glyphs, which the battery peeks use too. `src/PrivacyCard.svelte` draws the microphone and camera card and calls the `privacy_mute`, `privacy_settings` and `privacy_show` commands. Only `Island.svelte` and `PrivacyCard.svelte` talk to Rust; `src/main.ts` and `src/App.svelte` just mount the island.
+- `src/lib/*.ts` is the logic without the DOM: who gets the island, sizes, springs, music, privacy, timers (`timers.ts`), the first-launch welcome (`welcome.ts`), the tuck and what tucks itself (`tuck.ts`), what the tray icon shows and says (`tray.ts`), the battery's words (`power.ts`), the weather's links, glyphs and words (`weather.ts`), and what the command bar's line means (`intent.ts`). Each file has its Vitest tests beside it (`*.test.ts`).
 - `src/lib/demo.ts` plays every state from the keyboard, in a browser without Rust, and runs the site's live examples (`npm run showcase`).
 - `site/` is the website, in Astro and Starlight. Its English contributing page imports this file.
 
@@ -80,14 +83,17 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `app_icon` | page → Rust | `id: String`, returns `Option<Icon>` (`privacy.rs`) | `{ side, rgba }` or `null` |
 | `app_launch` | page → Rust | `id: String`, returns `bool` | `boolean` |
 | `assistant_open` | page → Rust | `target: Target` (`apps.rs`), `query: String`, returns `bool` | `Target` (`src/lib/intent.ts`), `string` |
+| `open_meteo` | page → Rust | returns `bool` (`apps.rs`): opens https://open-meteo.com | `boolean` |
 | `bar_shortcut` | page → Rust | returns `Option<&str>` (`bar.rs`) | `string` or `null` |
 | `bar_focus` | page → Rust | `open: bool` | `boolean` |
 | `timer_chime` | page → Rust | nothing | nothing |
+| `battery` | page → Rust | returns `Battery` (`power.rs`) | `Battery` (`src/lib/power.ts`) |
+| `battery_ask` | page → Rust | nothing: the batteries panel opened, so a JBL speaker is asked for its level, which comes on `power://battery` | nothing |
 | `welcome_pending` | page → Rust | returns `bool` (`welcome.rs`) | `boolean` |
 | `welcome_done` | page → Rust | returns `Result<(), String>` | nothing, or an error |
 | `island://presence` | Rust → page | `Presence` (`fullscreen.rs`) | `Presence` (`src/lib/activities.ts`) |
 | `island://pointer` | Rust → page | `Option<u32>`: the hover time in ms, `None` when the cursor leaves | `number` or `null` |
-| `island://dismiss` | Rust → page | nothing | nothing |
+| `island://dismiss` | Rust → page | `bool`: whether Esc closed it, rather than a click elsewhere or another app | `boolean` |
 | `island://tuck` | Rust → page | nothing: a left click on the tray icon or its menu's tuck item, which tucks or brings back | nothing |
 | `island://moving` | Rust → page | `bool`: `true` once a window is dragged, `false` when the move ends | `boolean` |
 | `island://elsewhere` | Rust → page | nothing: a click outside the island while it waits to tuck itself | nothing |
@@ -95,6 +101,12 @@ The page calls Rust with `invoke()` and listens to its events with `listen()`. E
 | `media://players` | Rust → page | `Vec<Player>` (`media.rs`) | `Player[]` (`src/lib/music.ts`) |
 | `media://artwork` | Rust → page | `json!({ id, url })`, with `url: Option<String>` | `{ id, url }`, with `url` a `data:` URL or `null` |
 | `privacy://state` | Rust → page | `Privacy` (`privacy.rs`) | `Privacy` (`src/lib/privacy.ts`) |
+| `power://plugged` | Rust → page | `u8`: the level, as the PC is plugged in | `number` |
+| `power://low` | Rust → page | `Low` (`power.rs`), once per discharge | `Low` (`src/lib/power.ts`) |
+| `power://device` | Rust → page | `Device` (`power.rs`), as it connects, its level `None` when Windows gives none, but a mouse or a keyboard only when low | `Device` (`src/lib/power.ts`) |
+| `power://device-low` | Rust → page | `Device`, once per discharge | `Device` |
+| `power://device-gone` | Rust → page | `Device`, as a headset, a speaker or a controller disconnects, but not around sleep | `Device` |
+| `power://battery` | Rust → page | `Battery` (`power.rs`), when what the batteries panel shows changed | `Battery` (`src/lib/power.ts`) |
 
 ## Before you push
 

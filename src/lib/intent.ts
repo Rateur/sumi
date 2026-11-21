@@ -2,12 +2,14 @@
  * What a line typed in the command bar does: a timer, an app, the time or a question. Local rules only, so the same
  * text always gives the same chip, and nothing is sent anywhere while typing. The line is read once, the same way
  * every time (folded, elisions and clitics split, politeness off its ends), then the first rule that matches wins: a
- * timer, an app's exact name or alias as typed, the time or the date, an assistant by name, a search, a verb and an
- * app, a word alone that starts one app's name, then the default target. When in doubt the line is a question:
- * acting wrongly costs more than not acting.
+ * timer, the weather, an app's exact name or alias as typed, the time or the date, an assistant by name, a search, a
+ * verb and an app, a word alone that starts one app's name, then the default target. When in doubt the line is a
+ * question: acting wrongly costs more than not acting.
  */
 
 import { formatLongDate, formatTime } from './clock'
+import { answer, type Battery } from './power'
+import { chip } from './weather'
 
 export type Lang = 'fr' | 'en'
 
@@ -41,6 +43,10 @@ export type Choice<A extends App = App> = { label: string } & (
   | { kind: 'app'; app: A }
   // The answer is the label itself: 'Il est 11:27' or 'Jeudi 19 novembre'.
   | { kind: 'clock'; what: 'time' | 'date' }
+  // The answer is the label too: « 47 % · sur secteur ».
+  | { kind: 'battery' }
+  // Today (0) or tomorrow (1), in the city typed, as typed, or without one in the session's: « Météo Lyon demain ».
+  | { kind: 'weather'; city?: string; day: 0 | 1 }
   // `peek` is what the island shows after Enter: 'Claude', or 'Claude · navigateur' when it opens on the web.
   | { kind: 'ask'; to: Target; question: string; web: boolean; peek: string }
 )
@@ -56,6 +62,10 @@ export interface Options<A extends App> {
   locale?: string
   /** The default target first, then the others in the user's order. The search engine always comes last. */
   order?: readonly Assistant[]
+  /** The battery, read from Rust as the bar opened. */
+  battery?: Battery
+  /** The city the weather last found this session, for a bare « météo ». */
+  city?: string
 }
 
 /**
@@ -822,6 +832,58 @@ const DATE = new RegExp(
     `(?: (?:${half(["d' aujourd'hui", "d' aujourdhui", "aujourd'hui", 'aujourdhui', 'ajd', 'today'])}))?$`,
 )
 
+// --- The battery ---
+
+// Whole lines only, as for the time: 'batterie faible que faire' stays a question.
+const BATTERY = /^(?:batterie|battery|battery level|autonomie|niveau de batterie)$/
+
+// --- The weather ---
+
+// Whole lines only, as for the battery: 'météo', 'météo à Lyon', 'weather in Paris tomorrow', 'météo demain'. A city
+// is letters only, at most 4 words, so 'weather in 10 minutes' stays a question. 'temps' is no weather word.
+const DAYS = "demain|tomorrow|aujourd'hui|aujourdhui|today|maintenant|now"
+const WEATHER = new RegExp(
+  `^(?:meteo|weather)(?: (${DAYS}))?(?: (?:a|au|in|at|for|pour|de|sur))?(?: ([\\p{L}' .-]+?))??` +
+    `(?: (?:pour |for )?(${DAYS}))?$`,
+  'du',
+)
+// Words that make the line a question about the weather rather than a city's: 'weather forecast for next week',
+// 'météo de la semaine', 'weather like in Rome'.
+const NOT_CITY = new RegExp(
+  '(?:^| )(?:forecast|previsions?|like|semaine|week|week-end|weekend|next|prochaine?s?|ce|cette|this|soir|' +
+    'tonight|matin|morning|hier|yesterday|radar|app|appli|application)(?= |$)',
+)
+
+// --- The bar's own words, on their way ---
+
+// The words that answer alone, folded, by what they ask. A timer needs a length, so 'minuteur' and 'timer' aren't here.
+type Own = 'battery' | 'time' | 'date' | 'weather'
+const OWN: [string, Own][] = [
+  ['batterie', 'battery'],
+  ['battery', 'battery'],
+  ['autonomie', 'battery'],
+  ['heure', 'time'],
+  ['time', 'time'],
+  ['date', 'date'],
+  ['meteo', 'weather'],
+  ['weather', 'weather'],
+]
+
+/**
+ * What a word alone on the line, 3 letters or more, asks for when it starts one of the bar's own words, and only
+ * words of one kind: 'bat' and 'batte' are the battery, 'heu' the time, 'mét' and 'weat' the weather. Never inside a
+ * longer line, so 'batman' and 'time management' stay questions. `raw` is the word as typed: the weather takes 4
+ * letters, or 'mét' with its accent, as 'met' is French for « puts » ('met un minuteur').
+ */
+export function own(text: string, raw = text): Own | undefined {
+  if (text.length < 3 || text.includes(' ')) return
+  const short = text.length < 4 && !/é/i.test(raw)
+  const asks = new Set(
+    OWN.filter(([word, what]) => word.startsWith(text) && !(short && what === 'weather')).map(([, what]) => what),
+  )
+  return asks.size === 1 ? [...asks][0] : undefined
+}
+
 // --- Assistants ---
 
 // A question opens in Claude's app when Windows knows its link, on the website otherwise.
@@ -878,6 +940,7 @@ const BARE = [...OPEN, ...SETS, ...KEYWORDS, ...ORDER, 'gpt', 'google', 'affiche
   .concat(['quand', 'explique', 'expliquer', 'traduis', 'traduire', 'resumer', 'ecris', 'ecrire', 'aide', 'aider'])
   .concat(['donne', 'donner', 'peux', 'pourrais', 'what', 'whats', 'which', 'where', 'when', 'explain', 'translate'])
   .concat(['summarize', 'summarise', 'write', 'help', 'give', 'could', 'would', 'should', 'please'])
+  .concat(['batterie', 'battery', 'autonomie', 'niveau', 'meteo', 'weather'])
 // The first group opens what it names, or says no app aloud. 'montre', 'show' or 'run' takes an exact name: without
 // one it is just a question, so 'show the ti' is no Time Doctor. "m'ouvrir" and 'mouvrir' are 'open for me', and
 // 'open up', 'fire up' and 'boot up' a verb with its particle. 'show me' is 'montre-moi'. A trailing 'now' or 'ok'
@@ -968,18 +1031,44 @@ export function choices<A extends App>(line: string, options: Options<A>): Choic
     // An exact name as typed comes before the assistants, so 'Google Chrome' opens Chrome rather than searching
     // 'chrome'. Politeness stays on for it: 'merci claude' and 'sumi claude' are questions.
     const named = exactly(index, whole.text)
+    // The weather comes first: Windows' own weather app is called « Météo » or "Weather". Tab still reaches it.
+    const sky = (city?: string, day: 0 | 1 = 0): Choice<A> => ({
+      kind: 'weather',
+      city,
+      day,
+      label: chip(city ?? options.city, day, lang),
+    })
+    const weather = WEATHER.exec(text)
+    const place = weather?.[2] ?? ''
+    if (weather && !NOT_CITY.test(place) && place.split(' ').length <= 4) {
+      const [from, to] = weather.indices![2] ?? [0, 0]
+      const city = place ? typed.slice(read.at[from], read.at[to - 1] + 1) : undefined
+      const day = /^(?:demain|tomorrow)$/.test(weather[1] ?? weather[3] ?? '') ? 1 : 0
+      if (named) tied.push(named)
+      return [sky(city, day), typed]
+    }
     if (named) return [open(named), typed]
     if (NEGATION.test(text)) return [ask(order[0], typed, claudeApp, lang), typed]
     // A tail still being typed holds what the line says without it: 'quelle heure st' and 'ouvre discord st' on
     // their way to 'stp'. A bare name keeps its politeness, so 'discord st' holds nothing.
     const tail = TAIL.exec(text)
     const cut = tail ? text.slice(0, tail.index) : ''
-    if (TIME.test(text) || TIME.test(cut)) {
-      return [{ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) }, typed]
-    }
-    if (DATE.test(text) || DATE.test(cut)) {
+    const time = (): Choice<A> => ({ kind: 'clock', what: 'time', label: WORDS[lang].time(formatTime(new Date(now), locale)) })
+    const date = (): Choice<A> => {
       const day = formatLongDate(new Date(now), locale)
-      return [{ kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }, typed]
+      return { kind: 'clock', what: 'date', label: day[0].toUpperCase() + day.slice(1) }
+    }
+    const battery = (): Choice<A> => ({ kind: 'battery', label: answer(options.battery, lang) })
+    if (TIME.test(text) || TIME.test(cut)) return [time(), typed]
+    if (DATE.test(text) || DATE.test(cut)) return [date(), typed]
+    if (BATTERY.test(text) || BATTERY.test(cut)) return [battery(), typed]
+    // One of the bar's own words on its way comes first; an app the word also starts is one Tab away.
+    const asked = own(text, read.raw)
+    if (asked) {
+      const app = starts(index, key(whole.text, true), tied)
+      if (app) tied.unshift(app)
+      const answers = { battery, time, date, weather: () => sky() }
+      return [answers[asked](), typed]
     }
     const by = BY_NAME.exec(text)
     if (by) {
