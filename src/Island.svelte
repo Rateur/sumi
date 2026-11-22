@@ -3247,7 +3247,15 @@
 <span class="spoken" role="status">{spoken}</span>
 
 {#if geometry.dot}
-  <button type="button" class="island bubble" aria-label="Show in the island" style={place(geometry.dot)} onclick={swap}>
+  <!-- Merging back, it slides over the island's end: a click there is the island's. -->
+  <button
+    type="button"
+    class="island bubble"
+    aria-label="Show in the island"
+    inert={!beside}
+    style={place(geometry.dot)}
+    onclick={swap}
+  >
     {#if beside && revealed}
       {#key beside.id}
         <span class="content" in:enter|global out:exit|global={{ shrinks: true }}>
