@@ -3257,7 +3257,8 @@
           .join(', ')}
         onclick={() => {
           clearTimeout(tagTimer)
-          card = true
+          // Not while the tag sinks, as a rest on it.
+          card = tagged(privacy)
         }}
       ></button>
     {/if}
