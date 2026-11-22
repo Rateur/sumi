@@ -306,5 +306,10 @@
     .actions button {
       transition: none;
     }
+
+    /* The press snaps; the hover still fades. */
+    .app {
+      transition: background-color 0.2s;
+    }
   }
 </style>

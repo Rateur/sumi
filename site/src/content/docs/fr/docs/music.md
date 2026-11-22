@@ -21,7 +21,7 @@ Un nouveau morceau fait gonfler l'île, sauf si Windows indique que vous êtes o
 
 ## Pause
 
-La musique en pause reste une minute, puis l'heure revient. Relancez-la et elle revient.
+La musique en pause reste une minute, puis l'heure revient. Relancez-la et elle revient. Son panneau ouvert, la minute part quand vous le fermez.
 
 ## Limites
 
