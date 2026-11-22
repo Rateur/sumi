@@ -1,7 +1,7 @@
 /**
  * The weather the command bar asks for: Open-Meteo's two links, a WMO code's glyph and words, the consent sentence,
- * and the peek's two lines. No DOM and no network here: Island.svelte asks, after a yes given in the bar, and keeps
- * the yes and the city in memory for the session only.
+ * and the peek's two lines. No DOM and no network here: Island.svelte asks, after a yes given in the bar, and Rust
+ * keeps the yes and the city last found on this PC, sealed, until the tray's forget.
  */
 
 import type { Lang } from './intent'
@@ -14,6 +14,12 @@ export interface City {
   name: string
   lat: number
   lon: number
+}
+
+/** The yes and the city Rust kept from an earlier start (src-tauri/src/weather.rs), or no yes and no city. */
+export interface Kept {
+  allowed: boolean
+  city: City | null
 }
 
 /** The part of Open-Meteo's forecast the peek reads, in the city's own time: '2026-11-20T21:15'. */

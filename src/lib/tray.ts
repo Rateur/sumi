@@ -7,13 +7,14 @@ import { label, light, type Privacy } from './privacy'
 export type Badge = 'mic' | 'camera' | 'music' | 'plain'
 
 /** The tray as the page sets it with `set_tray`: the icon's corner, its tooltip and its menu's words. Rust shows the
- * clipboard history's pause and clear only while there is one. */
+ * clipboard history's pause and clear only while there is one, and the weather's forget while its yes is kept. */
 export interface Tray {
   badge: Badge
   tip: string
   tuck: string
   pause: string
   clear: string
+  forget: string
   quit: string
 }
 
@@ -24,6 +25,7 @@ export const TRAY = {
     back: "Faire revenir l'île",
     pause: "Mettre en pause l'historique du presse-papiers",
     clear: "Effacer l'historique du presse-papiers",
+    forget: 'Oublier la météo',
     quit: 'Quitter Sumi',
     mic: 'micro :',
     camera: 'caméra :',
@@ -33,6 +35,7 @@ export const TRAY = {
     back: 'Bring the island back',
     pause: 'Pause clipboard history',
     clear: 'Clear clipboard history',
+    forget: 'Forget the weather',
     quit: 'Quit Sumi',
     mic: 'microphone:',
     camera: 'camera:',
