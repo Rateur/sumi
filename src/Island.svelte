@@ -62,6 +62,7 @@
     advancing,
     clockTime,
     nextChange,
+    nextSecond,
     nobody,
     position,
     shown as showing,
@@ -2568,10 +2569,10 @@
     const p = playback
     if (!p || !advancing(p) || p.endMs <= 0 || hidden) return
     let timer: ReturnType<typeof setTimeout>
-    // Just past the song's next second, from where it is now: a late tick can't skip one or show one twice.
+    // From where the song is now: a late tick can't skip a second. At its end, nothing is left to show.
     const next = () => {
-      const at = (tick = Date.now())
-      timer = setTimeout(next, (1000 - (position(p, at) % 1000)) / p.rate + 1)
+      const wait = nextSecond(p, (tick = Date.now()))
+      if (wait !== undefined) timer = setTimeout(next, wait)
     }
     next()
     return () => clearTimeout(timer)

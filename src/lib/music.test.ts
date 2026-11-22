@@ -6,6 +6,7 @@ import {
   advancing,
   clockTime,
   nextChange,
+  nextSecond,
   nobody,
   position,
   shown,
@@ -88,6 +89,18 @@ describe('position', () => {
     expect(position(player('a', true, { positionMs: 1_000, rate: -1 }), T + 30_000)).toBe(1_000)
     expect(advancing(player('a', true, { updatedMs: 0 }))).toBe(false)
     expect(advancing(player('a', true))).toBe(true)
+  })
+})
+
+describe('nextSecond', () => {
+  it('lands just past the next second of the song', () => {
+    expect(nextSecond(player('a', true, { positionMs: 10_300 }), T)).toBe(701)
+    expect(nextSecond(player('a', true, { positionMs: 10_300, rate: 2 }), T)).toBe(351)
+  })
+
+  it('stops at the end, and while the song stands still', () => {
+    expect(nextSecond(player('a', true, { endMs: 200_999, positionMs: 200_999 }), T + 5_000)).toBeUndefined()
+    expect(nextSecond(player('a', false, { positionMs: 10_300 }), T)).toBeUndefined()
   })
 })
 

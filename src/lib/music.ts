@@ -92,6 +92,12 @@ export function position(p: Player, now: number): number {
   return p.endMs > 0 ? Math.min(at, p.endMs) : at
 }
 
+/** How long until the song's next second, just past it so a late tick can't show one twice. None at its end. */
+export function nextSecond(p: Player, now: number): number | undefined {
+  const at = position(p, now)
+  return advancing(p) && at < p.endMs ? (1000 - (at % 1000)) / p.rate + 1 : undefined
+}
+
 /** 3:07, or 1:02:07 past an hour. */
 export function clockTime(ms: number): string {
   const s = Math.floor(Math.max(0, ms) / 1000)
