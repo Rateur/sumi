@@ -4,6 +4,29 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-22
+
+Fixes for the music player, the microphone card and the island.
+
+### Fixed
+
+- The song's two times tick with the song and add up to its length: a 3:00 song starts at 0:00 and -3:00. After sleep, the bar and the times no longer jump to the end.
+- A paused song stays while its panel is open, and leaves a minute after you close it. Before, it could turn into the clock under your cursor.
+- A drag on the progress bar no longer stays held after you let go.
+- The microphone and camera card no longer jumps sideways when it closes, and a quick click or Esc no longer leaves it half open.
+- Resting the cursor on the bubble no longer grows the island. A press near either end of the island opens it, and a click on the bubble while it joins the island is no longer lost.
+- Screen readers hear the song or the timer the island shows, and when an app starts using your microphone or camera. Each text is read in its own language.
+- In a light Windows contrast theme, the microphone and camera dots and the equalizer stay visible, and the progress bar shows in every contrast theme.
+
+### Known limits
+
+- The history keeps text only, no files or images.
+- The capture was tried on one screen only.
+- The island still shows on the main screen only.
+- No settings yet. Until 0.10, the tray menu pauses or clears the history and forgets the weather.
+- No automatic updates. Install new versions by hand.
+- The installer isn't signed yet. Your browser may hold the download, and Windows warns about an unknown publisher.
+
 ## [0.9.0] - 2026-11-21
 
 Your clipboard history in the command bar, and a capture that copies a colour, text or a QR code from the screen.
@@ -194,7 +217,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/Rateur/sumi/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Rateur/sumi/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Rateur/sumi/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Rateur/sumi/compare/v0.6.0...v0.7.0
