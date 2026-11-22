@@ -2486,11 +2486,12 @@
     setTimeout(() => scrub === mine && (scrub = undefined), 3000)
   }
 
-  // A drag ends without a seek if the panel closes, or another player or song takes it.
+  // A drag ends without a seek if the panel closes, another player or song takes it, or the bar goes.
   $effect(() => {
     const p = parts.player?.player
     untrack(() => {
-      if (scrub?.held && (scrub.id !== p?.id || scrub.from.title !== p?.title)) scrub = undefined
+      const gone = scrub?.id !== p?.id || scrub?.from.title !== p?.title || (p?.endMs ?? 0) <= 0
+      if (scrub?.held && gone) scrub = undefined
     })
   })
 
