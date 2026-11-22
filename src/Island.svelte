@@ -914,12 +914,15 @@
     }
   }
 
+  const PIN = ['position', 'left', 'top', 'width', 'height', 'box-sizing', 'margin']
   function exit(node: HTMLElement, { shrinks = !grows } = {}) {
+    let unpin = () => {}
     if (content?.contains(node)) {
       // Out of the layout, where it was drawn, so the pieces that stay can move at once.
       const r = before.get(node) ?? node.getBoundingClientRect()
       const c = box ?? content.getBoundingClientRect()
       flips = flips.filter((f) => f.node !== node)
+      const was = PIN.map((k) => node.style.getPropertyValue(k))
       Object.assign(node.style, {
         position: 'absolute',
         left: `calc(50% + ${r.left - c.left - c.width / 2}px)`,
@@ -932,14 +935,24 @@
         margin: '0',
         transform: '',
       })
+      const pinned = PIN.map((k) => node.style.getPropertyValue(k))
+      // Its own styles come back, but not over one set since.
+      unpin = () =>
+        PIN.forEach((k, i) => node.style.getPropertyValue(k) === pinned[i] && node.style.setProperty(k, was[i]))
     }
-    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    // Called back before it is gone, Svelte keeps the element and ticks it at 1, no longer inert: it rejoins the
+    // layout. While it leaves it is inert, and the tick does nothing.
+    // shortcut: Svelte keeps this config for the element's next exit, which then fades in place, unpinned, upgrade if
+    // those 100 ms ever show.
+    const tick = () => node.inert || unpin()
+    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}`, tick }
     // No blur on the way out: too quick to see, and a growing blur stalls the GPU for several frames.
     const to = shrinks ? 1 - EXIT.scale : 1 + EXIT.scale
     return {
       duration: EXIT.duration,
       easing: leaving,
       css: (t: number, u: number) => `opacity:${t};scale:${1 + (to - 1) * u}`,
+      tick,
     }
   }
 
