@@ -4092,7 +4092,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .dial circle:last-child,
-    .round button {
+    .round button,
+    .controls button {
       transition: none;
     }
   }
