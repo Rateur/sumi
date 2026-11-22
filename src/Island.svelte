@@ -2482,10 +2482,21 @@
   // --- Bubble swap and seek ---
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
+  const swaps = $derived(arrangement.island?.kind !== 'call' && !barOpen && !launch && !telling)
   function swap() {
-    const picked = beside
-    if (picked && arrangement.island?.kind !== 'call' && !barOpen && !launch && !telling) prefer = picked.id
+    if (beside && swaps) prefer = beside.id
   }
+
+  // What a screen reader hears of a song, the time or a timer, which the island and the bubble show as a picture or
+  // digits. In English, as the island's other names.
+  const spokenOf = (a?: Activity) =>
+    a?.kind === 'music'
+      ? [a.title, a.artist].filter(Boolean).join(', ')
+      : a?.kind === 'clock'
+        ? formatTime(now)
+        : a?.kind === 'timer'
+          ? timerDigits(a)
+          : ''
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
   let bar = $state<HTMLElement>()
@@ -2893,7 +2904,9 @@
       type="button"
       class="opener"
       class:behind={expanded}
-      aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
+      aria-label={done
+        ? said.dismiss(named.get(done.id) ?? said.the)
+        : ['Open', spokenOf(arrangement.island)].filter(Boolean).join(', ')}
       aria-expanded={done ? undefined : expanded}
       onpointerdown={(event) => event.button === 0 && event.currentTarget.setPointerCapture(event.pointerId)}
       onclick={() => (greeting === 'playing' ? skip() : expanded ? (expanded = false) : open())}
@@ -3253,7 +3266,8 @@
   <button
     type="button"
     class="island bubble"
-    aria-label="Show in the island"
+    aria-label={swaps ? ['Show', spokenOf(beside), 'in the island'].filter(Boolean).join(' ') : spokenOf(beside)}
+    aria-disabled={!swaps}
     inert={!beside}
     style={place(geometry.dot)}
     onclick={swap}
