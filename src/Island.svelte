@@ -1526,6 +1526,11 @@
     }
   })
 
+  // Who uses the microphone or the camera, as the tag's button names it and a screen reader hears it change.
+  const inUse = $derived(
+    label(privacy) && `${label(privacy)}: ${light(privacy) === 'camera' ? 'camera' : 'microphone'} in use`,
+  )
+
   // The tag fits what it holds: a disc around the dot and the crossed microphone, or the card. The card opens as
   // the island does, width first, and closes height first, without a bounce.
   let tagContent = $state(0)
@@ -3260,6 +3265,8 @@
 
 <!-- The welcome, read once to a screen reader with the real shortcut, then cleared, and so is a battery peek. -->
 <span class="spoken" role="status">{spoken}</span>
+<!-- Its own region, mounted before the tag: an app that starts using the microphone or the camera is heard. -->
+<span class="spoken" role="status">{inUse}</span>
 
 {#if geometry.dot}
   <!-- Merging back, it slides over the island's end: a click there is the island's. -->
@@ -3299,10 +3306,7 @@
       class="opener"
       class:behind={card}
       aria-expanded={card}
-      aria-label={[
-        label(privacy) && `${label(privacy)}: ${uses === 'camera' ? 'camera' : 'microphone'} in use`,
-        privacy.muted && privacy.canMute && 'microphone muted',
-      ]
+      aria-label={[inUse, privacy.muted && privacy.canMute && 'microphone muted']
         .filter(Boolean)
         .join(', ')}
       onclick={() => {
