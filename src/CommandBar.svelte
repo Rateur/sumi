@@ -1,4 +1,6 @@
 <script lang="ts" module>
+  import { CAPTURE_GLYPHS } from './lib/capture'
+  import { GLYPHS } from './lib/clipboard'
   import { ASSISTANTS, type App, type Choice, type Lang, type Target } from './lib/intent'
   import { DRAWINGS, type Glyph } from './lib/weather'
 
@@ -17,14 +19,22 @@
   }
 
   /**
-   * What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, a cloud for the weather, or the
-   * timer's amber ring.
+   * What fills the 16 px icon slot: the app's icon, a monogram, a clock, a battery, a cloud for the weather, the
+   * clipboard, the capture's loupe, or the timer's amber ring. `drawing` is a path on 16 units.
    */
-  export function markOf(choice: Choice<Listed>): { letter?: string; color?: string; icon?: Icon; glyph?: Glyph } {
+  export function markOf(choice: Choice<Listed>): {
+    letter?: string
+    color?: string
+    icon?: Icon
+    glyph?: Glyph
+    drawing?: string
+  } {
     if (choice.kind === 'app' && choice.app.icon) return { icon: choice.app.icon }
     if (choice.kind === 'app') return { letter: choice.app.name[0], color: choice.app.color }
     if (choice.kind === 'ask') return { letter: ASSISTANTS[choice.to].name[0], color: MARKS[choice.to] }
     if (choice.kind === 'weather') return { glyph: 'cloud' }
+    if (choice.kind === 'clipboard') return { drawing: GLYPHS.clip }
+    if (choice.kind === 'capture') return { drawing: CAPTURE_GLYPHS.loupe }
     return {}
   }
 </script>
@@ -184,6 +194,8 @@
       <svg class="battery" viewBox="0 0 16 16"><rect x="1.5" y="4.5" width="11" height="7" rx="2" /><path d="M14.5 7v2" /></svg>
     {:else if mark.glyph}
       <svg class="sky" viewBox="0 0 24 24"><path d={DRAWINGS[mark.glyph]} /></svg>
+    {:else if mark.drawing}
+      <svg class="drawn" viewBox="0 0 16 16"><path d={mark.drawing} /></svg>
     {:else}
       <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" /></svg>
     {/if}
@@ -342,9 +354,15 @@
 
   .mark svg.clock,
   .mark svg.battery,
-  .mark svg.sky {
+  .mark svg.sky,
+  .mark svg.drawn {
     stroke: #fff;
     stroke-linecap: round;
+  }
+
+  .mark svg.drawn {
+    stroke-width: 1.6;
+    stroke-linejoin: round;
   }
 
   /* Drawn on 24 units, so its stroke matches the clock's at 14 px. */

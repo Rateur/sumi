@@ -1,11 +1,9 @@
 ---
 title: Overview
-description: Every page of Sumi's docs, in one place.
+description: Every page of Sumi's docs.
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
-
-Install Sumi, see what the island does, and help build it.
 
 ## Start here
 
@@ -19,20 +17,22 @@ Install Sumi, see what the island does, and help build it.
 
 <CardGrid>
 	<LinkCard title="Time" description="At rest, the island shows the time." href="time/" />
-	<LinkCard title="Fullscreen" description="It steps aside for games, videos and slideshows." href="fullscreen/" />
-	<LinkCard title="Tuck" description="A line under the top edge, until something needs the island." href="tuck/" />
+	<LinkCard title="Fullscreen" description="The island hides during games, videos and slideshows." href="fullscreen/" />
+	<LinkCard title="Tuck" description="Swipe the island into a thin line at the top of the screen." href="tuck/" />
 	<LinkCard title="Tray icon" description="The microphone dot and the music by the clock. A click tucks the island." href="tray-icon/" />
 	<LinkCard title="Music" description="What's playing, in any player Windows can control." href="music/" />
 	<LinkCard title="Microphone and camera" description="A dot beside the island while an app uses them." href="microphone-camera/" />
-	<LinkCard title="Command bar" description="A timer, an app or a question, from one shortcut." href="command-bar/" />
-	<LinkCard title="Timers" description="Type a length, and the island counts it down." href="timers/" />
-	<LinkCard title="Battery" description="Every battery in one panel, and a peek when something happens." href="battery/" />
-	<LinkCard title="Weather" description="The weather for a city, when you ask for it in the command bar." href="weather/" />
+	<LinkCard title="Command bar" description="Press Win+Alt+S and type a timer, an app or a question." href="command-bar/" />
+	<LinkCard title="Timers" description="Type 25m and the island counts down." href="timers/" />
+	<LinkCard title="Battery" description="Every battery in one panel, and a peek when you plug in or reach 20 %." href="battery/" />
+	<LinkCard title="Weather" description="A city's weather, from the command bar." href="weather/" />
+	<LinkCard title="Clipboard history" description="Press Win+Alt+V for what you copied, and Enter to paste it where you were." href="clipboard/" />
+	<LinkCard title="Capture" description="Press Win+Alt+C to copy a colour, text or a QR code from the screen." href="capture/" />
 </CardGrid>
 
 ## Contribute
 
 <CardGrid>
-	<LinkCard title="Contributing guide" description="Set up Sumi, propose a change, get it reviewed." href="contribute/" />
+	<LinkCard title="Contributing guide" description="Run Sumi locally and propose a change." href="contribute/" />
 	<LinkCard title="How the island works" description="Every state, the shortcuts, the motion and the colours." href="design/" />
 </CardGrid>

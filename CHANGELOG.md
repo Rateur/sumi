@@ -4,6 +4,32 @@ What changed in each release, in plain words. The format follows [Keep a Changel
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-21
+
+Your clipboard history in the command bar, and a capture that copies a colour, text or a QR code from the screen.
+
+### Added
+
+- Press `Win+Alt+V` for your clipboard history in the command bar, newest first. Pick an item and press Enter. Sumi pastes it into the app you were in, and the island says "Pasted". Shift+Enter pastes it as plain text. Type to filter the list.
+- The first time, the bar asks before Sumi keeps anything. Once you allow it, Sumi keeps up to 100 text items, even after a restart, in a file on this PC encrypted by Windows for your account. What an app marks as private, as password managers do, is never kept. The history never leaves the PC.
+- Tab offers what fits each item. A link opens in your browser, or pastes without its trackers. A colour turns to HEX, RGB or HSL. A file or a folder opens File Explorer with it selected. An email address opens a new message. Code pastes as plain text.
+- Press `Win+Alt+C` to copy from the screen. The screen freezes, and the island shows the colour under the loupe. A click copies that colour as HEX, and Shift+click the colour of the text nearby. A box around text copies the text, read on this PC by Windows. A box around a QR code copies what it holds. An ink drop falls from the island with what you copied.
+- The frozen screen stays in memory and is freed as soon as the capture ends. While the history is open or a capture runs, the island doesn't show in screenshots or on a shared screen.
+- Right-click Sumi's icon by the clock to pause the clipboard history or to clear it.
+
+### Changed
+
+- The weather remembers your yes and the last city after Sumi restarts, encrypted on this PC. "Forget the weather" in the tray menu forgets both.
+
+### Known limits
+
+- The history keeps text only, no files or images.
+- The capture was tried on one screen only.
+- The island still shows on the main screen only.
+- No settings yet. Until 0.10, the tray menu pauses or clears the history and forgets the weather.
+- No automatic updates. Install new versions by hand.
+- The installer isn't signed yet. Your browser may hold the download, and Windows warns about an unknown publisher.
+
 ## [0.8.0] - 2026-11-21
 
 The batteries of your PC and your devices, even ones Windows doesn't show, and the weather from the command bar.
@@ -168,7 +194,8 @@ The first build. It does one thing: a black island at the top of your screen tha
 - No settings and no automatic updates yet: install new versions by hand.
 - Windows warns about an unknown publisher, because the installer isn't signed yet.
 
-[Unreleased]: https://github.com/Rateur/sumi/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/Rateur/sumi/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Rateur/sumi/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/Rateur/sumi/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/Rateur/sumi/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/Rateur/sumi/compare/v0.5.0...v0.6.0

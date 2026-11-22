@@ -6,18 +6,40 @@ import { label, light, type Privacy } from './privacy'
  * music's bars, or nothing. */
 export type Badge = 'mic' | 'camera' | 'music' | 'plain'
 
-/** The tray as the page sets it with `set_tray`: the icon's corner, its tooltip and its menu's words. */
+/** The tray as the page sets it with `set_tray`: the icon's corner, its tooltip and its menu's words. Rust shows the
+ * clipboard history's pause and clear only while there is one, and the weather's forget while its yes is kept. */
 export interface Tray {
   badge: Badge
   tip: string
   tuck: string
+  pause: string
+  clear: string
+  forget: string
   quit: string
 }
 
 /** The tray's words: its menu's items, as the island is or is about to be, and the tooltip's. */
 export const TRAY = {
-  fr: { tuck: "Ranger l'île", back: "Faire revenir l'île", quit: 'Quitter Sumi', mic: 'micro :', camera: 'caméra :' },
-  en: { tuck: 'Tuck the island', back: 'Bring the island back', quit: 'Quit Sumi', mic: 'microphone:', camera: 'camera:' },
+  fr: {
+    tuck: "Ranger l'île",
+    back: "Faire revenir l'île",
+    pause: "Mettre en pause l'historique du presse-papiers",
+    clear: "Effacer l'historique du presse-papiers",
+    forget: 'Oublier la météo',
+    quit: 'Quitter Sumi',
+    mic: 'micro :',
+    camera: 'caméra :',
+  },
+  en: {
+    tuck: 'Tuck the island',
+    back: 'Bring the island back',
+    pause: 'Pause clipboard history',
+    clear: 'Clear clipboard history',
+    forget: 'Forget the weather',
+    quit: 'Quit Sumi',
+    mic: 'microphone:',
+    camera: 'camera:',
+  },
 } satisfies Record<Lang, Record<string, string>>
 
 /** Windows keeps a tooltip to 127 characters. */

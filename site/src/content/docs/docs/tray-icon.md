@@ -1,9 +1,9 @@
 ---
 title: Tray icon
-description: Sumi's icon by the clock shows what the island has. A click tucks the island.
+description: Sumi's icon by the clock shows the microphone dot and the music. A click tucks the island.
 ---
 
-Sumi's icon sits in the notification area, by the clock. It shows what the island has, even while the island is tucked or hidden by a game.
+Sumi's icon sits in the notification area, by the clock. It shows the microphone or camera dot and the music, even while the island is tucked or hidden by a game.
 
 ## What it shows
 
@@ -14,7 +14,7 @@ Sumi's icon sits in the notification area, by the clock. It shows what the islan
 ## Click it
 
 - **Left click** tucks the island, or brings it back. See [Tuck](../tuck/).
-- **Right click** opens the menu: **Tuck the island** or **Bring the island back**, then **Quit Sumi**.
+- **Right click** opens the menu: **Tuck the island** or **Bring the island back**, then **Quit Sumi**. Once you allow the clipboard history, **Pause clipboard history** and **Clear clipboard history** come before **Quit Sumi**. Once you allow the weather, **Forget the weather** comes just before **Quit Sumi**. See [Clipboard history](../clipboard/) and [Weather](../weather/).
 
 ## Keep it in sight
 

@@ -3,7 +3,7 @@ title: Tuck
 description: Put the island away in a line under the top edge, and bring it back.
 ---
 
-The island can tuck into a thin line under the top edge of your main screen, out of the way of tabs and title bars. It comes back when something needs it.
+The island can tuck into a thin line under the top edge of your main screen, out of the way of tabs and title bars. It comes back on its own for a call, new music or a timer that ends.
 
 ## Tuck it
 
@@ -15,7 +15,7 @@ The island can tuck into a thin line under the top edge of your main screen, out
 
 ## It tucks itself
 
-When the island shows only the time or a running timer, it tucks itself after 10 seconds at rest: no cursor on it, nothing open. After you click elsewhere, it goes after 1 second. Music, a call, the microphone or camera dot, the command bar and a timer that ended keep it out. Settings, in 0.9, will let you choose for each one.
+When the island shows only the time or a running timer, it tucks itself after 10 seconds at rest: no cursor on it, nothing open. After you click elsewhere, it goes after 1 second. Music, a call, the microphone or camera dot, the command bar and a timer that ended keep it out. Settings, in 0.10, will let you choose for each one.
 
 ## Bring it back
 

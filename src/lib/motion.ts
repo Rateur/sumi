@@ -19,27 +19,34 @@ export interface Motion {
 export function motion(from: View, to: View): Motion {
   const [a, b] = [sizeOf(from), sizeOf(to)]
   const grows = b.width * b.height >= a.width * a.height
-  // Back from the panel, the command bar, the welcome or a battery peek, what was there before comes back without a
-  // swell.
-  const back = ['expanded', 'bar', 'launch', 'welcome', 'power'].includes(from.name)
+  // Back from the panel, the command bar, the welcome, a battery peek or the screen capture, what was there before
+  // comes back without a swell.
+  const back = ['expanded', 'bar', 'launch', 'welcome', 'power', 'capture'].includes(from.name)
   const pulse = to.name === 'compact' && !back && !('activity' in from && from.activity?.id === to.activity.id)
   // The welcome opens and folds as the panel; from its greeting to its shortcut, it only widens.
   const opens = to.name === 'welcome' && from.name !== 'welcome'
   const closes = from.name === 'welcome' && to.name !== 'welcome'
+  // The clipboard history's list opens under the bar on the panel's height, then follows the filter without a bounce,
+  // which would fire at every key. The capture comes in and goes as a peek, and changes in between as anything else.
+  const peek = (view: View) => ['peek', 'launch', 'power', 'capture'].includes(view.name)
   const [width, height]: Axis[] =
-    to.name === 'expanded' || to.name === 'bar' || opens
-      ? [OPEN.width, OPEN.height]
-      : from.name === 'expanded' || from.name === 'bar' || closes
-        ? [CLOSE.width, CLOSE.height]
-        : to.name === 'hover'
-          ? [[0.4, 0.25], [0.34, 0.15]]
-          : from.name === 'hover' && to.name === 'idle'
-            ? [[0.34, 0], [0.3, 0]]
-            : to.name === 'peek' || to.name === 'launch' || to.name === 'power'
-              ? [[0.44, 0.28], [0.48, 0.2]]
-              : from.name === 'peek' || from.name === 'launch' || from.name === 'power'
-                ? [[0.38, 0], [0.32, 0]]
-                : [grows ? [0.44, 0.28] : [0.36, 0], [0.3, 0]]
+    to.name === 'bar' && from.name === 'bar' && from.rows
+      ? [OPEN.width, [0.3, 0]]
+      : to.name === 'capture' && from.name === 'capture'
+        ? [grows ? [0.44, 0.28] : [0.36, 0], [0.3, 0]]
+        : to.name === 'expanded' || to.name === 'bar' || opens
+        ? [OPEN.width, OPEN.height]
+        : from.name === 'expanded' || from.name === 'bar' || closes
+          ? [CLOSE.width, CLOSE.height]
+          : to.name === 'hover'
+            ? [[0.4, 0.25], [0.34, 0.15]]
+            : from.name === 'hover' && to.name === 'idle'
+              ? [[0.34, 0], [0.3, 0]]
+              : peek(to)
+                ? [[0.44, 0.28], [0.48, 0.2]]
+                : peek(from)
+                  ? [[0.38, 0], [0.32, 0]]
+                  : [grows ? [0.44, 0.28] : [0.36, 0], [0.3, 0]]
   // An axis that shrinks never bounces, even when the shape as a whole grows.
   const settle = ([duration, bounce]: Axis, from: number, to: number): Axis => [duration, to < from ? 0 : bounce]
   return {
@@ -62,6 +69,15 @@ export const ENTER = { delay: 50, stagger: 35, duration: 280, easing: [0.2, 0, 0
 /** Content leaves faster than it came, shrinking with the shape or growing with it, by `scale`. */
 export const EXIT = { duration: 100, easing: [0.4, 0, 1, 1], scale: 0.06 } as const
 
+/**
+ * The clipboard history's highlight: the edge in the direction of travel leads and the other trails, so it stretches
+ * and gathers like ink, never bouncing. `r` is its corner radius, concentric with the panel's 28 at 6 px in.
+ */
+export const HL = { lead: [0.22, 0] as Axis, trail: [0.34, 0] as Axis, r: 20 } as const
+
+/** A row the filter brings into sight comes in from this scale, not ENTER's: 0.9 on a 468 px row reads as a zoom. */
+export const FILTER_IN = 0.97
+
 /** A press gives at once, and the release springs back with a little bounce. */
 export const PRESS: { scale: number; down: Axis; up: Axis } = { scale: 0.96, down: [0.15, 0], up: [0.3, 0.3] }
 
@@ -79,6 +95,12 @@ export const WELCOME = { ink: 140, hello: 700, keys: 1700, fold: 4900, bare: 230
 
 /** The bead that hangs under the island like the logo's drop: drawn radius, centre under the pill, goo. */
 export const INK = { r: 15.5, d: 21, goo: 7 } as const
+
+/**
+ * The screen capture's result holds `hold` ms. Its bead is the welcome's, holding the colour inside a `rim` of ink. The
+ * colour shows once the bead's centre is `out` px past the pill, fading in over the next `over` px.
+ */
+export const CAPTURE = { hold: 3000, rim: 5.5, out: 2, over: 10 } as const
 
 /** The bubble's drop springs, in split and merge, which the tuck's drop shares. */
 export const MERGE: Axis = [0.36, 0]

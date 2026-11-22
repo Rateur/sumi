@@ -1,6 +1,6 @@
 ---
 title: Command bar
-description: A timer, an app or a question, from one shortcut.
+description: Press Win+Alt+S and type a timer, an app or a question.
 ---
 
 Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the right, then press Enter. Press the shortcut again or Esc to close it. If another app already uses it, the shortcut is `Alt+Shift+S`.
@@ -11,10 +11,12 @@ Press `Win+Alt+S` and the island becomes a bar. Type, check the chip on the righ
 - **An app**: its name as Start shows it, such as `Discord`, its first four letters or more, such as `disc`, or a verb and its name, such as `open spotify` or `open the settings`. A missing accent is fine, and after a verb, a typo too.
 - **The time or the date**: `what time is it` or `what's the date`. The chip gives the answer, and Enter shows it in the island with the date.
 - **The battery**: `battery` or `battery level`, or just its start, `bat`. The chip gives the level, where the power comes from and your connected devices, and Enter opens the batteries panel. See [Battery](../battery/).
-- **The weather**: `weather in Paris`, `weather Paris tomorrow`, or `weather` alone for the city found this session. The first time after Sumi starts, the bar asks before anything is sent. See [Weather](../weather/).
+- **The weather**: `weather in Paris`, `weather Paris tomorrow`, or `weather` alone for the city you last asked for. The first time, the bar asks before anything is sent. See [Weather](../weather/).
+- **The clipboard history**: `clipboard`, `clipboard history`, or in French `presse-papiers` or `historique`. Enter opens the list in the bar, as `Win+Alt+V` does. See [Clipboard history](../clipboard/).
+- **The capture**: `capture`, `eyedropper` or `color picker`. Enter folds the bar into the capture, as `Win+Alt+C` does. See [Capture](../capture/).
 - **A question**: anything else goes to Claude. Name an assistant first to pick another: `ask chatgpt …`, `gemini …`, `perplexity …`, or `search …` for the search engine.
 
-A word alone of three letters or more on its way to one of the bar's own words gives its answer: `bat` the batteries, `tim` the time, `dat` the date, `weat` the weather. An app it also starts comes next on Tab.
+A word alone of three letters or more on its way to one of the bar's own words gives its answer: `bat` the batteries, `tim` the time, `dat` the date, `weat` the weather, `clip` the clipboard history, `cap` the capture. An app it also starts comes next on Tab.
 
 Write as you speak: around a verb, `please`, `can you` or `hey Sumi` change nothing, and neither does punctuation. `can you open Spotify please?` opens Spotify. A word alone opens an app only when one app starts that way. If two do, such as `disco` for Discord and Disco Elysium, the chip asks Claude and Tab offers both. A verb said in the negative, such as `don't open Spotify`, is a question.
 
@@ -33,11 +35,11 @@ After Enter, the island shows what opens for a moment. If nothing can open, it s
 
 ## Privacy
 
-Sumi sends nothing, except the weather once you allow it: the city goes to Open-Meteo, see [Weather](../weather/). The list of apps is read from Start and stays in memory. What you type is never saved, and the line is cleared when the bar closes. Your question only leaves your PC through the app or site you picked, after Enter.
+Sumi sends nothing, except the weather once you allow it: the city goes to Open-Meteo, see [Weather](../weather/). The list of apps is read from Start and stays in memory. What you type is never saved, except the weather's last city, and the line is cleared when the bar closes. Your question only leaves your PC through the app or site you picked, after Enter.
 
 ## Limits
 
-- One thing per line: a timer, an app, the time, the battery, the weather or a question.
+- One thing per line: a timer, an app, the time, the battery, the weather, the clipboard history, the capture or a question.
 - The start of a word that could still become a question or one of the bar's own words, such as `what` or `time`, opens no app by itself. Type the full name: `whatsapp`.
 - An app installed in the last few minutes may only show up the next time you open the bar.
 - While the island is hidden in fullscreen, the shortcut does nothing.

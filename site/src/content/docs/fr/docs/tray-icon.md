@@ -1,9 +1,9 @@
 ---
 title: Icône de la zone de notification
-description: L'icône de Sumi, près de l'horloge, montre ce qu'a l'île. Un clic range l'île.
+description: L'icône de Sumi, près de l'horloge, montre le point du micro et la musique. Un clic range l'île.
 ---
 
-L'icône de Sumi se trouve dans la zone de notification, près de l'horloge. Elle montre ce qu'a l'île, même quand l'île est rangée ou cachée par un jeu.
+L'icône de Sumi se trouve dans la zone de notification, près de l'horloge. Elle montre le point du micro ou de la caméra et la musique, même quand l'île est rangée ou cachée par un jeu.
 
 ## Ce qu'elle montre
 
@@ -14,7 +14,7 @@ L'icône de Sumi se trouve dans la zone de notification, près de l'horloge. Ell
 ## Cliquez dessus
 
 - **Un clic gauche** range l'île, ou la fait revenir. Voir [Ranger l'île](../tuck/).
-- **Un clic droit** ouvre le menu : **Ranger l'île** ou **Faire revenir l'île**, puis **Quitter Sumi**.
+- **Un clic droit** ouvre le menu : **Ranger l'île** ou **Faire revenir l'île**, puis **Quitter Sumi**. Une fois l'historique du presse-papiers autorisé, **Mettre en pause l'historique du presse-papiers** et **Effacer l'historique du presse-papiers** s'ajoutent avant **Quitter Sumi**. Une fois la météo autorisée, **Oublier la météo** s'ajoute juste avant **Quitter Sumi**. Voir [Historique du presse-papiers](../clipboard/) et [Météo](../weather/).
 
 ## La garder en vue
 

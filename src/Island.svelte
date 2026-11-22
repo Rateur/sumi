@@ -17,6 +17,7 @@
   } from './lib/clock'
   import { tint } from './lib/color'
   import {
+    CAPTURE,
     CLOSE,
     END_PEEK,
     ENTER,
@@ -51,6 +52,7 @@
     resolveView,
     sizeOf,
     welcomeWidth,
+    type Capture,
     type Rect,
     type TimerFit,
     type View,
@@ -126,6 +128,7 @@
     geocoding,
     peek as forecastPeek,
     type City,
+    type Kept,
     type Sky,
   } from './lib/weather'
   import { WORDS, announce, keysOf } from './lib/welcome'
@@ -144,6 +147,30 @@
     type Tucker,
   } from './lib/tuck'
   import { TRAY, badge, tip, type Tray } from './lib/tray'
+  import {
+    CLIPBOARD_WORDS,
+    GLYPHS,
+    arrived,
+    folderOf,
+    formOf,
+    kindOf,
+    linkParts,
+    matching,
+    rows as listRows,
+    searchKey,
+    swatchOf,
+    type Action,
+    type Landed,
+  } from './lib/clipboard'
+  import {
+    CAPTURE_GLYPHS,
+    CAPTURE_KEYS,
+    CAPTURE_WORDS,
+    result as copied,
+    type CaptureKey,
+    type Captured,
+  } from './lib/capture'
+  import ClipboardHistory from './ClipboardHistory.svelte'
   import CommandBar, { markOf, type Listed } from './CommandBar.svelte'
   import PrivacyCard, { paintIcon } from './PrivacyCard.svelte'
   import Batteries from './Batteries.svelte'
@@ -199,7 +226,7 @@
   const lang: Lang = langOf(location.search, navigator.language)
   let barOpen = $state(false)
   let line = $state('')
-  let launch = $state<ReturnType<typeof markOf> & { text: string }>()
+  let launch = $state<ReturnType<typeof markOf> & { text: string; swatch?: string }>()
   let launchTimer: ReturnType<typeof setTimeout> | undefined
   // The time asked in the bar: the hover view shows it with the date, then the previous view comes back.
   let telling = $state(false)
@@ -215,13 +242,43 @@
   let grown = $state<string>()
   let focused = $state(false)
   const connects = new Map<string, Peeked>()
-  // The weather, asked in the bar only. The yes and `here`, the city last found, live in memory for the session:
-  // quitting Sumi forgets both. `asking` is the bar's consent question, `sky` the peek.
+  // The weather, asked in the bar only. The yes and `here`, the city last found, are kept by Rust across restarts until
+  // the tray's forget. `asking` is the bar's consent question, `sky` the peek.
   let consented = false
   let here = $state<City>()
   let asking = $state<Extract<Choice<Listed>, { kind: 'weather' }>>()
   let sky = $state<Sky>()
   let skyTimer: ReturnType<typeof setTimeout> | undefined
+  // The clipboard history, opened in the bar: its items as Rust keeps them, newest first, the ones Rust found on this
+  // PC as a file or a folder, and what filters them. `allowing` is the bar's consent question, and `refused` a no
+  // this session, after which its chip says « Activer ». The demo's stand-ins: what Rust would keep, null before the
+  // yes, what the clipboard holds now, and the paths it would find.
+  let history = $state<string[]>()
+  let paths = $state<ReadonlySet<string>>(new Set())
+  let query = $state('')
+  let allowing = $state(false)
+  let refused = false
+  let kept: string[] | null = null
+  let holding = ''
+  let found: string[] = []
+  const searchable = $derived(history?.map((text) => searchKey(text, kindOf(text, paths), lang)) ?? [])
+  const matches = $derived(history ? matching(history, searchable, query) : [])
+  const listed = $derived(history ? listRows(matches.length, history.length, query, lang) : 0)
+  // The screen capture: whether Rust takes input, the HEX under the loupe and whether Shift asks for the text's
+  // colour. `captureView` is the island's view of it, measured from the hidden copies below, and `got` what was
+  // copied, which shows for 3 s. `bead` is the colour the result's bead holds. The demo settles its stand-in through
+  // `settleCapture`.
+  let capturing = $state(false)
+  let hex = $state('#000000')
+  let textColour = $state(false)
+  let captureView = $state<Capture>()
+  let got = $state<NonNullable<ReturnType<typeof copied>>>()
+  let gotTimer: ReturnType<typeof setTimeout> | undefined
+  let bead: string | undefined
+  let settleCapture: ((captured: Captured) => void) | undefined
+  let pickRow = $state<HTMLElement>()
+  let boxRow = $state<HTMLElement>()
+  let doneRow = $state<HTMLElement>()
   let apps = $state<Listed[]>([])
   let claudeApp = $state(false)
   let shortcut = $state<string>()
@@ -273,6 +330,8 @@
       expanded,
       peeking,
       bar: barOpen,
+      rows: listed,
+      capture: captureView,
       launch: !!launch,
       weather: !!sky,
       clock: telling,
@@ -288,28 +347,30 @@
   const beside = $derived(
     tuck !== 'shown'
       ? undefined
-      : barOpen || launch || telling || sky
+      : barOpen || launch || telling || sky || captureView
         ? arrangement.island
         : launched && greeting !== 'playing'
           ? arrangement.bubble
           : undefined,
   )
   // The bar names timers as the island does, so 'stop minuteur 2' finds the second one. While it asks for the
-  // weather's yes, its one chip is that yes.
+  // weather's or the clipboard history's yes, its one chip is that yes.
   const options = $derived(
     !barOpen
       ? ([] as Choice<Listed>[])
-      : asking
-        ? [{ ...asking, label: WEATHER_WORDS[lang].allow }]
-        : choices(line, {
-            apps,
-            lang,
-            claudeApp,
-            timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
-            now: now.getTime(),
-            battery,
-            city: here?.name,
-          }),
+      : allowing
+        ? [{ kind: 'clipboard' as const, label: CLIPBOARD_WORDS[lang][refused ? 'again' : 'allow'] }]
+        : asking
+          ? [{ ...asking, label: WEATHER_WORDS[lang].allow }]
+          : choices(line, {
+              apps,
+              lang,
+              claudeApp,
+              timers: timers.map((t) => ({ ...t, label: named.get(t.id) })),
+              now: now.getTime(),
+              battery,
+              city: here?.name,
+            }),
   )
   const size = $derived(sizeOf(view))
   // A timer's shape changes size without changing view, as an hour passes or its name shows.
@@ -339,6 +400,7 @@
       launch: name === 'launch' ? launch : undefined,
       weather: name === 'weather' ? sky : undefined,
       welcome: name && view.name === 'welcome' ? view.step : undefined,
+      capture: name && view.name === 'capture' ? view.step : undefined,
       power: name && view.name === 'power' ? view.power : undefined,
       batteries: name && 'batteries' in view ? battery : undefined,
     }
@@ -455,6 +517,19 @@
     const r = inkR.value
     const ink =
       r > 0.5 ? { x: viewport / 2 - r, y: fill.y + h + inkD.value - r, width: 2 * r, height: 2 * r } : undefined
+    // A capture's colour fills the bead inside its rim, once the bead is out of the pill.
+    const dr = r - CAPTURE.rim
+    const tint =
+      bead && dr > 0.5
+        ? {
+            x: viewport / 2 - dr,
+            y: fill.y + h + inkD.value - dr,
+            width: 2 * dr,
+            height: 2 * dr,
+            color: bead,
+            alpha: Math.min(1, Math.max(0, (inkD.value - CAPTURE.out) / CAPTURE.over)),
+          }
+        : undefined
     // The tuck's line: its ink runs GOUTTE.above px over its bottom edge, out of the window, so the goo keeps a full
     // meniscus at the edge. Only its hit area takes the cursor, and nothing shows in fullscreen.
     const lw = lineW.value
@@ -472,6 +547,7 @@
       dot,
       tag: flag,
       ink,
+      tint,
       line,
       lineAlpha: level(fades.line, t),
       shine: level(fades.shine, t),
@@ -518,6 +594,7 @@
     }
     if (inkPhase === 'merge' && inkD.value < -8) {
       inkPhase = 'none'
+      bead = undefined
       inkD.jump(0)
       inkR.jump(0)
       fade(0, 120, t)
@@ -821,9 +898,11 @@
   function enter(node: HTMLElement, { step = 0 } = {}) {
     if (reduced) return { delay: gap, duration: 120, css: (t: number) => `opacity:${t}` }
     if (content?.contains(node)) {
-      // Scaled from the island's center, or from its top for the panel and the peek.
+      // Scaled from the island's center, or from its top for the panel, the peek and the list, which pours down out
+      // of the bar.
       const [r, c] = [node.getBoundingClientRect(), content.getBoundingClientRect()]
-      const top = view.name === 'expanded' || view.name === 'peek' ? c.top : c.top + c.height / 2
+      const fromTop = view.name === 'expanded' || view.name === 'peek' || (view.name === 'bar' && !!view.rows)
+      const top = fromTop ? c.top : c.top + c.height / 2
       node.style.transformOrigin = `${c.left + c.width / 2 - r.left}px ${top - r.top}px`
     }
     return {
@@ -882,9 +961,10 @@
   let sent: (Rect & { radius: number })[] = []
   function report(moving: boolean) {
     if (!tauri) return
-    // Tucking, nothing takes the cursor; tucked, only the line's hit area.
+    // Tucking, nothing takes the cursor; tucked, only the line's hit area. While the capture takes input, its frozen
+    // frame has every click.
     const rects =
-      (hidden && drop.resting) || tuck === 'tucking' || tuck === 'tucked'
+      (hidden && drop.resting) || tuck === 'tucking' || tuck === 'tucked' || capturing
         ? []
         : [geometry.fill, geometry.dot, geometry.tag].filter((r) => r !== undefined)
     const padded = rects.map(({ x, y, width, height }) => ({
@@ -908,7 +988,8 @@
   // The weather's peek opens nothing, so it never gives: only its credit takes a click.
   let pressed = false
   function press(down: boolean) {
-    if (reduced || expanded || barOpen || greeting === 'playing' || (down && sky) || pressed === down) return
+    if (reduced || expanded || barOpen || captureView || greeting === 'playing' || (down && sky)) return
+    if (pressed === down) return
     pressed = down
     const [k, [duration, bounce]] = down ? [PRESS.scale, PRESS.down] : [1, PRESS.up]
     const t = performance.now()
@@ -947,6 +1028,7 @@
       power = undefined
       sky = undefined
       closeBar()
+      if (capturing) captureKey('escape', true)
     }
     const t = performance.now()
     const off = -(TOP + height.target + 24)
@@ -1037,6 +1119,10 @@
         if (payload !== 'shown' && greeting === 'playing') end(true)
       }),
       listen('bar://toggle', () => toggleBar()),
+      listen('clipboard://toggle', toggleHistory),
+      listen('capture://toggle', toggleCapture),
+      listen<string>('capture://pixel', ({ payload }) => pixel(payload)),
+      listen('capture://box', boxed),
       listen('island://tuck', toggleTuck),
       listen('island://elsewhere', elsewhere),
       // A window moved or resized: the island makes room for Snap layouts, and comes back unless it was tucked.
@@ -1047,6 +1133,11 @@
       listen<Battery>('power://battery', ({ payload }) => (battery = payload)),
       listen<Device>('power://device-low', ({ payload }) => notice({ kind: 'deviceLow', device: payload })),
       listen<Device>('power://device-gone', ({ payload }) => notice({ kind: 'deviceGone', device: payload }, connects)),
+      // The tray's forget: the next weather asks for the yes again, and a bare « météo » for a city.
+      listen('weather://forget', () => {
+        consented = false
+        here = undefined
+      }),
     ]
     return () => stops.forEach((stop) => stop.then((unlisten) => unlisten()))
   })
@@ -1200,11 +1291,13 @@
     untrack(() => play(!drop.resting))
   })
 
+  // A hidden copy's width, as laid out.
+  const wide = (node?: HTMLElement) => Math.ceil(node?.getBoundingClientRect().width ?? 0)
+
   // Drop, bead, greeting, shortcut, then the fold to whatever the island would show (WELCOME). Played later than
   // the start, the island is already in place: it starts at the bead.
   function play(dropping: boolean) {
     // Measured on the hidden copies before anything moves: a layout mid-animation drops frames.
-    const wide = (node?: HTMLElement) => Math.ceil(node?.getBoundingClientRect().width ?? 0)
     const [hello, shown] = [welcomeWidth('hello', wide(greet)), keys && welcomeWidth('keys', wide(row))]
     greeting = 'playing'
     first = arrangement.island?.id
@@ -1774,6 +1867,7 @@
         bubble: beside,
         tagged: tagged(privacy),
         bar: barOpen || !!launch || telling,
+        capture: !!captureView,
         welcome: greeting === 'playing',
         peeking,
         peek: !!power || !!sky,
@@ -1813,7 +1907,8 @@
   const trayTip = $derived(tip(privacy, music, keys, lang))
   const trayTuck = $derived(TRAY[lang][away() ? 'back' : 'tuck'])
   $effect(() => {
-    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, quit: TRAY[lang].quit }
+    const { pause, clear, forget, quit } = TRAY[lang]
+    const tray: Tray = { badge: trayBadge, tip: trayTip, tuck: trayTuck, pause, clear, forget, quit }
     if (tauri) invoke('set_tray', { tray }).catch(console.error)
   })
 
@@ -1823,8 +1918,15 @@
   function toggleBar() {
     retuck = undefined
     if (barOpen) return closeBar()
-    if (hidden) return
+    if (hidden || capturing) return
     if (greeting === 'playing') end()
+    // A capture's result gives way to the bar at once, its bead back into the island.
+    if (captureView) {
+      clearTimeout(gotTimer)
+      absorb()
+      captureView = undefined
+      spoken = ''
+    }
     expanded = false
     hovered = false
     closeCard()
@@ -1857,8 +1959,13 @@
     if (barOpen && tauri && giveBack) invoke('bar_focus', { open: false })
     barOpen = false
     line = ''
-    if (asking) spoken = ''
+    if (asking || allowing || history) spoken = ''
     asking = undefined
+    // Closed while it asked: a no, so the next ask says « Activer ».
+    if (allowing) refused = true
+    allowing = false
+    history = undefined
+    query = ''
   }
 
   // The monogram of an app whose icon hasn't come yet, as in the privacy card.
@@ -1891,6 +1998,9 @@
   function run(choice: Choice<Listed>) {
     if (!barOpen || (choice.kind === 'battery' && !opens(battery))) return
     if (choice.kind === 'weather') return weather(choice)
+    if (choice.kind === 'clipboard') return allowing ? allow() : read().then(shows)
+    // The bar folds into the capture's pill, and keeps the focus for its keys.
+    if (choice.kind === 'capture') return startCapture()
     // An app or a site takes the focus; the batteries panel keeps it for the arrows.
     closeBar(choice.kind !== 'app' && choice.kind !== 'ask' && choice.kind !== 'battery')
     const t = Date.now()
@@ -1937,9 +2047,18 @@
       r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)),
     )
 
-  // Enter on the weather. Without a city typed or found this session, it does nothing: the chip asks for one. The
-  // first Enter of a session sends nothing: the field says what Open-Meteo will get and the chip becomes the yes.
-  // Esc is no, and closes the bar.
+  // The yes and the city kept from an earlier start. A yes or a city of this start, given meanwhile, is newer.
+  if (tauri)
+    invoke<Kept>('weather_kept')
+      .then((kept) => {
+        consented ||= kept.allowed
+        here ??= kept.city ?? undefined
+      })
+      .catch(console.error)
+
+  // Enter on the weather. Without a city typed or kept, it does nothing: the chip asks for one. Without a yes, Enter
+  // sends nothing: the field says what Open-Meteo will get and the chip becomes the yes. Esc is no, closes the bar and
+  // keeps nothing.
   function weather(choice: Extract<Choice<Listed>, { kind: 'weather' }>) {
     const city = choice.city ?? here?.name
     if (!city) return
@@ -1949,7 +2068,10 @@
       spoken = line
       return
     }
-    consented = true
+    if (!consented) {
+      consented = true
+      if (tauri) invoke('weather_allow', { city: here ?? null }).catch(console.error)
+    }
     closeBar()
     forecastFor(city, choice.day)
   }
@@ -1962,12 +2084,15 @@
     const fail = (text: string) => mine === asked && show({ glyph: 'cloud', text }, WEATHER_ERROR)
     show({ glyph: 'cloud', text: chip(city, day, lang) }, 2 * TIMEOUT)
     try {
-      // The session's city keeps its place: only its forecast is asked again.
+      // The kept city keeps its place: only its forecast is asked again.
       const known = here && folded(here.name) === folded(city) ? here : undefined
       const found = known ?? cityOf(await lookup(geocoding(city, lang)))
       if (mine !== asked) return
       if (!found) return fail(words.unknown)
-      here = found
+      if (!known) {
+        here = found
+        if (tauri) invoke('weather_city', { city: found }).catch(console.error)
+      }
       const answer = forecastOf(await lookup(forecast(found, fahrenheit(navigator.language))))
       if (mine !== asked) return
       if (!answer) return fail(words.offline)
@@ -1991,6 +2116,233 @@
     if (tauri) invoke('open_meteo').catch(console.error)
   }
 
+  // --- Clipboard history ---
+
+  // What Rust keeps, newest first, or null before the yes.
+  const read = (): Promise<string[] | null> =>
+    tauri ? invoke<string[] | null>('clipboard_history').catch(() => null) : Promise.resolve(kept)
+
+  // Win+Alt+V opens the bar on the list, or on its yes; pressed again, it closes. A press while Rust answers counts
+  // once.
+  let reading = false
+  async function toggleHistory() {
+    if (barOpen && (history || allowing)) return closeBar()
+    if (hidden || reading || capturing) return
+    reading = true
+    const items = await read()
+    reading = false
+    if (!barOpen) toggleBar()
+    shows(items)
+  }
+
+  // The list, or its yes, as for the weather: the field becomes the sentence and the chip the yes. Enter is yes, Esc
+  // is no. A bar closed while Rust answered stays closed.
+  function shows(items: string[] | null) {
+    if (!barOpen) return
+    const words = CLIPBOARD_WORDS[lang]
+    line = ''
+    query = ''
+    asking = undefined
+    spoken = ''
+    if (items) {
+      history = items
+      spoken = arrived(items.length, lang)
+      look()
+      return
+    }
+    allowing = true
+    line = words.consent.join('')
+    spoken = `${line} ${words.keys}`
+  }
+
+  // The yes: Rust keeps it across restarts, and the list opens on what the clipboard holds now.
+  async function allow() {
+    const items = tauri
+      ? await invoke<string[]>('clipboard_allow').catch(() => null)
+      : (kept = holding ? [holding, ...(kept ?? []).filter((t) => t !== holding)] : (kept ?? []))
+    if (!barOpen || !allowing) return
+    allowing = false
+    spoken = ''
+    if (!items) return closeBar()
+    line = ''
+    history = items
+    spoken = arrived(items.length, lang)
+    look()
+  }
+
+  // Which items name a file or a folder on this PC: Rust looks, and their rows turn into paths as it answers.
+  function look() {
+    if (!tauri) return void (paths = new Set(found))
+    invoke<string[]>('clipboard_paths')
+      .then((names) => {
+        if (history) paths = new Set(names)
+      })
+      .catch(console.error)
+  }
+
+  // What fills the peek's mark: a colour's swatch, or the type's glyph.
+  type Mark = { swatch?: string; drawing?: string }
+
+  // Enter on an item: the bar folds into the launch peek as Rust pastes it where you were, or a form of it, or opens
+  // what Tab picked. The peek shows the type's mark and says what happened, never what was pasted. A bar closed
+  // during the chip's press runs nothing.
+  function act(text: string, action: Action, plain: boolean) {
+    if (!history) return
+    const words = CLIPBOARD_WORDS[lang]
+    const kind = kindOf(text, paths)
+    const mark = kind === 'colour' ? { swatch: swatchOf(text) } : { drawing: GLYPHS[kind] }
+    if (action === 'open' || action === 'folder' || action === 'write') {
+      const said = action === 'open' ? linkParts(text).domain : action === 'folder' ? folderOf(text) : words.wrote
+      return openItem(text, mark, said)
+    }
+    // A colour and code paste as plain text, whatever Shift says.
+    plain ||= kind === 'colour' || action === 'plain'
+    const said = action === 'clean' ? words.pastedClean : plain && kind !== 'colour' ? words.pastedPlain : words.pasted
+    paste(text, formOf(text, action), plain, mark, said)
+  }
+
+  function paste(text: string, form: string | undefined, plain: boolean, mark: Mark, said: string) {
+    const words = CLIPBOARD_WORDS[lang]
+    // Rust gives the focus back itself, then pastes.
+    closeBar(false)
+    show({ ...mark, text: said }, 1200)
+    if (!tauri) {
+      kept = [text, ...(kept ?? []).filter((t) => t !== text)]
+      holding = form ?? text
+      return
+    }
+    invoke<Landed>('clipboard_paste', { text, plain, form: form ?? null })
+      .catch((): Landed => {
+        // Rust gives focus back too, but not if the call itself failed.
+        invoke('bar_focus', { open: false }).catch(console.error)
+        return 'failed'
+      })
+      .then((landed) => {
+        if (landed === 'pasted') return
+        show({ ...mark, text: landed === 'copied' ? words.copied : words.failed }, 2000)
+      })
+  }
+
+  // Tab's open: what opens takes the focus, as an app from the bar does. Rust reads the item again and opens only a
+  // link, an address or a folder; the peek says so if nothing opened.
+  function openItem(text: string, mark: Mark, said: string) {
+    closeBar(false)
+    show({ ...mark, text: said }, 1200)
+    if (!tauri) return
+    invoke<boolean>('clipboard_open', { text })
+      .catch(() => false)
+      .then((opened) => {
+        if (opened || barOpen) return
+        invoke('bar_focus', { open: false }).catch(console.error)
+        show({ ...mark, text: CLIPBOARD_WORDS[lang].unopened }, 2000)
+      })
+  }
+
+  // The list never shows in a screenshot or a shared screen. The island comes back to them once the list has left,
+  // unless a capture started over it: that one keeps the island out until it ends, and Rust brings it back then.
+  let unhide: ReturnType<typeof setTimeout> | undefined
+  $effect(() => {
+    if (!tauri || !history) return
+    clearTimeout(unhide)
+    invoke('clipboard_hide', { hidden: true }).catch(console.error)
+    return () => {
+      unhide = setTimeout(() => {
+        if (!capturing) invoke('clipboard_hide', { hidden: false }).catch(console.error)
+      }, EXIT.duration)
+    }
+  })
+
+  // --- Screen capture ---
+
+  // Win+Alt+C, and Win+Alt+C again or Esc to cancel.
+  function toggleCapture() {
+    if (capturing) return captureKey('escape', true)
+    if (!hidden) startCapture()
+  }
+
+  // Rust freezes the screen and the island becomes its pill, from whatever it showed or from the bar, on the peek's
+  // springs or the bar's fold. The island holds the focus for Esc, the arrows and Shift, which it hands to Rust.
+  async function startCapture() {
+    retuck = undefined
+    if (greeting === 'playing') end()
+    // The bar's focus is the capture's now: neither gives it back.
+    if (barOpen) closeBar(false)
+    focused = false
+    expanded = false
+    hovered = false
+    closeCard()
+    clearTimeout(launchTimer)
+    launch = undefined
+    telling = false
+    power = undefined
+    sky = undefined
+    clearTimeout(gotTimer)
+    absorb()
+    capturing = true
+    taken = false
+    hex = '#000000'
+    textColour = false
+    captureView = { name: 'capture', step: 'pick', width: wide(pickRow) }
+    spoken = CAPTURE_WORDS[lang].start
+    untuck()
+    const captured = tauri
+      ? await invoke<Captured>('capture_start', { reduced }).catch((): Captured => ({ kind: 'failed' }))
+      : await new Promise<Captured>((done) => (settleCapture = done))
+    settleCapture = undefined
+    capturing = false
+    land(captured)
+  }
+
+  // The colour under the loupe. Rust takes the keys from its first one on: a Shift held before then is handed over
+  // again, so the colour it picks is the one the pill names.
+  let taken = false
+  function pixel(next: string) {
+    if (!taken && textColour) captureKey('shift', true)
+    taken = true
+    hex = next
+  }
+
+  // The press became a box: the pill says what letting go does.
+  function boxed() {
+    if (capturing && captureView) captureView = { name: 'capture', step: 'box', width: wide(boxRow) }
+  }
+
+  // The result holds 3 s, then the island goes back to what it showed, the bead back into it. Esc goes back at once.
+  async function land(captured: Captured) {
+    const next = copied(captured, lang)
+    if (!next) {
+      captureView = undefined
+      spoken = ''
+      return
+    }
+    got = next
+    await flushed()
+    captureView = { name: 'capture', step: 'done', width: wide(doneRow) }
+    spoken = next.spoken
+    if (next.bead !== false && !instant()) {
+      bead = next.bead ?? undefined
+      ink()
+    }
+    gotTimer = setTimeout(() => {
+      absorb()
+      captureView = undefined
+      spoken = ''
+    }, CAPTURE.hold)
+  }
+
+  function steer(event: KeyboardEvent, down: boolean) {
+    const key = CAPTURE_KEYS[event.key]
+    if (!key || (key === 'shift' && event.repeat)) return
+    event.preventDefault()
+    if (key === 'shift') textColour = down
+    captureKey(key, down)
+  }
+
+  function captureKey(key: CaptureKey, down: boolean) {
+    if (tauri) invoke('capture_key', { key, down }).catch(console.error)
+    else if (key === 'escape' && down) settleCapture?.({ kind: 'cancelled' })
+  }
+
   // --- Battery ---
 
   // A battery peek shows over whatever has the island for a moment (POWER_PEEK in power.ts), never over a call, a
@@ -2003,6 +2355,7 @@
       !hidden &&
       !barOpen &&
       !launch &&
+      !captureView &&
       !sky &&
       !telling &&
       !expanded &&
@@ -2189,6 +2542,20 @@
         alert,
         fullscreen: () => fullscreen(!hidden),
         bar: toggleBar,
+        clipboard: toggleHistory,
+        capture: toggleCapture,
+        captured: (captured: Captured) => settleCapture?.(captured),
+        boxed,
+        pixel,
+        set kept(next: string[] | null) {
+          kept = next
+        },
+        set holding(next: string) {
+          holding = next
+        },
+        set paths(next: string[]) {
+          found = next
+        },
         welcome: replay,
         tuck: toggleTuck,
         swipe: (way: Direction) => tuckIn('you', way, true),
@@ -2236,7 +2603,10 @@
   onpointerup={gripEnd}
   onpointercancel={gripEnd}
   onresize={wake}
+  onkeyup={(event) => capturing && steer(event, false)}
+  onblur={() => capturing && captureKey('escape', true)}
   onkeydown={(event) => {
+    if (capturing) return steer(event, true)
     if (tauri || event.key !== 'Escape') return
     if (grown) return (grown = undefined)
     expanded = false
@@ -2409,6 +2779,16 @@
   {/if}
 </div>
 
+{#if geometry.tint}
+  <!-- Over the goo, not through it: the colour a capture copied, inside the bead's rim. -->
+  <div
+    class="tint"
+    style={place(geometry.tint)}
+    style:background={geometry.tint.color}
+    style:opacity={geometry.tint.alpha < 1 ? geometry.tint.alpha : undefined}
+  ></div>
+{/if}
+
 {#if geometry.line && geometry.shine > 0.01}
   <!-- The line's lighter bottom row, which sets it apart from a dark title bar. -->
   <div
@@ -2462,7 +2842,7 @@
   }}
 >
   <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
-  {#if !expanded && !barOpen && !launch && !sky}
+  {#if !expanded && !barOpen && !launch && !sky && !captureView}
     {@const done = fit?.ended && top}
     <button
       type="button"
@@ -2478,6 +2858,7 @@
     class:player={!!parts.player}
     class:timer={!!parts.timer}
     class:finished={!!parts.timer && fit?.ended}
+    class:done={parts.capture === 'done'}
     bind:this={content}
     style:width="{size.width}px"
     style:height="{size.height}px"
@@ -2625,13 +3006,27 @@
         {/if}
       {/if}
     {/if}
-    {#if parts.bar}
+    {#if parts.bar && history}
+      <ClipboardHistory
+        items={matches}
+        total={history.length}
+        bind:query
+        {lang}
+        {reduced}
+        height={geometry.clip.height}
+        {enter}
+        {exit}
+        {paths}
+        onrun={act}
+        onclose={() => closeBar()}
+      />
+    {:else if parts.bar}
       <CommandBar
         bind:line
         choices={options}
         {lang}
         {reduced}
-        question={asking && consent(asking.city ?? '', lang)}
+        question={allowing ? [...CLIPBOARD_WORDS[lang].consent] : asking && consent(asking.city ?? '', lang)}
         {shortcut}
         {enter}
         {exit}
@@ -2641,10 +3036,14 @@
     {/if}
     {#if parts.launch}
       <span class="mark" style:background={parts.launch.color} in:enter out:exit>
-        {#if parts.launch.icon}
+        {#if parts.launch.swatch}
+          <span class="swatch" style:background={parts.launch.swatch}></span>
+        {:else if parts.launch.icon}
           <canvas use:paintIcon={parts.launch.icon}></canvas>
         {:else if parts.launch.glyph}
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d={DRAWINGS[parts.launch.glyph]} /></svg>
+        {:else if parts.launch.drawing}
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d={parts.launch.drawing} /></svg>
         {:else if parts.launch.letter}{parts.launch.letter}{/if}
       </span>
       <span class="launched" in:enter={{ step: 1 }} out:exit>{parts.launch.text}</span>
@@ -2713,6 +3112,27 @@
         <span class="muted" in:enter={{ step: 2 }}>{second}</span>
       </span>
     {/if}
+    {#if parts.capture === 'pick'}
+      <!-- The colour under the loupe, its HEX, then the box the press can draw instead. -->
+      <span class="swatch" style:background={hex} in:enter out:exit></span>
+      <span class="hex" in:enter={{ step: 1 }} out:exit>{hex}</span>
+      <span class="muted" in:enter={{ step: 2 }} out:exit>{CAPTURE_WORDS[lang][textColour ? 'shift' : 'drag']}</span>
+    {:else if parts.capture === 'box'}
+      <span class="glyph" in:enter out:exit>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d={CAPTURE_GLYPHS.box} /></svg>
+      </span>
+      <span in:enter={{ step: 1 }} out:exit>{CAPTURE_WORDS[lang].release}</span>
+    {:else if parts.capture === 'done' && got}
+      <!-- What was copied. With reduced motion there is no bead: the colour shows first. Global: they come and go
+           with the pill around them. -->
+      {@const swatch = reduced && got.bead}
+      {#if swatch}<span class="swatch" style:background={swatch} in:enter|global out:exit|global></span>{/if}
+      {#each got.parts as part, i (i)}
+        {@const step = 2 * i + (swatch ? 1 : 0)}
+        {#if i}<span class="sep" in:enter|global={{ step: step - 1 }} out:exit|global>·</span>{/if}
+        <span in:enter|global={{ step }} out:exit|global>{part}</span>
+      {/each}
+    {/if}
     {#if parts.batteries}
       <Batteries battery={parts.batteries} {grown} {lang} {reduced} keys={focused} {exit} onpick={pick} />
     {/if}
@@ -2753,8 +3173,20 @@
   <!-- The island's timer, at its natural width, so its shape can fit its name and digits. -->
   {#if topName}<span class="name measure" bind:clientWidth={nameWidth}>{topName}</span>{/if}
   {#if topDigits}<span class="countdown measure" bind:clientWidth={digitsWidth}>{topDigits}</span>{/if}
-  <!-- The welcome's widths are read here. -->
+  <!-- The welcome's widths are read here, and the capture's pill's. -->
   <span class="greet" bind:this={greet}>{WORDS[lang].hello}</span>
+  <span class="row capture" bind:this={pickRow}>
+    <span class="swatch"></span><span class="hex">#000000</span><span class="muted">{CAPTURE_WORDS[lang].drag}</span>
+  </span>
+  <span class="row capture" bind:this={boxRow}>
+    <span class="glyph"><svg viewBox="0 0 16 16"></svg></span><span>{CAPTURE_WORDS[lang].release}</span>
+  </span>
+  {#if got}
+    <span class="row capture done" bind:this={doneRow}>
+      {#if reduced && got.bead}<span class="swatch"></span>{/if}
+      {#each got.parts as part, i (i)}{#if i}<span class="sep">·</span>{/if}<span>{part}</span>{/each}
+    </span>
+  {/if}
   {#if keys}
     <span class="row" bind:this={row}>
       <span class="caption">{WORDS[lang].bar}</span>
@@ -2958,7 +3390,8 @@
 
     .dot,
     .art,
-    .equalizer {
+    .equalizer,
+    .launch .swatch {
       forced-color-adjust: none;
     }
   }
@@ -3017,6 +3450,14 @@
     font-weight: 700;
   }
 
+  /* A colour's own swatch, ringed so black shows. */
+  .launch .swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.28);
+  }
+
   .launch .mark canvas {
     width: 100%;
     height: 100%;
@@ -3030,6 +3471,54 @@
     stroke-width: 1.8;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  /* The screen capture: a swatch, the HEX, the second gesture; then what was copied, centred. */
+  .capture {
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0 16px 0 10px;
+  }
+
+  .capture.done {
+    justify-content: center;
+    gap: 6px;
+    padding: 0 18px;
+  }
+
+  .capture .muted {
+    margin-left: 2px;
+  }
+
+  .capture .glyph svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.5;
+  }
+
+  /* A 1.5 px ring at 28 %, so black shows on the island. It keeps its colour in a contrast theme. */
+  .swatch {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.28);
+    forced-color-adjust: none;
+  }
+
+  /* Never narrower, so the pill doesn't twitch as the HEX changes. */
+  .hex {
+    min-width: 64px;
+  }
+
+  .sep {
+    color: rgb(255 255 255 / 0.6);
+    font-weight: 500;
+  }
+
+  .tint {
+    position: absolute;
+    pointer-events: none;
   }
 
   /* The weather asked for: a glyph, two lines, and the credit in the bottom right corner. */

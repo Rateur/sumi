@@ -1,11 +1,9 @@
 ---
 title: Vue d'ensemble
-description: Toutes les pages de la doc de Sumi, au même endroit.
+description: Toutes les pages de la doc de Sumi.
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
-
-Installer Sumi, voir ce que fait l'île et aider à la construire.
 
 ## Pour commencer
 
@@ -19,20 +17,22 @@ Installer Sumi, voir ce que fait l'île et aider à la construire.
 
 <CardGrid>
 	<LinkCard title="L'heure" description="Au repos, l'île affiche l'heure." href="time/" />
-	<LinkCard title="Plein écran" description="Elle laisse la place aux jeux, aux vidéos et aux diaporamas." href="fullscreen/" />
-	<LinkCard title="Ranger l'île" description="Une ligne sous le bord de l'écran, jusqu'à ce que quelque chose ait besoin de l'île." href="tuck/" />
+	<LinkCard title="Plein écran" description="L'île disparaît pendant les jeux, les vidéos et les diaporamas." href="fullscreen/" />
+	<LinkCard title="Ranger l'île" description="Glissez l'île pour la ranger en un trait fin en haut de l'écran." href="tuck/" />
 	<LinkCard title="Icône de la zone de notification" description="Le point du micro et la musique près de l'horloge. Un clic range l'île." href="tray-icon/" />
-	<LinkCard title="Musique" description="Ce qui joue, dans tout lecteur que Windows sait piloter." href="music/" />
+	<LinkCard title="Musique" description="Le morceau en cours, dans tout lecteur que Windows sait piloter." href="music/" />
 	<LinkCard title="Micro et caméra" description="Un point à côté de l'île quand une app les utilise." href="microphone-camera/" />
-	<LinkCard title="Barre de commande" description="Un minuteur, une app ou une question, depuis un raccourci." href="command-bar/" />
-	<LinkCard title="Minuteurs" description="Tapez une durée, et l'île la décompte." href="timers/" />
-	<LinkCard title="Batterie" description="Toutes les batteries dans un panneau, et un coup d'œil quand il se passe quelque chose." href="battery/" />
-	<LinkCard title="Météo" description="La météo d'une ville, quand vous la demandez dans la barre de commande." href="weather/" />
+	<LinkCard title="Barre de commande" description="Appuyez sur Win+Alt+S et tapez un minuteur, le nom d'une app ou une question." href="command-bar/" />
+	<LinkCard title="Minuteurs" description="Tapez 25m et l'île lance le compte à rebours." href="timers/" />
+	<LinkCard title="Batterie" description="Toutes vos batteries dans un panneau, et un coup d'œil au branchement ou à 20 %." href="battery/" />
+	<LinkCard title="Météo" description="La météo d'une ville, depuis la barre de commande." href="weather/" />
+	<LinkCard title="Historique du presse-papiers" description="Appuyez sur Win+Alt+V pour retrouver ce que vous avez copié, puis sur Entrée pour le coller là où vous étiez." href="clipboard/" />
+	<LinkCard title="Capture" description="Appuyez sur Win+Alt+C pour copier une couleur, un texte ou un code QR depuis l'écran." href="capture/" />
 </CardGrid>
 
 ## Contribuer
 
 <CardGrid>
-	<LinkCard title="Guide de contribution" description="Installer Sumi, proposer un changement, le faire relire." href="contribute/" />
+	<LinkCard title="Guide de contribution" description="Lancer Sumi en local et proposer un changement." href="contribute/" />
 	<LinkCard title="Fonctionnement de l'île" description="Chaque état, les raccourcis, les mouvements et les couleurs." href="design/" />
 </CardGrid>

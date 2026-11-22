@@ -1,6 +1,6 @@
 ---
 title: Timers
-description: Type a length in the command bar, and the island counts it down.
+description: Type a length in the command bar and the island counts it down.
 ---
 
 Press `Win+Alt+S`, type a length, then press Enter. The bar folds into the timer. Timers count from the clock, so they stay right when the PC sleeps.
@@ -34,7 +34,7 @@ A timer that ends takes the island from music, never from a call. While Windows 
 
 ## The sound
 
-A short, soft chime every 10 seconds for one minute, then silence. It follows the Windows volume. It's on for now; Settings, in 0.9, will let you turn it off. The site's demo plays no sound.
+A short, soft chime every 10 seconds for one minute, then silence. It follows the Windows volume. It's on for now; Settings, in 0.10, will let you turn it off. The site's demo plays no sound.
 
 In fullscreen, a game or a video keeps the screen: only the chime plays. When it ends, the island comes back down and shows the timer that ended.
 

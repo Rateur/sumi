@@ -1,21 +1,23 @@
 ---
 title: Météo
-description: La météo d'une ville, quand vous la demandez dans la barre de commande.
+description: La météo d'une ville, depuis la barre de commande.
 ---
 
-Tapez `météo à Lyon` dans la barre de commande et appuyez sur Entrée. L'île affiche la météo un instant, puis reprend ce qu'elle faisait. Rien ne s'y installe au repos, et rien n'est demandé tant que vous ne demandez pas.
+Tapez `météo à Lyon` dans la barre de commande et appuyez sur Entrée. L'île affiche la météo 4 secondes, puis ce qu'elle montrait avant. Rien n'est envoyé avant que vous appuyiez sur Entrée.
 
 ## Que taper
 
 - **Une ville** : `météo Lyon`, `météo à Lyon`, ou en anglais `weather in Paris`.
 - **Demain** : ajoutez `demain` ou `tomorrow` : `météo Lyon demain`.
-- **La même ville** : `météo` seul, une fois qu'une ville a été trouvée pendant la session. Avant, la pastille dit « Météo · tapez une ville » et Entrée ne fait rien.
+- **La même ville** : `météo` seul, pour la dernière ville demandée, même après un redémarrage. Avant la première, la pastille dit « Météo · tapez une ville » et Entrée ne fait rien.
 
 La pastille montre ce que demandera Entrée, comme « Météo Lyon demain », avant que rien ne soit envoyé. `temps` et des questions comme `quel temps fait-il à Rome` restent des questions pour Claude.
 
 ## La première fois
 
-La première fois que vous appuyez sur Entrée pour la météo après avoir lancé Sumi, rien n'est encore envoyé. La barre dit « Open-Meteo recevra « Lyon » et votre IP. » et la pastille « Autoriser ». Appuyez sur Entrée pour autoriser, ou sur Échap pour fermer la barre : rien n'est alors envoyé ni gardé. Sumi redemande après chaque redémarrage.
+La première fois que vous appuyez sur Entrée pour la météo, rien n'est encore envoyé. La barre dit « Open-Meteo recevra « Lyon » et votre IP. » et la pastille « Autoriser ». Appuyez sur Entrée pour autoriser, ou sur Échap pour fermer la barre : rien n'est alors envoyé ni gardé.
+
+Votre oui reste après un redémarrage. Pour le retirer, faites un clic droit sur l'icône de Sumi, près de l'horloge, et choisissez **Oublier la météo**. Sumi oublie aussi la ville, et la barre redemande la fois suivante.
 
 ## Le coup d'œil
 
@@ -30,8 +32,8 @@ Pendant 4 secondes, un pictogramme, puis « Lyon · 12° · Nuageux » et dessou
 
 La météo est la seule chose dans Sumi qui utilise le réseau, et seulement une fois que vous l'avez autorisée.
 
-- **Ce qui quitte votre PC** : la ville tapée part vers le service de géocodage d'Open-Meteo, puis ses coordonnées, jamais votre propre position, vers leur service de prévisions. Comme tout site, Open-Meteo voit votre adresse IP, et la garde dans ses journaux jusqu'à 90 jours : voir leurs [conditions](https://open-meteo.com/en/terms).
-- **Ce que Sumi garde** : votre oui et la ville trouvée, en mémoire seulement, jusqu'à ce que Sumi se ferme. Rien n'est écrit sur le disque ni dans un journal, et les réponses ne sont jamais mises en cache.
+- **Ce qui quitte votre PC**, à chaque demande : la ville tapée part vers le service de géocodage d'Open-Meteo, puis ses coordonnées, jamais votre propre position, vers leur service de prévisions. Comme tout site, Open-Meteo voit votre adresse IP, et la garde dans ses journaux jusqu'à 90 jours : voir leurs [conditions](https://open-meteo.com/en/terms).
+- **Ce que Sumi garde** : votre oui et la dernière ville demandée, sur ce PC, chiffrés par Windows pour votre compte, jusqu'à ce que vous choisissiez **Oublier la météo**. Rien ne va dans un journal, et les réponses ne sont jamais mises en cache.
 - Rien n'est envoyé pendant la frappe, et rien au lancement.
 
 ## Limites

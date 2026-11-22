@@ -11,12 +11,12 @@
   <p><b>English</b> · <a href="README.fr.md">Français</a></p>
 </div>
 
-![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, the command bar starting a timer, the island swiped up into a line and brought back, then the batteries panel from the command bar](.github/assets/demo.gif)
+![Sumi at the top of the screen: the time, the date under the cursor, a song and its player, the microphone's disc and its card, the command bar starting a timer, the island swiped up into a line and brought back, the batteries panel from the command bar, then the clipboard history, a color turned to RGB with Tab and pasted](.github/assets/demo.gif)
 
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.8.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app, the weather or a question, tucks into a line at the top when you swipe it away or leave it at rest, and shows the batteries of your PC and your devices, even ones Windows doesn't show. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.9.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app, the weather or a question, tucks into a line at the top when you swipe it away or leave it at rest, shows the batteries of your PC and your devices, even ones Windows doesn't show, opens your clipboard history in the command bar, and copies a color, text or a QR code from the screen. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 
@@ -36,7 +36,8 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
 - [x] A command bar (`Win+Alt+S`): a timer, an app, a question for Claude, ChatGPT, Gemini, Perplexity or a search engine; timers on the island, from `25m` (0.6.0)
 - [x] Tuck the island into a thin line at the top with a swipe, or by itself at rest; a live tray icon with the microphone, camera and music that tucks it or brings it back (0.7.0)
 - [x] The weather from the command bar, through [Open-Meteo](https://open-meteo.com); the batteries of the PC and its Bluetooth devices, including ones Windows doesn't show, with a peek as you plug in, run low or connect one (0.8.0)
-- [ ] Settings (screen, theme, language, shortcuts), automatic updates and a signed installer
+- [x] Your clipboard history in the command bar (`Win+Alt+V`), each item pasted where you were, with its action on Tab; a capture (`Win+Alt+C`) that copies a color, text or a QR code from the screen (0.9.0)
+- [ ] Settings (screen, theme, language, shortcuts), automatic updates and the Microsoft Store
 
 ## How it's built
 
@@ -48,11 +49,11 @@ Each step ships as its own version. Version 1.0 is done when every box is checke
   <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white">
 </p>
 
-Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, reads media, microphone/camera state and batteries. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
+Sumi is a [Tauri 2](https://v2.tauri.app) app. A Rust core talks to Windows: it places the window, lets clicks through, reads media, microphone/camera state, batteries and the clipboard, and freezes the screen for a capture. A [Svelte 5](https://svelte.dev) and TypeScript interface draws the island inside WebView2, the browser engine already built into Windows, so Sumi doesn't ship a browser of its own and the installer stays small.
 
 ## Privacy
 
-Sumi collects nothing. Its only network request is the weather, and only after you allow it in the command bar, once per session: [Open-Meteo](https://open-meteo.com) then gets the city you typed and your IP address, which it keeps in its logs for up to 90 days ([terms](https://open-meteo.com/en/terms)). Your yes and the city stay in memory until Sumi quits.
+Sumi collects nothing. Its only network request is the weather, and only after you allow it in the command bar. Each time you ask, [Open-Meteo](https://open-meteo.com) gets the city you typed and your IP address, which it keeps in its logs for up to 90 days ([terms](https://open-meteo.com/en/terms)). Your yes and the city you last asked for stay on this PC, encrypted for your Windows account, until you pick **Forget the weather** in Sumi's tray menu. The clipboard history, once you allow it, stays on this PC, encrypted for your Windows account, and is never sent anywhere. A capture's frozen screen stays in memory and is freed as soon as it ends, and its text is read on this PC by Windows.
 
 ## Contributing
 

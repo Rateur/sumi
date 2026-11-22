@@ -2,6 +2,7 @@ import { isTauri } from '@tauri-apps/api/core'
 import type { Listed } from '../CommandBar.svelte'
 import { fold, langOf } from './intent'
 import type { Activity } from './activities'
+import type { Captured } from './capture'
 import type { Player } from './music'
 import type { Battery, Device, Power } from './power'
 import type { Privacy, PrivacyApp } from './privacy'
@@ -83,6 +84,26 @@ const APPS: Listed[] = [
   { name: 'Claude', color: '#D97757' },
   { name: 'Notes', color: '#A16207' },
   { name: 'Mail', color: '#0A66C2' },
+]
+
+// What the clipboard history's stand-in holds, newest first, as the lab's. Text only, as Sumi keeps it. Its paths
+// stand in for files Rust would find on this PC.
+const PATHS = ['C:\\Users\\Valentin\\Documents\\Sumi\\rapport-0.9.pdf', 'D:\\Photos\\2026\\Lyon']
+const COPIED = [
+  'https://github.com/Rateur/sumi/pull/94',
+  '#1E90FF',
+  fr ? 'Réunion jeudi 14 h, salle Lumière' : 'Meeting on Thursday at 2 pm, Lumière room',
+  fr ? 'camille.martin@exemple.fr' : 'camille.martin@example.com',
+  PATHS[0],
+  fr
+    ? 'const total = items.reduce(\n  (somme, i) => somme + i.prix,\n  0,\n)'
+    : 'const total = items.reduce(\n  (sum, i) => sum + i.price,\n  0,\n)',
+  'https://example.com/inscription?utm_source=newsletter&utm_medium=email',
+  '#FF6B4A',
+  fr ? 'Merci pour le retour, je regarde ça demain matin.' : "Thanks for the feedback, I'll look at it tomorrow morning.",
+  '4 rue de la République, 69002 Lyon',
+  PATHS[1],
+  '#2BB673',
 ]
 
 // Devices that report their battery, as the lab's: the panel shows the first one, three or five of this PC. Three is
@@ -215,6 +236,9 @@ const KEYS: Record<string, string> = {
   q: 'device',
   Q: 'gone',
   s: 'batteries',
+  V: 'clipboard',
+  F: 'forget',
+  C: 'capture',
 }
 
 /**
@@ -236,7 +260,10 @@ const KEYS: Record<string, string> = {
  'drain' takes the PC to 18 % and back, 'device-low' runs the controller low, 'jbl' connects a speaker without a level, 'late' connects it with the level
  it gives 8 s later, and 'unknown' adds it to the panel. `météo Lyon`, `Paris` or `Oslo` in the bar answers from
  recorded forecasts, never the network; 'weather' shows Lyon's peek without the bar, and 'offline' cuts the network or
- brings it back.
+ brings it back. Shift+V opens the clipboard history in the bar, as Win+Alt+V does ('clipboard'), on a stand-in of
+ twelve items, and Shift+F forgets its yes ('forget'): the next Shift+V asks for it, and the yes keeps only the first.
+ Shift+C starts the screen capture's pill, as Win+Alt+C does ('capture'), over a blue pixel; 'capture-colour' clicks it,
+ 'capture-text' draws a box and reads 42 words, 'capture-qr' a box with a link's QR code, and Esc cancels.
  */
 export function demo(island: {
   activities: Activity[]
@@ -249,6 +276,14 @@ export function demo(island: {
   alert: () => void
   fullscreen: () => void
   bar: () => void
+  clipboard: () => void
+  capture: () => void
+  captured: (captured: Captured) => void
+  boxed: () => void
+  pixel: (hex: string) => void
+  kept: string[] | null
+  holding: string
+  paths: string[]
   welcome: () => void
   tuck: () => void
   swipe: (way: 'up' | 'down' | 'left' | 'right') => void
@@ -298,6 +333,22 @@ export function demo(island: {
     alert: island.alert,
     fullscreen: island.fullscreen,
     bar: island.bar,
+    clipboard: island.clipboard,
+    forget: () => (island.kept = null),
+    capture: () => {
+      island.capture()
+      island.pixel('#1E90FF')
+    },
+    'capture-colour': () => island.captured({ kind: 'colour', hex: '#1E90FF' }),
+    // Rust reads the box once it is let go.
+    'capture-text': () => {
+      island.boxed()
+      setTimeout(() => island.captured({ kind: 'text', words: 42 }), 900)
+    },
+    'capture-qr': () => {
+      island.boxed()
+      setTimeout(() => island.captured({ kind: 'link', host: 'example.com' }), 900)
+    },
     // Through the field itself, so the chip answers and gives under the key as it does for a person.
     enter: () => field()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
     clear: () => (island.activities = island.activities.filter((a) => !isTimer(a))),
@@ -337,6 +388,9 @@ export function demo(island: {
     island.battery = SETS.three
     island.shortcut = (new URLSearchParams(location.search).get('shortcut') ?? 'Win+Alt+S') || undefined
     island.lookup = recorded
+    island.kept = COPIED
+    island.holding = COPIED[0]
+    island.paths = PATHS
   }
   addEventListener('keydown', (event) => {
     if (event.ctrlKey && event.altKey && event.code === 'Space') {
