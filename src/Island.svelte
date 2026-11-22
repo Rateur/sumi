@@ -1034,7 +1034,9 @@
       closeCard()
       clearTimeout(peekTimer)
       press(false)
+      // Rust forgets where the cursor was: no word of it leaving the island or the tag will come.
       pointer = false
+      onTag = false
       rest = undefined
       expanded = false
       hovered = false
@@ -1535,22 +1537,25 @@
   // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
   // pointTag and moveTag share their rest logic with point and move above: change them together.
   let tagRest: { x: number; y: number } | undefined
+  // Closed by Esc or a click while the cursor is on the tag, the card stays shut until the cursor leaves it.
+  let shut = false
   function pointTag(inside: boolean) {
     onTag = inside
+    shut = false
     tagRest = undefined
     clearTimeout(tagTimer)
     tagTimer = setTimeout(() => (card = inside && tagged(privacy)), inside ? hoverTime : LEAVE)
   }
 
   function moveTag({ clientX: x, clientY: y }: PointerEvent) {
-    if (!onTag || card) return
+    if (!onTag || card || shut) return
     if (tagRest && Math.abs(x - tagRest.x) <= REST && Math.abs(y - tagRest.y) <= REST) return
     if (tagRest) pointTag(true)
     tagRest = { x, y }
   }
 
   function closeCard() {
-    onTag = false
+    shut = onTag
     clearTimeout(tagTimer)
     card = false
   }
