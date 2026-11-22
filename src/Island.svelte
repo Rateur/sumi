@@ -225,8 +225,6 @@
   // The command bar: its line, and the peek it folds into after Enter. Its shortcut, Start's apps and whether Claude's
   // app is installed come from Rust; the demo brings stand-ins.
   const lang: Lang = langOf(location.search, navigator.language)
-  // A screen reader picks its voice from it: the island's words are in this language.
-  document.documentElement.lang = lang
   let barOpen = $state(false)
   let line = $state('')
   let launch = $state<ReturnType<typeof markOf> & { text: string; swatch?: string }>()
@@ -2865,6 +2863,7 @@
     type="button"
     class="hit"
     aria-label={TRAY[lang].back}
+    {lang}
     style="left:{geometry.hit.x}px;width:{geometry.hit.width}px;height:{geometry.hit.height}px"
     onpointerenter={() => tauri || point(true)}
     onpointerleave={() => tauri || point(false)}
@@ -2915,13 +2914,16 @@
         ? said.dismiss(named.get(done.id) ?? said.the)
         : ['Open', spokenOf(arrangement.island)].filter(Boolean).join(', ')}
       aria-expanded={done ? undefined : expanded}
+      lang={done ? lang : undefined}
       onpointerdown={(event) => event.button === 0 && event.currentTarget.setPointerCapture(event.pointerId)}
       onclick={() => (greeting === 'playing' ? skip() : expanded ? (expanded = false) : open())}
     ></button>
   {/if}
-  <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
+  <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. The page is in English, like the
+       names of the opener, the music's controls and the tag. What the island writes is in its own language. -->
   <span
     class="content view {view.name}"
+    {lang}
     class:player={!!parts.player}
     class:timer={!!parts.timer}
     class:finished={!!parts.timer && fit?.ended}
@@ -2953,6 +2955,7 @@
             <span
               class="scrub"
               class:held={scrub?.held && scrub.id === playback.id}
+              lang="en"
               role="slider"
               tabindex={playback.canSeek ? 0 : -1}
               aria-label="Position"
@@ -2981,7 +2984,7 @@
             <span>-{clockTime(playback.endMs - at)}</span>
           </span>
         {/if}
-        <span class="controls" in:enter={{ step: 3 }} out:exit|global>
+        <span class="controls" lang="en" in:enter={{ step: 3 }} out:exit|global>
           <button type="button" aria-label="Previous" disabled={!p.canPrevious} onclick={() => control('previous')}>
             {@render icon('previous')}
           </button>
@@ -3267,7 +3270,7 @@
 </span>
 
 <!-- The welcome, read once to a screen reader with the real shortcut, then cleared, and so is a battery peek. -->
-<span class="spoken" role="status">{spoken}</span>
+<span class="spoken" role="status" {lang}>{spoken}</span>
 <!-- Its own region, mounted before the tag: an app that starts using the microphone or the camera is heard. -->
 <span class="spoken" role="status">{inUse}</span>
 
