@@ -586,16 +586,17 @@
     }
     // The goo lets go once the bubble is within half a pixel of its place: the last tenth would keep it on.
     const near = (s: Spring) => Math.abs(s.value - s.target) < 0.5 && Math.abs(s.velocity) < 20
+    let ended = false
     if (phase === 'split' && near(travel) && near(bubble)) {
       phase = 'shown'
-      fade(0, 120, t)
+      ended = true
     } else if (phase === 'merge' && near(travel) && near(bubble)) {
       phase = 'none'
       bubble.jump(0)
       // Merged into a tuck, the goo is the tuck's.
       if (tuck !== 'tucking') {
         pulse(120, 0, t)
-        fade(0, 120, t)
+        ended = true
       }
     }
     if (inkPhase === 'merge' && inkD.value < -8) {
@@ -603,7 +604,7 @@
       bead = undefined
       inkD.jump(0)
       inkR.jump(0)
-      fade(0, 120, t)
+      ended = true
     }
     for (const check of checks.filter((c) => c.when())) {
       checks = checks.filter((c) => c !== check)
@@ -611,13 +612,16 @@
     }
     if (tagPhase === 'split' && near(tagShift) && near(tagW)) {
       tagPhase = 'shown'
-      fade(0, 120, t)
+      ended = true
     } else if (tagPhase === 'merge' && near(tagShift) && near(tagW)) {
       tagPhase = 'none'
       tagW.jump(0)
       tagH.jump(0)
-      fade(0, 120, t)
+      ended = true
     }
+    // One goo for every drop: it lets go once none of them still moves, and the bead keeps its neck while it is out.
+    const dropping = [phase, tagPhase, inkPhase].some((p) => p === 'split' || p === 'merge')
+    if (ended && !dropping) fade(0, 120, t)
     if (!hidden && !revealed && drop.value >= reveal) revealed = true
     geometry = shape(t)
     const fading = Object.values(fades).some((f) => t < f.end)
@@ -739,7 +743,8 @@
     phase = 'split'
     ramp = undefined
     goo = true
-    sigma = GOO
+    // The bead's goo is wider: it may be out.
+    sigma = Math.max(sigma, GOO)
     travel.to(0, 0.5, 0.3, t)
     bubble.to(BUBBLE, 0.4, 0.25, t)
     wake()
@@ -789,7 +794,7 @@
     tagPhase = 'split'
     ramp = undefined
     goo = true
-    sigma = GOO
+    sigma = Math.max(sigma, GOO)
     tagShift.to(0, 0.5, 0.3, t)
     tagW.to(w, 0.4, 0.25, t)
     tagH.to(TAG, 0.4, 0.25, t)
