@@ -225,6 +225,8 @@
   // The command bar: its line, and the peek it folds into after Enter. Its shortcut, Start's apps and whether Claude's
   // app is installed come from Rust; the demo brings stand-ins.
   const lang: Lang = langOf(location.search, navigator.language)
+  // A screen reader picks its voice from it: the island's words are in this language.
+  document.documentElement.lang = lang
   let barOpen = $state(false)
   let line = $state('')
   let launch = $state<ReturnType<typeof markOf> & { text: string; swatch?: string }>()
@@ -2998,15 +3000,16 @@
         </span>
       {/if}
     {/if}
+    <!-- The time and the date are written in Windows' own language, which may be neither French nor English. -->
     {#if parts.date}
-      <span class="muted" in:enter out:exit>{formatShortDate(now)}</span>
+      <span class="muted" lang={navigator.language} in:enter out:exit>{formatShortDate(now)}</span>
     {/if}
     {#if parts.time}
-      <time bind:this={clock} datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
+      <time bind:this={clock} datetime={now.toISOString()} lang={navigator.language} in:enter out:exit>{@render digits(formatTime(now))}</time>
     {/if}
     {#if parts.panel}
-      <time class="big" datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
-      <span class="muted" in:enter={{ step: 1 }} out:exit>{formatLongDate(now)}</span>
+      <time class="big" datetime={now.toISOString()} lang={navigator.language} in:enter out:exit>{@render digits(formatTime(now))}</time>
+      <span class="muted" lang={navigator.language} in:enter={{ step: 1 }} out:exit>{formatLongDate(now)}</span>
     {/if}
     {#if parts.track}
       <span class="track" out:exit>
