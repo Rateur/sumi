@@ -44,7 +44,7 @@ The weather asked in the bar shows over all of it for 4 s, as the bar's answers 
 ## Music
 
 - Any player that Windows' media controls can see: Spotify, browsers, VLC and the rest. Two players at once take the island and the bubble.
-- A player shows once it plays. Paused, it stays a minute, then the time comes back; playing again brings it back. A player that disappears for a moment between two songs is held for 2.5 s, so the island doesn't blink.
+- A player shows once it plays. Paused, it stays a minute, then the time comes back; playing again brings it back. With its panel open, the minute counts from when the panel closes. A player that disappears for a moment between two songs is held for 2.5 s, so the island doesn't blink.
 - A new song swells the island, unless Windows says you're busy. The title and artist are in the panel.
 - The progress bar and the times are worked out from the last position Windows gave, so nothing is sent while a song plays. A live stream without a length has no bar.
 - The bar can be dragged, in players that allow it. It thickens under the cursor, as on the iPhone, and stays where it is dropped until the player answers, 3 s at most. A drag that starts on the island keeps the cursor until the button is up, even past the island's edge.

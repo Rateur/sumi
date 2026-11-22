@@ -44,14 +44,15 @@ export interface Players {
 
 export const nobody = (): Players => ({ last: new Map(), playedAt: new Map(), goneAt: new Map() })
 
-/** Takes in what Windows says now. A player first seen paused never played here, so it isn't shown. */
-export function update(known: Players, players: readonly Player[], now: number): Players {
+/** Takes in what Windows says now. A player first seen paused never played here, so it isn't shown. `open` is the
+ * player the open panel shows: it stays while the panel is open. */
+export function update(known: Players, players: readonly Player[], now: number, open?: string): Players {
   const last = new Map(known.last)
   const playedAt = new Map(known.playedAt)
   const goneAt = new Map(known.goneAt)
   for (const p of players) {
-    // Pausing counts as the last moment it played: the minute starts there.
-    if (p.playing || last.get(p.id)?.playing) playedAt.set(p.id, now)
+    // Pausing counts as the last moment it played: the minute starts there, or as the panel open on it closes.
+    if (p.playing || last.get(p.id)?.playing || (p.id === open && playedAt.has(p.id))) playedAt.set(p.id, now)
     last.set(p.id, p)
     goneAt.delete(p.id)
   }

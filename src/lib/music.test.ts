@@ -48,6 +48,18 @@ describe('which players show', () => {
     expect(nextChange(known, T + 600_000)).toBe(T + 600_000 + PAUSED)
   })
 
+  it('keeps a paused player while its panel is open, then for a minute from the close', () => {
+    let known = update(nobody(), [player('spotify', true)], T)
+    known = update(known, [player('spotify', false)], T)
+    known = update(known, [player('spotify', false)], T + PAUSED, 'spotify')
+    expect(shown(known, T + PAUSED)).toHaveLength(1)
+    known = update(known, [player('spotify', false)], T + 90_000, 'spotify')
+    expect(shown(known, T + 90_000 + PAUSED - 1)).toHaveLength(1)
+    expect(shown(known, T + 90_000 + PAUSED)).toHaveLength(0)
+    // Never played here: the panel can't show it, and nothing keeps it.
+    expect(update(nobody(), [player('tab', false)], T, 'tab').playedAt.has('tab')).toBe(false)
+  })
+
   it('brings a paused player back when it plays again', () => {
     let known = update(nobody(), [player('spotify', true)], T)
     known = update(known, [player('spotify', false)], T)

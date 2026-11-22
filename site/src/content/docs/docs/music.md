@@ -21,7 +21,7 @@ A new song swells the island, unless Windows says you're busy.
 
 ## Pause
 
-Paused music stays a minute, then the time comes back. Play it again and it returns.
+Paused music stays a minute, then the time comes back. Play it again and it returns. With its panel open, the minute starts when you close the panel.
 
 ## Limits
 

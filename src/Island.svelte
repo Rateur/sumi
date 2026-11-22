@@ -1451,10 +1451,19 @@
   let heard = false
   let change: ReturnType<typeof setTimeout> | undefined
   const artwork = new SvelteMap<string, { url: string; color?: string }>()
+  // The player the open panel shows. As the panel closes, its paused minute starts again. Not in a teardown, which
+  // reads the state from before the change.
+  const inPanel = $derived(parts.player?.id)
+  let wasInPanel: string | undefined
+  $effect(() => {
+    const was = wasInPanel
+    wasInPanel = inPanel
+    if (was) untrack(() => refresh(was))
+  })
 
-  function refresh() {
+  function refresh(kept = inPanel) {
     const t = Date.now()
-    players = update(players, latest, t)
+    players = update(players, latest, t, kept)
     music = songs(showing(players, t), artwork)
     prefer = stillPicked(prefer, [...activities, ...music])
     // The player's own word after a seek takes over from the place the bar was dropped at.
