@@ -3,6 +3,7 @@ import {
   HOLD,
   NEUTRAL,
   PAUSED,
+  advancing,
   clockTime,
   nextChange,
   nobody,
@@ -80,6 +81,13 @@ describe('position', () => {
 
   it('takes a position without a timestamp as current', () => {
     expect(position(player('a', true, { positionMs: 10_000, updatedMs: 0 }), T)).toBe(10_000)
+  })
+
+  it('stays put at a rate of zero or below, and so does the bar', () => {
+    expect(position(player('a', true, { positionMs: 1_000, rate: 0 }), T + 30_000)).toBe(1_000)
+    expect(position(player('a', true, { positionMs: 1_000, rate: -1 }), T + 30_000)).toBe(1_000)
+    expect(advancing(player('a', true, { updatedMs: 0 }))).toBe(false)
+    expect(advancing(player('a', true))).toBe(true)
   })
 })
 

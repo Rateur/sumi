@@ -81,10 +81,13 @@ export function nextChange(known: Players, now: number): number | undefined {
   return times.length ? Math.min(...times) : undefined
 }
 
+/** Whether the song moves on by itself: playing, from a stamped position, forward. */
+// Some players never stamp their position: it is then taken as current.
+export const advancing = (p: Player) => p.playing && p.updatedMs > 1e12 && p.rate > 0
+
 /** Where the song is at `now`: it moves on by itself while playing, from the last position Windows gave. */
 export function position(p: Player, now: number): number {
-  // Some players never stamp their position: it is then taken as current.
-  const since = p.playing && p.updatedMs > 1e12 ? (now - p.updatedMs) * p.rate : 0
+  const since = advancing(p) ? (now - p.updatedMs) * p.rate : 0
   const at = Math.max(0, p.positionMs + since)
   return p.endMs > 0 ? Math.min(at, p.endMs) : at
 }

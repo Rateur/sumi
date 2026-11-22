@@ -59,6 +59,7 @@
     type Welcome,
   } from './lib/shapes'
   import {
+    advancing,
     clockTime,
     nextChange,
     nobody,
@@ -2512,7 +2513,7 @@
       duration: Math.max(1, (p.endMs - at) / (p.rate > 0 ? p.rate : 1)),
       fill: 'forwards',
     })
-    if (!p.playing || hidden) animation.pause()
+    if (!advancing(p) || hidden) animation.pause()
     return () => {
       // Keeps the bar where it is while its content leaves, instead of snapping back to empty.
       try {
@@ -2525,10 +2526,15 @@
   })
   $effect(() => {
     const p = playback
-    if (!p?.playing || p.endMs <= 0 || hidden) return
-    tick = Date.now()
-    const timer = setInterval(() => (tick = Date.now()), 1000)
-    return () => clearInterval(timer)
+    if (!p || !advancing(p) || p.endMs <= 0 || hidden) return
+    let timer: ReturnType<typeof setTimeout>
+    // Just past the song's next second, from where it is now: a late tick can't skip one or show one twice.
+    const next = () => {
+      const at = (tick = Date.now())
+      timer = setTimeout(next, (1000 - (position(p, at) % 1000)) / p.rate + 1)
+    }
+    next()
+    return () => clearTimeout(timer)
   })
 
   // The site's live examples run the same demo, from `npm run showcase`.
