@@ -3244,24 +3244,25 @@
     onpointermove={moveTag}
     onpointerleave={() => pointTag(false)}
   >
-    {#if !card}
-      <button
-        type="button"
-        class="opener"
-        aria-expanded="false"
-        aria-label={[
-          label(privacy) && `${label(privacy)}: ${uses === 'camera' ? 'camera' : 'microphone'} in use`,
-          privacy.muted && privacy.canMute && 'microphone muted',
-        ]
-          .filter(Boolean)
-          .join(', ')}
-        onclick={() => {
-          clearTimeout(tagTimer)
-          // Not while the tag sinks, as a rest on it.
-          card = tagged(privacy)
-        }}
-      ></button>
-    {/if}
+    <!-- It stays while the card is open, so a screen reader can close the card from where it opened it. -->
+    <button
+      type="button"
+      class="opener"
+      class:behind={card}
+      aria-expanded={card}
+      aria-label={[
+        label(privacy) && `${label(privacy)}: ${uses === 'camera' ? 'camera' : 'microphone'} in use`,
+        privacy.muted && privacy.canMute && 'microphone muted',
+      ]
+        .filter(Boolean)
+        .join(', ')}
+      onclick={() => {
+        if (card) return closeCard()
+        clearTimeout(tagTimer)
+        // Not while the tag sinks, as a rest on it.
+        card = tagged(privacy)
+      }}
+    ></button>
     {#if revealed && !card}
       <span class="disc" bind:clientWidth={tagContent} in:enter|global out:exit|global={{ shrinks: false }}>
         {#if privacy.muted && privacy.canMute}<span class="crossed">{@render microphone(true)}</span>{/if}
@@ -3700,6 +3701,11 @@
     border: 0;
     background: none;
     cursor: default;
+  }
+
+  /* Open, it lets the mouse through to what it opened. */
+  .opener.behind {
+    pointer-events: none;
   }
 
   /* The music panel: artwork, title and equalizer, then the progress, then the controls. */
