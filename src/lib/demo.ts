@@ -86,23 +86,23 @@ const APPS: Listed[] = [
   { name: 'Mail', color: '#0A66C2' },
 ]
 
-// What the clipboard history's stand-in holds, newest first, as the lab's. Text only, as Sumi keeps it. Its paths
-// stand in for files Rust would find on this PC.
+// What the clipboard history's stand-in holds, newest first. Text only, as Sumi keeps it. Its paths stand in for
+// files Rust would find on this PC. The site's scene goes one row down, to the link with trackers.
 const PATHS = ['C:\\Users\\Valentin\\Documents\\Sumi\\rapport-0.9.pdf', 'D:\\Photos\\2026\\Lyon']
 const COPIED = [
   'https://github.com/Rateur/sumi/pull/94',
+  'https://example.com/inscription?utm_source=newsletter&utm_medium=email',
   '#1E90FF',
+  PATHS[1],
   fr ? 'Réunion jeudi 14 h, salle Lumière' : 'Meeting on Thursday at 2 pm, Lumière room',
   fr ? 'camille.martin@exemple.fr' : 'camille.martin@example.com',
   PATHS[0],
   fr
     ? 'const total = items.reduce(\n  (somme, i) => somme + i.prix,\n  0,\n)'
     : 'const total = items.reduce(\n  (sum, i) => sum + i.price,\n  0,\n)',
-  'https://example.com/inscription?utm_source=newsletter&utm_medium=email',
   '#FF6B4A',
   fr ? 'Merci pour le retour, je regarde ça demain matin.' : "Thanks for the feedback, I'll look at it tomorrow morning.",
   '4 rue de la République, 69002 Lyon',
-  PATHS[1],
   '#2BB673',
 ]
 
@@ -249,7 +249,7 @@ const KEYS: Record<string, string> = {
  * comma press and period cancel the press (E releases it into the panel). B or Ctrl+Alt+Space opens the command
  * bar ('bar'; the Claude app takes Ctrl+Alt+Space when it runs), and I takes the Claude app away or brings it back ('claude'). Enter in the bar opens
  * nothing: the island only plays its answer. A framing page types in the bar with `type:<text>`, presses Enter with
- * 'enter' and ends the timers with 'clear'. W plays the first-launch welcome from the drop ('welcome'), with the
+ * 'enter', ↓ with 'down' and Tab with 'tab', and ends the timers with 'clear'. W plays the first-launch welcome from the drop ('welcome'), with the
  * shortcut `?shortcut=…` names: `Win+Alt+S` by default, `Alt+Shift+S`, or empty for none. `?lang=fr` or `?lang=en`
  * sets the island's language, as the site's pages do for their frames. R tucks the island into its line under the top
  edge, or brings it back ('tuck'). Alt+arrow swipes it in from that side ('tuck-up', 'tuck-down', 'tuck-left',
@@ -297,6 +297,7 @@ export function demo(island: {
   claudeApp: boolean
 }) {
   const field = () => document.querySelector<HTMLInputElement>('.field')
+  const key = (name: string) => field()?.dispatchEvent(new KeyboardEvent('keydown', { key: name, bubbles: true }))
   const toggle = (fake: Activity) => {
     const others = island.activities.filter((a) => a.id !== fake.id)
     island.activities = others.length < island.activities.length ? others : [...others, fake]
@@ -349,8 +350,11 @@ export function demo(island: {
       island.boxed()
       setTimeout(() => island.captured({ kind: 'link', host: 'example.com' }), 900)
     },
-    // Through the field itself, so the chip answers and gives under the key as it does for a person.
-    enter: () => field()?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    // Through the field itself, so the chip answers and gives under the key as it does for a person. ↓ and Tab move
+    // the clipboard history's highlight and turn its action.
+    enter: () => key('Enter'),
+    down: () => key('ArrowDown'),
+    tab: () => key('Tab'),
     clear: () => (island.activities = island.activities.filter((a) => !isTimer(a))),
     welcome: island.welcome,
     tuck: island.tuck,

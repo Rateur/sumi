@@ -44,7 +44,7 @@ The weather asked in the bar shows over all of it for 4 s, as the bar's answers 
 ## Music
 
 - Any player that Windows' media controls can see: Spotify, browsers, VLC and the rest. Two players at once take the island and the bubble.
-- A player shows once it plays. Paused, it stays a minute, then the time comes back; playing again brings it back. A player that disappears for a moment between two songs is held for 2.5 s, so the island doesn't blink.
+- A player shows once it plays. Paused, it stays a minute, then the time comes back; playing again brings it back. With its panel open, the minute counts from when the panel closes. A player that disappears for a moment between two songs is held for 2.5 s, so the island doesn't blink.
 - A new song swells the island, unless Windows says you're busy. The title and artist are in the panel.
 - The progress bar and the times are worked out from the last position Windows gave, so nothing is sent while a song plays. A live stream without a length has no bar.
 - The bar can be dragged, in players that allow it. It thickens under the cursor, as on the iPhone, and stays where it is dropped until the player answers, 3 s at most. A drag that starts on the island keeps the cursor until the button is up, even past the island's edge.
@@ -194,6 +194,7 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - Only the drawn shape takes the mouse. The rest of the window, and the 8 px above the island, belong to the app underneath.
 - A drag that starts elsewhere, such as a tab, a text selection or a window, passes over the island. It wakes up once every button is up.
 - It grows only after the cursor rests on it for the Windows hover time, and shrinks 300 ms after the cursor leaves. A click opens it at once.
+- It stays above your windows, with no button in the taskbar.
 - It is put on top once and never pushed back up, so menus, tooltips, Start and Alt+Tab can cover it. Only the capture raises it again, over its frozen screen. Moving it never takes focus.
 - It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
 - While Windows says you're busy, such as a fullscreen app on another screen, news changes in place with no peek, and a new song doesn't swell. A call still peeks.
@@ -214,6 +215,24 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - **At rest nothing runs**: no animation frame, no filter, no message to Rust. The clock wakes once a minute, a timer once a second while the island shows it and otherwise only for its end and its chimes, and the equalizer moves only while music plays and the island is visible. Tucked, nothing runs but the clock and a timer's end; the wait before it tucks itself is one timeout.
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
+
+## At rest, measured
+
+Measured on 22 November 2026, with Sumi 0.9 as released, on an i5-9300HF laptop with a GTX 1650 and a 60 Hz screen, Windows 11 and WebView2 157.
+
+- **How**: a release build starts with its own data folder. From 1 min after launch, the memory of each of its processes is read every 30 s for 10 min, and the median of the last 5 min is kept. Then the island is driven over the DevTools protocol: 6 rounds of hover, leave, open, close and a battery peek, each after 15 s of rest. A frame is missed when two animation frames are more than one refresh apart. Each variant runs twice, the shipped one first and last.
+
+| | Shipped | Asked for less memory after 10 s at rest |
+|---|---|---|
+| Private memory, all processes | 200 MB | 172 MB |
+| Task Manager's Memory column | 101 MB | 45 MB |
+| GPU memory | 34 MB | 16 MB |
+| Missed frames, round after 10 min at rest | 1, 0 | 3, 3 |
+
+- The GPU process holds half of the private memory, 96 MB, which the driver mostly sets aside without using. The page itself is one layer and 2 MB of JavaScript.
+- **Sumi keeps the memory.** Asked for less, with WebView2's `MemoryUsageTargetLevel` set to `Low`, the memory comes back only as the island next moves, and the round after a long rest misses 3 frames. The first action after a rest misses none. Hiding the webview frees its GPU memory too, and its first blurs after it comes back stall 50 to 90 ms.
+- **The equalizer**: while music plays without artwork, its bounce draws 60 frames a second and costs WebView2 0.11 to 0.17 s of CPU a second, mostly in the GPU process. When the music is paused, or the island tucked or hidden, the equalizer stops, and the island costs under 3 ms a second, as with no music.
+- One stall of 170 to 200 ms came in a later round of each variant. It is the PC's own noise and isn't counted above.
 
 ## Tuck
 
@@ -311,10 +330,10 @@ With reduced motion, the island fades in where it is, already the logo, and each
 - Music tints the equalizer and the progress bar with the artwork's main color. The island itself stays black, so text keeps AA contrast on any artwork.
 - Fixed colors: microphone `#FB923C`, camera `#4ADE80`, timer `#FBBF24`, low battery `#F87171`.
 - A light theme (white island, black text) is available in Settings.
-- With a contrast theme turned on in Windows, the island is outlined in the theme's colors. The microphone and camera dots, the artwork and the equalizer keep their own.
+- With a contrast theme turned on in Windows, the island is outlined in the theme's colors. The microphone and camera dots, the artwork and the equalizer keep their own. In a light contrast theme, the dots get a ring in the theme's text color, and the equalizer takes that color.
 
 ## Why these choices
 
 - **Click to expand, not hover.** At the top of a Windows screen the cursor crosses the island on its way to browser tabs and title bars. Hover only gives a hint.
-- **Small at rest, hidden in fullscreen.** Island apps on Windows draw complaints for covering content and for idle CPU use. The target is close to 0 % CPU when nothing happens.
+- **Small at rest, hidden in fullscreen.** Island apps on Windows draw complaints for covering content and for idle CPU use. The target is close to 0 % CPU when nothing happens. On a laptop with an Intel Core i5-9300HF and 8 logical processors, Sumi 0.9 sat at rest for 10 minutes. Together, sumi.exe and its five WebView2 processes used 3.4 s of processor time. Each process's total processor time was read at the start and at the end. That is about half a percent of one core, and under a tenth of a percent of the whole processor.
 - **Compact, expanded and bubble** follow the model people already know from phones. The names, drawings and code are ours.

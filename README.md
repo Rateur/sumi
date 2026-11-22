@@ -16,7 +16,7 @@
 Sumi puts a small black pill at the top of your screen. It shows the time, then changes when something happens: a song starts, an app turns on your microphone, a timer runs out. Click it for controls.
 
 > [!NOTE]
-> Sumi is in early development. Version 0.9.0 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app, the weather or a question, tucks into a line at the top when you swipe it away or leave it at rest, shows the batteries of your PC and your devices, even ones Windows doesn't show, opens your clipboard history in the command bar, and copies a color, text or a QR code from the screen. Watch the repository (Custom → Releases) to hear about new versions.
+> Sumi is in early development. Version 0.9.1 shows the time, adds the date when you rest the cursor on it, opens into a panel when you click it, hides while a game or video is fullscreen, shows your music with its controls, puts a dot beside the island while an app uses your microphone or camera, opens a command bar for a timer, an app, the weather or a question, tucks into a line at the top when you swipe it away or leave it at rest, shows the batteries of your PC and your devices, even ones Windows doesn't show, opens your clipboard history in the command bar, and copies a color, text or a QR code from the screen. Watch the repository (Custom → Releases) to hear about new versions.
 
 ## Download
 

@@ -50,7 +50,7 @@ La météo demandée dans la barre passe par-dessus tout cela pendant 4 s, comme
 ## Musique
 
 - Tout lecteur que voient les contrôles multimédias de Windows : Spotify, les navigateurs, VLC et les autres. Deux lecteurs à la fois prennent l'île et la bulle.
-- Un lecteur s'affiche dès qu'il joue. En pause, il reste une minute, puis l'heure revient ; relancer la lecture le ramène. Un lecteur qui disparaît un instant entre deux morceaux est gardé 2,5 s, pour que l'île ne clignote pas.
+- Un lecteur s'affiche dès qu'il joue. En pause, il reste une minute, puis l'heure revient ; relancer la lecture le ramène. Son panneau ouvert, la minute part de sa fermeture. Un lecteur qui disparaît un instant entre deux morceaux est gardé 2,5 s, pour que l'île ne clignote pas.
 - Un nouveau morceau fait gonfler l'île, sauf si Windows indique que vous êtes occupé. Le titre et l'artiste sont dans le panneau.
 - La barre de progression et les temps sont calculés à partir de la dernière position donnée par Windows : rien n'est envoyé pendant qu'un morceau joue. Un flux en direct sans durée n'a pas de barre.
 - La barre se fait glisser, dans les lecteurs qui le permettent. Elle s'épaissit sous le curseur, comme sur iPhone, et reste là où on la lâche jusqu'à ce que le lecteur réponde, 3 s au plus. Un glissement commencé sur l'île garde le curseur jusqu'à ce que le bouton soit relâché, même au-delà du bord de l'île.
@@ -200,6 +200,7 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - Seule la forme dessinée réagit à la souris. Le reste de la fenêtre, et les 8 px au-dessus de l'île, appartiennent à l'app en dessous.
 - Un glissement commencé ailleurs, comme un onglet, une sélection de texte ou une fenêtre, passe par-dessus l'île. Elle se réveille une fois tous les boutons relâchés.
 - Elle ne s'agrandit que si le curseur s'y pose pendant le délai de survol de Windows, et rapetisse 300 ms après son départ. Un clic l'ouvre aussitôt.
+- Elle reste devant vos fenêtres, sans bouton dans la barre des tâches.
 - Elle passe au-dessus des fenêtres une seule fois, sans jamais être remontée ensuite : les menus, les info-bulles, Démarrer et Alt+Tab peuvent la couvrir. Seule la capture la remonte, au-dessus de son écran figé. La déplacer ne prend jamais le focus.
 - Elle se masque quand une fenêtre occupe tout l'écran principal, ou quand Windows signale un jeu en plein écran ou une présentation : elle remonte hors de l'écran, puis sa fenêtre se masque, et rien ne reste au-dessus du jeu. Un clic sur un autre écran la garde masquée. Elle revient sans prendre le focus.
 - Quand Windows indique que vous êtes occupé, par exemple avec une app en plein écran sur un autre écran, ce qui change s'affiche sur place, sans coup d'œil, et un nouveau morceau ne fait pas gonfler l'île. Un appel s'affiche quand même en coup d'œil.
@@ -220,6 +221,24 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - **Au repos, rien ne tourne** : aucune image d'animation, aucun filtre, aucun message à Rust. L'horloge se réveille une fois par minute, un minuteur une fois par seconde quand l'île l'affiche, et sinon seulement pour sa fin et ses carillons, et l'égaliseur ne bouge que si la musique joue et que l'île est visible. Rangée, rien ne tourne que l'horloge et la fin d'un minuteur ; l'attente avant qu'elle se range toute seule est un seul délai.
 - **Le premier survol est aussi fluide que les suivants** : une copie cachée de chaque taille de texte est mise en page au lancement, pour que les polices soient prêtes avant d'être utiles.
 - **Le site bouge de la même façon.** Ses îles utilisent des courbes CSS calculées à la construction du site à partir des ressorts et des durées de l'app (`src/lib/curves.ts`) : changer l'un change l'autre.
+
+## Au repos, mesuré
+
+Mesures du 22 novembre 2026, avec Sumi 0.9 telle que publiée, sur un portable i5-9300HF avec une GTX 1650 et un écran à 60 Hz, sous Windows 11 avec WebView2 157.
+
+- **Méthode** : une version de production démarre avec son propre dossier de données. À partir d'une minute après le lancement, la mémoire de chacun de ses processus est relevée toutes les 30 s pendant 10 min, et la médiane des 5 dernières minutes est retenue. L'île est ensuite pilotée par le protocole DevTools : 6 tours de survol, sortie, ouverture, fermeture et coup d'œil de batterie, chacun après 15 s de repos. Une image est manquée quand deux images d'animation sont séparées de plus d'un rafraîchissement. Chaque variante tourne deux fois, la version publiée en premier et en dernier.
+
+| | Publiée | Moins de mémoire demandée après 10 s de repos |
+|---|---|---|
+| Mémoire privée, tous processus | 200 Mo | 172 Mo |
+| Colonne Mémoire du Gestionnaire des tâches | 101 Mo | 45 Mo |
+| Mémoire GPU | 34 Mo | 16 Mo |
+| Images manquées, tour après 10 min de repos | 1, 0 | 3, 3 |
+
+- Le processus GPU tient la moitié de la mémoire privée, 96 Mo, que le pilote réserve surtout sans s'en servir. La page elle-même tient en un calque et 2 Mo de JavaScript.
+- **Sumi garde sa mémoire.** Quand on lui en demande moins, avec `MemoryUsageTargetLevel` réglé sur `Low`, la mémoire ne revient qu'au moment où l'île bouge de nouveau, et le tour qui suit un long repos manque 3 images. La première action après un repos n'en manque aucune. Masquer la vue web libère aussi sa mémoire GPU, et ses premiers flous au retour bloquent 50 à 90 ms.
+- **L'égaliseur** : quand la musique joue sans pochette, son rebond dessine 60 images par seconde et coûte à WebView2 0,11 à 0,17 s de processeur par seconde, surtout dans le processus GPU. Quand la musique est en pause, ou l'île rangée ou masquée, l'égaliseur s'arrête, et l'île ne coûte plus que 3 ms par seconde au plus, comme sans musique.
+- Un blocage de 170 à 200 ms est survenu dans un tour plus tardif de chaque variante. Il vient du PC lui-même et n'est pas compté ci-dessus.
 
 ## Ranger l'île
 
@@ -317,10 +336,10 @@ Avec les effets d'animation coupés, l'île apparaît en fondu à sa place, déj
 - La musique teinte l'égaliseur et la barre de progression de la couleur dominante de la pochette. L'île elle-même reste noire : le texte garde un contraste AA quelle que soit la pochette.
 - Couleurs fixes : micro `#FB923C`, caméra `#4ADE80`, minuteur `#FBBF24`, batterie faible `#F87171`.
 - Un thème clair (île blanche, texte noir) est disponible dans les réglages.
-- Avec un thème de contraste activé dans Windows, l'île est cernée aux couleurs du thème. Les points micro et caméra, la pochette et l'égaliseur gardent les leurs.
+- Avec un thème de contraste activé dans Windows, l'île est cernée aux couleurs du thème. Les points micro et caméra, la pochette et l'égaliseur gardent les leurs. Dans un thème de contraste clair, les points prennent un anneau de la couleur du texte du thème, et l'égaliseur cette couleur.
 
 ## Pourquoi ces choix
 
 - **Un clic pour ouvrir, pas le survol.** En haut d'un écran Windows, le curseur traverse l'île pour rejoindre les onglets du navigateur et les barres de titre. Le survol ne donne qu'un indice.
-- **Petite au repos, masquée en plein écran.** Sous Windows, on reproche aux apps d'île de cacher le contenu et d'occuper le processeur au repos. L'objectif : presque 0 % de processeur quand rien ne se passe.
+- **Petite au repos, masquée en plein écran.** Sous Windows, on reproche aux apps d'île de cacher le contenu et d'occuper le processeur au repos. L'objectif : presque 0 % de processeur quand rien ne se passe. Sur un portable avec un Intel Core i5-9300HF et 8 processeurs logiques, Sumi 0.9 est resté au repos pendant 10 minutes. Ensemble, sumi.exe et ses cinq processus WebView2 ont utilisé 3,4 s de temps processeur. Le temps processeur total de chaque processus a été relevé au début et à la fin. Cela fait environ un demi pour cent d'un cœur, et moins d'un dixième de pour cent du processeur entier.
 - **Compacte, ouverte et bulle** reprennent le modèle que l'on connaît déjà sur les téléphones. Les noms, les dessins et le code sont à nous.
