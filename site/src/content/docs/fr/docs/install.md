@@ -27,4 +27,4 @@ Clic droit sur l'icône Sumi dans la zone de notification, puis **Quit Sumi**.
 
 - Windows 10 ou 11, 64 bits.
 - WebView2. Il est intégré à Windows 11 ; sur Windows 10, l'installateur l'ajoute s'il manque.
-- 1,4 Mo pour Sumi-setup.exe. Sumi utilise le WebView2 intégré à Windows au lieu d'apporter le sien.
+- Sumi-setup.exe pèse moins de 2 Mo. Sumi utilise le WebView2 intégré à Windows au lieu d'apporter le sien.
