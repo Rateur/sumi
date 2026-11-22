@@ -3488,6 +3488,17 @@
     }
   }
 
+  /* Their colours are picked to show on black: on a light theme's background they would fade. */
+  @media (forced-colors: active) and (prefers-color-scheme: light) {
+    .dot {
+      box-shadow: 0 0 0 1.5px CanvasText;
+    }
+
+    .equalizer {
+      color: CanvasText !important;
+    }
+  }
+
   .content {
     box-sizing: border-box;
     position: absolute;
