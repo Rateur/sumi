@@ -44,14 +44,15 @@ export interface Players {
 
 export const nobody = (): Players => ({ last: new Map(), playedAt: new Map(), goneAt: new Map() })
 
-/** Takes in what Windows says now. A player first seen paused never played here, so it isn't shown. */
-export function update(known: Players, players: readonly Player[], now: number): Players {
+/** Takes in what Windows says now. A player first seen paused never played here, so it isn't shown. `open` is the
+ * player the open panel shows: it stays while the panel is open. */
+export function update(known: Players, players: readonly Player[], now: number, open?: string): Players {
   const last = new Map(known.last)
   const playedAt = new Map(known.playedAt)
   const goneAt = new Map(known.goneAt)
   for (const p of players) {
-    // Pausing counts as the last moment it played: the minute starts there.
-    if (p.playing || last.get(p.id)?.playing) playedAt.set(p.id, now)
+    // Pausing counts as the last moment it played: the minute starts there, or as the panel open on it closes.
+    if (p.playing || last.get(p.id)?.playing || (p.id === open && playedAt.has(p.id))) playedAt.set(p.id, now)
     last.set(p.id, p)
     goneAt.delete(p.id)
   }
@@ -81,13 +82,26 @@ export function nextChange(known: Players, now: number): number | undefined {
   return times.length ? Math.min(...times) : undefined
 }
 
+/** Whether the song moves on by itself: playing, from a stamped position, forward. */
+// Some players never stamp their position: it is then taken as current.
+export const advancing = (p: Player) => p.playing && p.updatedMs > 1e12 && p.rate > 0
+
 /** Where the song is at `now`: it moves on by itself while playing, from the last position Windows gave. */
 export function position(p: Player, now: number): number {
-  // Some players never stamp their position: it is then taken as current.
-  const since = p.playing && p.updatedMs > 1e12 ? (now - p.updatedMs) * p.rate : 0
+  const since = advancing(p) ? (now - p.updatedMs) * p.rate : 0
   const at = Math.max(0, p.positionMs + since)
   return p.endMs > 0 ? Math.min(at, p.endMs) : at
 }
+
+/** How long until the song's next second, just past it so a late tick can't show one twice. None at its end. */
+export function nextSecond(p: Player, now: number): number | undefined {
+  const at = position(p, now)
+  return advancing(p) && at < p.endMs ? (1000 - (at % 1000)) / p.rate + 1 : undefined
+}
+
+/** What is left of the song at `at`, up to the next second: with the time played, rounded down, it adds up to the
+ * song's length. */
+export const remaining = (p: Player, at: number) => Math.ceil((p.endMs - at) / 1000) * 1000
 
 /** 3:07, or 1:02:07 past an hour. */
 export function clockTime(ms: number): string {

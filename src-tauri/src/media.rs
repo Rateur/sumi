@@ -52,6 +52,8 @@ enum Msg {
     Playback,
     Control(String, Action),
     Seek(String, i64),
+    /// The PC slept from this Unix time, in ms, for this long.
+    Woke(i64, i64),
 }
 
 /// The thread's mailbox and its last snapshot.
@@ -110,6 +112,17 @@ fn same_player(old: &Player, new: &Player) -> bool {
         } == *old
 }
 
+/// A position stamp moved past each sleep that came after it, given as its start and length in ms. A player that
+/// doesn't restate its position on waking would otherwise seem to have played all through the sleep.
+fn skip_naps(updated_ms: i64, naps: &[(i64, i64)]) -> i64 {
+    updated_ms
+        + naps
+            .iter()
+            .filter(|(at, _)| updated_ms < *at)
+            .map(|(_, len)| len)
+            .sum::<i64>()
+}
+
 /// The id for a new session of `app`: the app's own, or the first free numbered one when it already has a
 /// session. Ids already given never change, so a page never sees one player's id move to another. An app
 /// that gives no id of its own is "media": the page takes an empty id for no player.
@@ -157,8 +170,12 @@ fn run(app: &AppHandle, tx: &Sender<Msg>, rx: &Receiver<Msg>) {
 #[cfg(windows)]
 mod win {
     use std::collections::{HashMap, HashSet};
+    use std::ffi::c_void;
+    use std::ptr::null_mut;
+    use std::sync::OnceLock;
+    use std::sync::atomic::{AtomicI64, Ordering};
     use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
-    use std::time::{Duration, Instant};
+    use std::time::{Duration, Instant, SystemTime};
 
     use base64::{Engine, engine::general_purpose::STANDARD};
     use serde_json::json;
@@ -172,8 +189,14 @@ mod win {
     };
     use windows::Storage::Streams::DataReader;
     use windows::core::{HSTRING, IUnknown, Interface, RuntimeType};
+    use windows_sys::Win32::System::Power::{
+        DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS, PowerRegisterSuspendResumeNotification,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DEVICE_NOTIFY_CALLBACK, PBT_APMRESUMEAUTOMATIC, PBT_APMRESUMESUSPEND, PBT_APMSUSPEND,
+    };
 
-    use super::{Action, LATE_ART, Media, Msg, Player, art_step, free_id, same};
+    use super::{Action, LATE_ART, Media, Msg, Player, art_step, free_id, same, skip_naps};
 
     /// A song change fires the title, then the artwork, then the timeline: one wait gathers them into one message.
     const BURST: Duration = Duration::from_millis(150);
@@ -228,6 +251,55 @@ mod win {
         }
     }
 
+    /// When the PC went to sleep, in Unix ms, 0 while it is awake, and the loop's mailbox, for `slept`.
+    static SLEPT: AtomicI64 = AtomicI64::new(0);
+    static WAKES: OnceLock<Sender<Msg>> = OnceLock::new();
+
+    fn now_ms() -> i64 {
+        SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| i64::try_from(d.as_millis()).unwrap_or(0))
+    }
+
+    /// Windows calls this, on a thread of its own, as the PC goes to sleep and as it wakes.
+    unsafe extern "system" fn slept(_: *const c_void, kind: u32, _: *const c_void) -> u32 {
+        match kind {
+            PBT_APMSUSPEND => SLEPT.store(now_ms(), Ordering::Relaxed),
+            PBT_APMRESUMEAUTOMATIC | PBT_APMRESUMESUSPEND => {
+                // Both can come for one wake: the first takes the nap.
+                let at = SLEPT.swap(0, Ordering::Relaxed);
+                if at > 0
+                    && let Some(tx) = WAKES.get()
+                {
+                    let _ = tx.send(Msg::Woke(at, now_ms() - at));
+                }
+            }
+            _ => {}
+        }
+        0
+    }
+
+    /// Hears the PC sleep and wake for as long as Sumi runs. Without it, a song that slept with the PC shows at its
+    /// end on waking, until its player says something.
+    fn sleeps(tx: &Sender<Msg>) {
+        if WAKES.set(tx.clone()).is_err() {
+            return;
+        }
+        let params = Box::leak(Box::new(DEVICE_NOTIFY_SUBSCRIBE_PARAMETERS {
+            Callback: Some(slept),
+            Context: null_mut(),
+        }));
+        let mut registration = null_mut();
+        // SAFETY: `params` is leaked, so it outlives the registration, which lasts as long as Sumi.
+        let _ = unsafe {
+            PowerRegisterSuspendResumeNotification(
+                DEVICE_NOTIFY_CALLBACK,
+                std::ptr::from_mut(params).cast(),
+                &mut registration,
+            )
+        };
+    }
+
     /// Handlers run on a Windows thread pool: they only post a message, never call back into WinRT.
     fn ping<S: RuntimeType + 'static, A: RuntimeType + 'static>(
         tx: &Sender<Msg>,
@@ -254,9 +326,13 @@ mod win {
             log::warn!("media: session changes can't be heard: {e}");
             return;
         }
+        sleeps(tx);
         let mut watched: Vec<Watched> = Vec::new();
         let mut players: Vec<Player> = Vec::new();
         let mut artwork: HashMap<String, String> = HashMap::new();
+        // Each sleep's start and length, in ms. The message itself reads every player again.
+        // shortcut: one entry per sleep, never pruned; prune those older than every stamp if that ever matters.
+        let mut naps: Vec<(i64, i64)> = Vec::new();
         // Artwork to read again: when, for which player, and how many reads are left.
         let mut late: Vec<(Instant, String, usize)> = Vec::new();
         let mut next = Some(Msg::Sessions);
@@ -282,6 +358,7 @@ mod win {
                             let _ = w.session.TryChangePlaybackPositionAsync(ms.max(0) * 10_000);
                         }
                     }
+                    Msg::Woke(at, len) => naps.push((at, len)),
                 }
                 next = until
                     .checked_duration_since(Instant::now())
@@ -388,7 +465,15 @@ mod win {
                 }
             }
 
-            let fresh: Vec<Player> = watched.iter().filter_map(state).collect();
+            // A stamp from before a sleep is moved past it: the song slept with the PC.
+            let fresh: Vec<Player> = watched
+                .iter()
+                .filter_map(state)
+                .map(|p| Player {
+                    updated_ms: skip_naps(p.updated_ms, &naps),
+                    ..p
+                })
+                .collect();
             if !same(&players, &fresh) {
                 players = fresh;
                 // The snapshot first, for the same reason.
@@ -581,6 +666,18 @@ mod tests {
             &[player(10_000, 0, false)]
         ));
         assert!(!same(&[player(10_000, 0, true)], &[]));
+    }
+
+    #[test]
+    fn a_stamp_from_before_a_sleep_is_news_once() {
+        // Sent before an hour of sleep; on waking, the player still gives the same stamp.
+        let naps = [(60_000, 3_600_000)];
+        let before = player(10_000, 0, true);
+        let woke = player(10_000, skip_naps(0, &naps), true);
+        assert!(!same(&[before], std::slice::from_ref(&woke)));
+        assert!(same(&[woke], &[player(10_000, skip_naps(0, &naps), true)]));
+        // A player that stamps again after the wake is left alone.
+        assert_eq!(skip_naps(3_700_000, &naps), 3_700_000);
     }
 
     #[test]

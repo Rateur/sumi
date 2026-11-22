@@ -59,10 +59,13 @@
     type Welcome,
   } from './lib/shapes'
   import {
+    advancing,
     clockTime,
     nextChange,
+    nextSecond,
     nobody,
     position,
+    remaining,
     shown as showing,
     songs,
     update,
@@ -502,7 +505,12 @@
     const [tw, th] = [tagW.value, tagH.value]
     const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
     const beside = right.x + right.width + TAG_GAP
-    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize.
+    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize. Closed,
+    // it springs back beside them from there. instant() comes last: it is defined after this first runs.
+    if (!card && anchor !== undefined && anchor !== beside && !instant()) {
+      tagShift.jump(tagShift.value + anchor - beside)
+      drive(tagShift, 0, CLOSE.width, t)
+    }
     anchor = card ? (anchor ?? beside) : undefined
     const flag =
       tw > 0.5
@@ -580,16 +588,17 @@
     }
     // The goo lets go once the bubble is within half a pixel of its place: the last tenth would keep it on.
     const near = (s: Spring) => Math.abs(s.value - s.target) < 0.5 && Math.abs(s.velocity) < 20
+    let ended = false
     if (phase === 'split' && near(travel) && near(bubble)) {
       phase = 'shown'
-      fade(0, 120, t)
+      ended = true
     } else if (phase === 'merge' && near(travel) && near(bubble)) {
       phase = 'none'
       bubble.jump(0)
       // Merged into a tuck, the goo is the tuck's.
       if (tuck !== 'tucking') {
         pulse(120, 0, t)
-        fade(0, 120, t)
+        ended = true
       }
     }
     if (inkPhase === 'merge' && inkD.value < -8) {
@@ -597,7 +606,7 @@
       bead = undefined
       inkD.jump(0)
       inkR.jump(0)
-      fade(0, 120, t)
+      ended = true
     }
     for (const check of checks.filter((c) => c.when())) {
       checks = checks.filter((c) => c !== check)
@@ -605,13 +614,16 @@
     }
     if (tagPhase === 'split' && near(tagShift) && near(tagW)) {
       tagPhase = 'shown'
-      fade(0, 120, t)
+      ended = true
     } else if (tagPhase === 'merge' && near(tagShift) && near(tagW)) {
       tagPhase = 'none'
       tagW.jump(0)
       tagH.jump(0)
-      fade(0, 120, t)
+      ended = true
     }
+    // One goo for every drop: it lets go once none of them still moves, and the bead keeps its neck while it is out.
+    const dropping = [phase, tagPhase, inkPhase].some((p) => p === 'split' || p === 'merge')
+    if (ended && !dropping) fade(0, 120, t)
     if (!hidden && !revealed && drop.value >= reveal) revealed = true
     geometry = shape(t)
     const fading = Object.values(fades).some((f) => t < f.end)
@@ -720,6 +732,8 @@
   function split() {
     if (phase === 'split' || phase === 'shown') return
     if (instant()) {
+      // What the cut merge's landing would have done.
+      if (phase === 'merge' && tuck !== 'tucking') fade(0, 120)
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -733,7 +747,8 @@
     phase = 'split'
     ramp = undefined
     goo = true
-    sigma = GOO
+    // The bead's goo is wider: it may be out.
+    sigma = Math.max(sigma, GOO)
     travel.to(0, 0.5, 0.3, t)
     bubble.to(BUBBLE, 0.4, 0.25, t)
     wake()
@@ -742,6 +757,7 @@
   function merge() {
     if (phase === 'none' || phase === 'merge') return
     if (instant()) {
+      if (phase === 'split') fade(0, 120)
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -768,6 +784,7 @@
     if (tagPhase === 'split' || tagPhase === 'shown') return
     const w = Math.max(TAG, tagContent)
     if (instant()) {
+      if (tagPhase === 'merge') fade(0, 120)
       tagShift.jump(0)
       tagW.jump(w)
       tagH.jump(TAG)
@@ -783,7 +800,7 @@
     tagPhase = 'split'
     ramp = undefined
     goo = true
-    sigma = GOO
+    sigma = Math.max(sigma, GOO)
     tagShift.to(0, 0.5, 0.3, t)
     tagW.to(w, 0.4, 0.25, t)
     tagH.to(TAG, 0.4, 0.25, t)
@@ -800,6 +817,7 @@
       return
     }
     if (instant()) {
+      if (tagPhase === 'split') fade(0, 120)
       tagW.jump(0)
       tagH.jump(0)
       tagPhase = 'none'
@@ -914,12 +932,15 @@
     }
   }
 
+  const PIN = ['position', 'left', 'top', 'width', 'height', 'box-sizing', 'margin']
   function exit(node: HTMLElement, { shrinks = !grows } = {}) {
+    let unpin = () => {}
     if (content?.contains(node)) {
       // Out of the layout, where it was drawn, so the pieces that stay can move at once.
       const r = before.get(node) ?? node.getBoundingClientRect()
       const c = box ?? content.getBoundingClientRect()
       flips = flips.filter((f) => f.node !== node)
+      const was = PIN.map((k) => node.style.getPropertyValue(k))
       Object.assign(node.style, {
         position: 'absolute',
         left: `calc(50% + ${r.left - c.left - c.width / 2}px)`,
@@ -932,14 +953,24 @@
         margin: '0',
         transform: '',
       })
+      const pinned = PIN.map((k) => node.style.getPropertyValue(k))
+      // Its own styles come back, but not over one set since.
+      unpin = () =>
+        PIN.forEach((k, i) => node.style.getPropertyValue(k) === pinned[i] && node.style.setProperty(k, was[i]))
     }
-    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}` }
+    // Called back before it is gone, Svelte keeps the element and ticks it at 1, no longer inert: it rejoins the
+    // layout. While it leaves it is inert, and the tick does nothing.
+    // shortcut: Svelte keeps this config for the element's next exit, which then fades in place, unpinned, upgrade if
+    // those 100 ms ever show.
+    const tick = () => node.inert || unpin()
+    if (reduced) return { duration: 120, css: (t: number) => `opacity:${t}`, tick }
     // No blur on the way out: too quick to see, and a growing blur stalls the GPU for several frames.
     const to = shrinks ? 1 - EXIT.scale : 1 + EXIT.scale
     return {
       duration: EXIT.duration,
       easing: leaving,
       css: (t: number, u: number) => `opacity:${t};scale:${1 + (to - 1) * u}`,
+      tick,
     }
   }
 
@@ -1020,7 +1051,9 @@
       closeCard()
       clearTimeout(peekTimer)
       press(false)
+      // Rust forgets where the cursor was: no word of it leaving the island or the tag will come.
       pointer = false
+      onTag = false
       rest = undefined
       expanded = false
       hovered = false
@@ -1074,7 +1107,10 @@
       return
     }
     if (!inside) press(false)
-    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
+    // Rust hears the bubble and the tag as the island, but a rest on them grows nothing. While it holds the cursor,
+    // the page's :hover is current.
+    const onIsland = () => inside && !onTag && !document.querySelector('.island.bubble:hover')
+    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = onIsland()), inside ? hoverTime : LEAVE)
     if (!inside && held) {
       held = false
       beats.push(setTimeout(fold, LEAVE))
@@ -1415,10 +1451,19 @@
   let heard = false
   let change: ReturnType<typeof setTimeout> | undefined
   const artwork = new SvelteMap<string, { url: string; color?: string }>()
+  // The player the open panel shows. As the panel closes, its paused minute starts again. Not in a teardown, which
+  // reads the state from before the change.
+  const inPanel = $derived(parts.player?.id)
+  let wasInPanel: string | undefined
+  $effect(() => {
+    const was = wasInPanel
+    wasInPanel = inPanel
+    if (was) untrack(() => refresh(was))
+  })
 
-  function refresh() {
+  function refresh(kept = inPanel) {
     const t = Date.now()
-    players = update(players, latest, t)
+    players = update(players, latest, t, kept)
     music = songs(showing(players, t), artwork)
     prefer = stillPicked(prefer, [...activities, ...music])
     // The player's own word after a seek takes over from the place the bar was dropped at.
@@ -1492,6 +1537,11 @@
     }
   })
 
+  // Who uses the microphone or the camera, as the tag's button names it and a screen reader hears it change.
+  const inUse = $derived(
+    label(privacy) && `${label(privacy)}: ${light(privacy) === 'camera' ? 'camera' : 'microphone'} in use`,
+  )
+
   // The tag fits what it holds: a disc around the dot and the crossed microphone, or the card. The card opens as
   // the island does, width first, and closes height first, without a bounce.
   let tagContent = $state(0)
@@ -1521,22 +1571,25 @@
   // The card opens once the cursor rests on the tag, and closes a beat after it leaves, as the island's hover does.
   // pointTag and moveTag share their rest logic with point and move above: change them together.
   let tagRest: { x: number; y: number } | undefined
+  // Closed by Esc or a click while the cursor is on the tag, the card stays shut until the cursor leaves it.
+  let shut = false
   function pointTag(inside: boolean) {
     onTag = inside
+    shut = false
     tagRest = undefined
     clearTimeout(tagTimer)
     tagTimer = setTimeout(() => (card = inside && tagged(privacy)), inside ? hoverTime : LEAVE)
   }
 
   function moveTag({ clientX: x, clientY: y }: PointerEvent) {
-    if (!onTag || card) return
+    if (!onTag || card || shut) return
     if (tagRest && Math.abs(x - tagRest.x) <= REST && Math.abs(y - tagRest.y) <= REST) return
     if (tagRest) pointTag(true)
     tagRest = { x, y }
   }
 
   function closeCard() {
-    onTag = false
+    shut = onTag
     clearTimeout(tagTimer)
     card = false
   }
@@ -2445,10 +2498,21 @@
   // --- Bubble swap and seek ---
 
   // As on the iPhone, a click on the bubble brings what it holds to the island. A call keeps its place.
+  const swaps = $derived(arrangement.island?.kind !== 'call' && !barOpen && !launch && !telling)
   function swap() {
-    const picked = beside
-    if (picked && arrangement.island?.kind !== 'call' && !barOpen && !launch && !telling) prefer = picked.id
+    if (beside && swaps) prefer = beside.id
   }
+
+  // What a screen reader hears of a song, the time or a timer, which the island and the bubble show as a picture or
+  // digits. In English, as the island's other names.
+  const spokenOf = (a?: Activity) =>
+    a?.kind === 'music'
+      ? [a.title, a.artist].filter(Boolean).join(', ')
+      : a?.kind === 'clock'
+        ? formatTime(now)
+        : a?.kind === 'timer'
+          ? timerDigits(a)
+          : ''
 
   // The bar can be dragged to a place in the song. Until the player answers, it stays where it was dropped.
   let bar = $state<HTMLElement>()
@@ -2472,11 +2536,12 @@
     setTimeout(() => scrub === mine && (scrub = undefined), 3000)
   }
 
-  // A drag ends without a seek if the panel closes, or another player or song takes it.
+  // A drag ends without a seek if the panel closes, another player or song takes it, or the bar goes.
   $effect(() => {
     const p = parts.player?.player
     untrack(() => {
-      if (scrub?.held && (scrub.id !== p?.id || scrub.from.title !== p?.title)) scrub = undefined
+      const gone = scrub?.id !== p?.id || scrub?.from.title !== p?.title || (p?.endMs ?? 0) <= 0
+      if (scrub?.held && gone) scrub = undefined
     })
   })
 
@@ -2499,7 +2564,7 @@
       duration: Math.max(1, (p.endMs - at) / (p.rate > 0 ? p.rate : 1)),
       fill: 'forwards',
     })
-    if (!p.playing || hidden) animation.pause()
+    if (!advancing(p) || hidden) animation.pause()
     return () => {
       // Keeps the bar where it is while its content leaves, instead of snapping back to empty.
       try {
@@ -2512,10 +2577,15 @@
   })
   $effect(() => {
     const p = playback
-    if (!p?.playing || p.endMs <= 0 || hidden) return
-    tick = Date.now()
-    const timer = setInterval(() => (tick = Date.now()), 1000)
-    return () => clearInterval(timer)
+    if (!p || !advancing(p) || p.endMs <= 0 || hidden) return
+    let timer: ReturnType<typeof setTimeout>
+    // From where the song is now: a late tick can't skip a second. At its end, nothing is left to show.
+    const next = () => {
+      const wait = nextSecond(p, (tick = Date.now()))
+      if (wait !== undefined) timer = setTimeout(next, wait)
+    }
+    next()
+    return () => clearTimeout(timer)
   })
 
   // The site's live examples run the same demo, from `npm run showcase`.
@@ -2804,6 +2874,7 @@
     type="button"
     class="hit"
     aria-label={TRAY[lang].back}
+    {lang}
     style="left:{geometry.hit.x}px;width:{geometry.hit.width}px;height:{geometry.hit.height}px"
     onpointerenter={() => tauri || point(true)}
     onpointerleave={() => tauri || point(false)}
@@ -2841,20 +2912,29 @@
     event.stopPropagation()
   }}
 >
-  <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
-  {#if !expanded && !barOpen && !launch && !sky && !captureView}
+  <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks, and the opener stays for
+       a screen reader to close it. Held, the opener keeps the pointer: the press shrinks it, and a release near its tip
+       still clicks it. -->
+  {#if !barOpen && !launch && !sky && !captureView}
     {@const done = fit?.ended && top}
     <button
       type="button"
       class="opener"
-      aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
-      aria-expanded={done ? undefined : 'false'}
-      onclick={() => (greeting === 'playing' ? skip() : open())}
+      class:behind={expanded}
+      aria-label={done
+        ? said.dismiss(named.get(done.id) ?? said.the)
+        : ['Open', spokenOf(arrangement.island)].filter(Boolean).join(', ')}
+      aria-expanded={done ? undefined : expanded}
+      lang={done ? lang : undefined}
+      onpointerdown={(event) => event.button === 0 && event.currentTarget.setPointerCapture(event.pointerId)}
+      onclick={() => (greeting === 'playing' ? skip() : expanded ? (expanded = false) : open())}
     ></button>
   {/if}
-  <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. -->
+  <!-- Laid out at the size it is headed for, and revealed by the shape as it grows. The page is in English, like the
+       names of the opener, the music's controls and the tag. What the island writes is in its own language. -->
   <span
     class="content view {view.name}"
+    {lang}
     class:player={!!parts.player}
     class:timer={!!parts.timer}
     class:finished={!!parts.timer && fit?.ended}
@@ -2886,6 +2966,7 @@
             <span
               class="scrub"
               class:held={scrub?.held && scrub.id === playback.id}
+              lang="en"
               role="slider"
               tabindex={playback.canSeek ? 0 : -1}
               aria-label="Position"
@@ -2911,10 +2992,10 @@
                 <span bind:this={played} style:background={parts.player.color}></span>
               </span>
             </span>
-            <span>-{clockTime(playback.endMs - at)}</span>
+            <span>-{clockTime(remaining(playback, at))}</span>
           </span>
         {/if}
-        <span class="controls" in:enter={{ step: 3 }} out:exit|global>
+        <span class="controls" lang="en" in:enter={{ step: 3 }} out:exit|global>
           <button type="button" aria-label="Previous" disabled={!p.canPrevious} onclick={() => control('previous')}>
             {@render icon('previous')}
           </button>
@@ -2933,15 +3014,16 @@
         </span>
       {/if}
     {/if}
+    <!-- The time and the date are written in Windows' own language, which may be neither French nor English. -->
     {#if parts.date}
-      <span class="muted" in:enter out:exit>{formatShortDate(now)}</span>
+      <span class="muted" lang={navigator.language} in:enter out:exit>{formatShortDate(now)}</span>
     {/if}
     {#if parts.time}
-      <time bind:this={clock} datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
+      <time bind:this={clock} datetime={now.toISOString()} lang={navigator.language} in:enter out:exit>{@render digits(formatTime(now))}</time>
     {/if}
     {#if parts.panel}
-      <time class="big" datetime={now.toISOString()} in:enter out:exit>{@render digits(formatTime(now))}</time>
-      <span class="muted" in:enter={{ step: 1 }} out:exit>{formatLongDate(now)}</span>
+      <time class="big" datetime={now.toISOString()} lang={navigator.language} in:enter out:exit>{@render digits(formatTime(now))}</time>
+      <span class="muted" lang={navigator.language} in:enter={{ step: 1 }} out:exit>{formatLongDate(now)}</span>
     {/if}
     {#if parts.track}
       <span class="track" out:exit>
@@ -3199,10 +3281,21 @@
 </span>
 
 <!-- The welcome, read once to a screen reader with the real shortcut, then cleared, and so is a battery peek. -->
-<span class="spoken" role="status">{spoken}</span>
+<span class="spoken" role="status" {lang}>{spoken}</span>
+<!-- Its own region, mounted before the tag: an app that starts using the microphone or the camera is heard. -->
+<span class="spoken" role="status">{inUse}</span>
 
 {#if geometry.dot}
-  <button type="button" class="island bubble" aria-label="Show in the island" style={place(geometry.dot)} onclick={swap}>
+  <!-- Merging back, it slides over the island's end: a click there is the island's. -->
+  <button
+    type="button"
+    class="island bubble"
+    aria-label={swaps ? ['Show', spokenOf(beside), 'in the island'].filter(Boolean).join(' ') : spokenOf(beside)}
+    aria-disabled={!swaps}
+    inert={!beside}
+    style={place(geometry.dot)}
+    onclick={swap}
+  >
     {#if beside && revealed}
       {#key beside.id}
         <span class="content" in:enter|global out:exit|global={{ shrinks: true }}>
@@ -3224,23 +3317,22 @@
     onpointermove={moveTag}
     onpointerleave={() => pointTag(false)}
   >
-    {#if !card}
-      <button
-        type="button"
-        class="opener"
-        aria-expanded="false"
-        aria-label={[
-          label(privacy) && `${label(privacy)}: ${uses === 'camera' ? 'camera' : 'microphone'} in use`,
-          privacy.muted && privacy.canMute && 'microphone muted',
-        ]
-          .filter(Boolean)
-          .join(', ')}
-        onclick={() => {
-          clearTimeout(tagTimer)
-          card = true
-        }}
-      ></button>
-    {/if}
+    <!-- It stays while the card is open, so a screen reader can close the card from where it opened it. -->
+    <button
+      type="button"
+      class="opener"
+      class:behind={card}
+      aria-expanded={card}
+      aria-label={[inUse, privacy.muted && privacy.canMute && 'microphone muted']
+        .filter(Boolean)
+        .join(', ')}
+      onclick={() => {
+        if (card) return closeCard()
+        clearTimeout(tagTimer)
+        // Not while the tag sinks, as a rest on it.
+        card = tagged(privacy)
+      }}
+    ></button>
     {#if revealed && !card}
       <span class="disc" bind:clientWidth={tagContent} in:enter|global out:exit|global={{ shrinks: false }}>
         {#if privacy.muted && privacy.canMute}<span class="crossed">{@render microphone(true)}</span>{/if}
@@ -3393,6 +3485,17 @@
     .equalizer,
     .launch .swatch {
       forced-color-adjust: none;
+    }
+  }
+
+  /* Their colours are picked to show on black: on a light theme's background they would fade. */
+  @media (forced-colors: active) and (prefers-color-scheme: light) {
+    .dot {
+      box-shadow: 0 0 0 1.5px CanvasText;
+    }
+
+    .equalizer {
+      color: CanvasText !important;
     }
   }
 
@@ -3681,6 +3784,11 @@
     cursor: default;
   }
 
+  /* Open, it lets the mouse through to what it opened. */
+  .opener.behind {
+    pointer-events: none;
+  }
+
   /* The music panel: artwork, title and equalizer, then the progress, then the controls. */
   .player {
     display: grid;
@@ -3744,6 +3852,18 @@
     height: 100%;
     transform: scaleX(0);
     transform-origin: left;
+  }
+
+  /* High contrast blanks both: the track takes the gray of disabled text, the part played the highlight colour. */
+  @media (forced-colors: active) {
+    .rail {
+      background: GrayText;
+    }
+
+    .rail > span {
+      forced-color-adjust: none;
+      background: Highlight !important;
+    }
   }
 
   .controls {
@@ -4000,7 +4120,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .dial circle:last-child,
-    .round button {
+    .round button,
+    .controls button {
       transition: none;
     }
   }

@@ -3,10 +3,13 @@ import {
   HOLD,
   NEUTRAL,
   PAUSED,
+  advancing,
   clockTime,
   nextChange,
+  nextSecond,
   nobody,
   position,
+  remaining,
   shown,
   songs,
   update,
@@ -45,6 +48,18 @@ describe('which players show', () => {
     expect(nextChange(known, T + 600_000)).toBe(T + 600_000 + PAUSED)
   })
 
+  it('keeps a paused player while its panel is open, then for a minute from the close', () => {
+    let known = update(nobody(), [player('spotify', true)], T)
+    known = update(known, [player('spotify', false)], T)
+    known = update(known, [player('spotify', false)], T + PAUSED, 'spotify')
+    expect(shown(known, T + PAUSED)).toHaveLength(1)
+    known = update(known, [player('spotify', false)], T + 90_000, 'spotify')
+    expect(shown(known, T + 90_000 + PAUSED - 1)).toHaveLength(1)
+    expect(shown(known, T + 90_000 + PAUSED)).toHaveLength(0)
+    // Never played here: the panel can't show it, and nothing keeps it.
+    expect(update(nobody(), [player('tab', false)], T, 'tab').playedAt.has('tab')).toBe(false)
+  })
+
   it('brings a paused player back when it plays again', () => {
     let known = update(nobody(), [player('spotify', true)], T)
     known = update(known, [player('spotify', false)], T)
@@ -80,6 +95,34 @@ describe('position', () => {
 
   it('takes a position without a timestamp as current', () => {
     expect(position(player('a', true, { positionMs: 10_000, updatedMs: 0 }), T)).toBe(10_000)
+  })
+
+  it('stays put at a rate of zero or below, and so does the bar', () => {
+    expect(position(player('a', true, { positionMs: 1_000, rate: 0 }), T + 30_000)).toBe(1_000)
+    expect(position(player('a', true, { positionMs: 1_000, rate: -1 }), T + 30_000)).toBe(1_000)
+    expect(advancing(player('a', true, { updatedMs: 0 }))).toBe(false)
+    expect(advancing(player('a', true))).toBe(true)
+  })
+})
+
+describe('nextSecond', () => {
+  it('lands just past the next second of the song', () => {
+    expect(nextSecond(player('a', true, { positionMs: 10_300 }), T)).toBe(701)
+    expect(nextSecond(player('a', true, { positionMs: 10_300, rate: 2 }), T)).toBe(351)
+  })
+
+  it('stops at the end, and while the song stands still', () => {
+    expect(nextSecond(player('a', true, { endMs: 200_999, positionMs: 200_999 }), T + 5_000)).toBeUndefined()
+    expect(nextSecond(player('a', false, { positionMs: 10_300 }), T)).toBeUndefined()
+  })
+})
+
+describe('remaining', () => {
+  it('adds up with the time played to the length', () => {
+    const p = player('a', true, { endMs: 180_000 })
+    for (const at of [0, 1_001, 90_500, 179_999, 180_000])
+      expect(Math.floor(at / 1000) * 1000 + remaining(p, at)).toBe(180_000)
+    expect(clockTime(remaining(p, 0))).toBe('3:00')
   })
 })
 
