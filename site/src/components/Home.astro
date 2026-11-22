@@ -147,6 +147,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 					<article class="quiet-row" data-reveal>
 						<div class="quiet-copy"><h3>{t.quiet[0].title}</h3><p>{t.quiet[0].text}</p></div>
 						<div class="scene" data-ui data-scene="away" aria-hidden="true">
+							<Image class="scene-wall" src={painting} alt="" widths={[960, 1600, 2400]} sizes="100vw" />
 							<span class="scene-video"></span>
 							<iframe src={island} title="" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>
 						</div>
@@ -154,6 +155,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 					<article class="quiet-row" data-reveal>
 						<div class="quiet-copy"><h3>{t.quiet[1].title}</h3><p>{t.quiet[1].text}</p></div>
 						<div class="scene" data-ui data-scene="back" aria-hidden="true">
+							<Image class="scene-wall" src={painting} alt="" widths={[960, 1600, 2400]} sizes="100vw" />
 							<iframe src={island} title="" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>
 							<svg class="cursor" width="22" height="22" viewBox="0 0 24 24"><path d="M4 2l7 19 2.6-7.4L21 11z" fill="#fff" stroke="#0B0B0F" stroke-width="1.6" stroke-linejoin="round"></path></svg>
 						</div>
@@ -1234,6 +1236,15 @@ const island = `${base}island/index.html?lang=${lang}`;
 		translate: -50% 0;
 		color-scheme: normal;
 		pointer-events: none;
+	}
+	/* The screen's wallpaper: a slice of the painting, from the file the band above loaded, with its widths and sizes. */
+	.scene-wall {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: 40% 0;
 	}
 	/* A video in fullscreen, under the island. */
 	.scene-video {
