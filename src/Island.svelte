@@ -65,6 +65,7 @@
     nextSecond,
     nobody,
     position,
+    remaining,
     shown as showing,
     songs,
     update,
@@ -2982,7 +2983,7 @@
                 <span bind:this={played} style:background={parts.player.color}></span>
               </span>
             </span>
-            <span>-{clockTime(playback.endMs - at)}</span>
+            <span>-{clockTime(remaining(playback, at))}</span>
           </span>
         {/if}
         <span class="controls" lang="en" in:enter={{ step: 3 }} out:exit|global>

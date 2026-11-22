@@ -9,6 +9,7 @@ import {
   nextSecond,
   nobody,
   position,
+  remaining,
   shown,
   songs,
   update,
@@ -101,6 +102,15 @@ describe('nextSecond', () => {
   it('stops at the end, and while the song stands still', () => {
     expect(nextSecond(player('a', true, { endMs: 200_999, positionMs: 200_999 }), T + 5_000)).toBeUndefined()
     expect(nextSecond(player('a', false, { positionMs: 10_300 }), T)).toBeUndefined()
+  })
+})
+
+describe('remaining', () => {
+  it('adds up with the time played to the length', () => {
+    const p = player('a', true, { endMs: 180_000 })
+    for (const at of [0, 1_001, 90_500, 179_999, 180_000])
+      expect(Math.floor(at / 1000) * 1000 + remaining(p, at)).toBe(180_000)
+    expect(clockTime(remaining(p, 0))).toBe('3:00')
   })
 })
 

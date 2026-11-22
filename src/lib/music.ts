@@ -98,6 +98,10 @@ export function nextSecond(p: Player, now: number): number | undefined {
   return advancing(p) && at < p.endMs ? (1000 - (at % 1000)) / p.rate + 1 : undefined
 }
 
+/** What is left of the song at `at`, up to the next second: with the time played, rounded down, it adds up to the
+ * song's length. */
+export const remaining = (p: Player, at: number) => Math.ceil((p.endMs - at) / 1000) * 1000
+
 /** 3:07, or 1:02:07 past an hour. */
 export function clockTime(ms: number): string {
   const s = Math.floor(Math.max(0, ms) / 1000)
