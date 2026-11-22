@@ -730,6 +730,8 @@
   function split() {
     if (phase === 'split' || phase === 'shown') return
     if (instant()) {
+      // What the cut merge's landing would have done.
+      if (phase === 'merge' && tuck !== 'tucking') fade(0, 120)
       travel.jump(0)
       bubble.jump(BUBBLE)
       phase = 'shown'
@@ -753,6 +755,7 @@
   function merge() {
     if (phase === 'none' || phase === 'merge') return
     if (instant()) {
+      if (phase === 'split') fade(0, 120)
       bubble.jump(0)
       phase = 'none'
       return wake()
@@ -779,6 +782,7 @@
     if (tagPhase === 'split' || tagPhase === 'shown') return
     const w = Math.max(TAG, tagContent)
     if (instant()) {
+      if (tagPhase === 'merge') fade(0, 120)
       tagShift.jump(0)
       tagW.jump(w)
       tagH.jump(TAG)
@@ -811,6 +815,7 @@
       return
     }
     if (instant()) {
+      if (tagPhase === 'split') fade(0, 120)
       tagW.jump(0)
       tagH.jump(0)
       tagPhase = 'none'
