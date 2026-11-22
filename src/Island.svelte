@@ -3826,6 +3826,18 @@
     transform-origin: left;
   }
 
+  /* High contrast blanks both: the track takes the gray of disabled text, the part played the highlight colour. */
+  @media (forced-colors: active) {
+    .rail {
+      background: GrayText;
+    }
+
+    .rail > span {
+      forced-color-adjust: none;
+      background: Highlight !important;
+    }
+  }
+
   .controls {
     grid-area: controls;
     display: flex;
