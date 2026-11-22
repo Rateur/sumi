@@ -215,6 +215,24 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - **The first hover is as smooth as the next ones**: a hidden copy of each text size is laid out at launch, so the fonts are ready before they are needed.
 - **The website moves the same way.** Its islands use CSS curves worked out at build time from the app's own springs and timings (`src/lib/curves.ts`), so a change to one changes the other.
 
+## At rest, measured
+
+Measured on 22 November 2026, with Sumi 0.9 as released, on an i5-9300HF laptop with a GTX 1650 and a 60 Hz screen, Windows 11 and WebView2 157.
+
+- **How**: a release build starts with its own data folder. From 1 min after launch, the memory of each of its processes is read every 30 s for 10 min, and the median of the last 5 min is kept. Then the island is driven over the DevTools protocol: 6 rounds of hover, leave, open, close and a battery peek, each after 15 s of rest. A frame is missed when two animation frames are more than one refresh apart. Each variant runs twice, the shipped one first and last.
+
+| | Shipped | Asked for less memory after 10 s at rest |
+|---|---|---|
+| Private memory, all processes | 200 MB | 172 MB |
+| Task Manager's Memory column | 101 MB | 45 MB |
+| GPU memory | 34 MB | 16 MB |
+| Missed frames, round after 10 min at rest | 1, 0 | 3, 3 |
+
+- The GPU process holds half of the private memory, 96 MB, which the driver mostly sets aside without using. The page itself is one layer and 2 MB of JavaScript.
+- **Sumi keeps the memory.** Asked for less, with WebView2's `MemoryUsageTargetLevel` set to `Low`, the memory comes back only as the island next moves, and the round after a long rest misses 3 frames. The first action after a rest misses none. Hiding the webview frees its GPU memory too, and its first blurs after it comes back stall 50 to 90 ms.
+- **The equalizer**: while music plays without artwork, its bounce draws 60 frames a second and costs WebView2 0.11 to 0.17 s of CPU a second, mostly in the GPU process. When the music is paused, or the island tucked or hidden, the equalizer stops, and the island costs under 3 ms a second, as with no music.
+- One stall of 170 to 200 ms came in a later round of each variant. It is the PC's own noise and isn't counted above.
+
 ## Tuck
 
 The island tucks into a line under the top edge, out of the way of tabs and title bars, and comes back when something needs it.

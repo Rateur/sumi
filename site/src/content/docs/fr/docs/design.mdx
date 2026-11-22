@@ -221,6 +221,24 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - **Le premier survol est aussi fluide que les suivants** : une copie cachée de chaque taille de texte est mise en page au lancement, pour que les polices soient prêtes avant d'être utiles.
 - **Le site bouge de la même façon.** Ses îles utilisent des courbes CSS calculées à la construction du site à partir des ressorts et des durées de l'app (`src/lib/curves.ts`) : changer l'un change l'autre.
 
+## Au repos, mesuré
+
+Mesures du 22 novembre 2026, avec Sumi 0.9 telle que publiée, sur un portable i5-9300HF avec une GTX 1650 et un écran à 60 Hz, sous Windows 11 avec WebView2 157.
+
+- **Méthode** : une version de production démarre avec son propre dossier de données. À partir d'une minute après le lancement, la mémoire de chacun de ses processus est relevée toutes les 30 s pendant 10 min, et la médiane des 5 dernières minutes est retenue. L'île est ensuite pilotée par le protocole DevTools : 6 tours de survol, sortie, ouverture, fermeture et coup d'œil de batterie, chacun après 15 s de repos. Une image est manquée quand deux images d'animation sont séparées de plus d'un rafraîchissement. Chaque variante tourne deux fois, la version publiée en premier et en dernier.
+
+| | Publiée | Moins de mémoire demandée après 10 s de repos |
+|---|---|---|
+| Mémoire privée, tous processus | 200 Mo | 172 Mo |
+| Colonne Mémoire du Gestionnaire des tâches | 101 Mo | 45 Mo |
+| Mémoire GPU | 34 Mo | 16 Mo |
+| Images manquées, tour après 10 min de repos | 1, 0 | 3, 3 |
+
+- Le processus GPU tient la moitié de la mémoire privée, 96 Mo, que le pilote réserve surtout sans s'en servir. La page elle-même tient en un calque et 2 Mo de JavaScript.
+- **Sumi garde sa mémoire.** Quand on lui en demande moins, avec `MemoryUsageTargetLevel` réglé sur `Low`, la mémoire ne revient qu'au moment où l'île bouge de nouveau, et le tour qui suit un long repos manque 3 images. La première action après un repos n'en manque aucune. Masquer la vue web libère aussi sa mémoire GPU, et ses premiers flous au retour bloquent 50 à 90 ms.
+- **L'égaliseur** : quand la musique joue sans pochette, son rebond dessine 60 images par seconde et coûte à WebView2 0,11 à 0,17 s de processeur par seconde, surtout dans le processus GPU. Quand la musique est en pause, ou l'île rangée ou masquée, l'égaliseur s'arrête, et l'île ne coûte plus que 3 ms par seconde au plus, comme sans musique.
+- Un blocage de 170 à 200 ms est survenu dans un tour plus tardif de chaque variante. Il vient du PC lui-même et n'est pas compté ci-dessus.
+
 ## Ranger l'île
 
 L'île se range dans une ligne sous le bord supérieur, à l'écart des onglets et des barres de titre, et revient quand quelque chose a besoin d'elle.
