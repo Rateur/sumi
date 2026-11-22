@@ -503,7 +503,12 @@
     const [tw, th] = [tagW.value, tagH.value]
     const inset = Math.max(0, (TAG - Math.max(tw, th)) / 2)
     const beside = right.x + right.width + TAG_GAP
-    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize.
+    // Kept from the moment the card opens, so it stays under the cursor while the shapes beside it resize. Closed,
+    // it springs back beside them from there. instant() comes last: it is defined after this first runs.
+    if (!card && anchor !== undefined && anchor !== beside && !instant()) {
+      tagShift.jump(tagShift.value + anchor - beside)
+      drive(tagShift, 0, CLOSE.width, t)
+    }
     anchor = card ? (anchor ?? beside) : undefined
     const flag =
       tw > 0.5
