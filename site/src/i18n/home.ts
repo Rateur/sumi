@@ -25,7 +25,6 @@ export const home = {
 		askApp: 'open discord',
 		askQuestion: 'claude what does sumi mean',
 		askNote: 'Claude opens in its app if you have it, otherwise in your browser. You send the question yourself.',
-		askDownload: 'Download for Windows',
 		roadmapTitle: 'Roadmap',
 		roadmap: [
 			{ title: 'The time', text: 'Centered at the top of your main screen.', tag: '0.1.0' },
@@ -91,7 +90,6 @@ export const home = {
 		askApp: 'ouvre discord',
 		askQuestion: 'claude que veut dire sumi',
 		askNote: 'Claude s’ouvre dans son app si vous l’avez, sinon dans votre navigateur. C’est vous qui envoyez la question.',
-		askDownload: 'Télécharger pour Windows',
 		roadmapTitle: 'Feuille de route',
 		roadmap: [
 			{ title: 'L’heure', text: 'Centrée en haut de votre écran principal.', tag: '0.1.0' },
