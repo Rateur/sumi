@@ -2884,7 +2884,8 @@
     event.stopPropagation()
   }}
 >
-  <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. -->
+  <!-- A click anywhere opens the island; once open, the panel's own buttons take the clicks. Held, the opener keeps
+       the pointer: the press shrinks it, and a release near its tip still clicks it. -->
   {#if !expanded && !barOpen && !launch && !sky && !captureView}
     {@const done = fit?.ended && top}
     <button
@@ -2892,6 +2893,7 @@
       class="opener"
       aria-label={done ? said.dismiss(named.get(done.id) ?? said.the) : 'Open'}
       aria-expanded={done ? undefined : 'false'}
+      onpointerdown={(event) => event.button === 0 && event.currentTarget.setPointerCapture(event.pointerId)}
       onclick={() => (greeting === 'playing' ? skip() : open())}
     ></button>
   {/if}
