@@ -11,12 +11,12 @@
   <p><a href="README.md">English</a> · <b>Français</b></p>
 </div>
 
-![Sumi en haut de l'écran : l'heure, la date sous le curseur, une chanson et son lecteur, le disque du micro et sa carte, la barre de commande qui lance un minuteur, l'île balayée vers le haut en un trait et ramenée, puis le panneau des batteries depuis la barre de commande](.github/assets/demo.gif)
+![Sumi en haut de l'écran : l'heure, la date sous le curseur, une chanson et son lecteur, le disque du micro et sa carte, la barre de commande qui lance un minuteur, l'île balayée vers le haut en un trait et ramenée, le panneau des batteries depuis la barre de commande, puis l'historique du presse-papiers, une couleur passée en RGB avec Tab et collée](.github/assets/demo.gif)
 
 Sumi affiche une petite pilule noire en haut de l'écran. Elle donne l'heure, puis change quand il se passe quelque chose : une chanson démarre, une app allume votre micro, un minuteur se termine. Un clic dessus affiche les commandes.
 
 > [!NOTE]
-> Sumi est en début de développement. La version 0.8.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran, affiche votre musique avec ses commandes, met un point à côté de l'île quand une app utilise votre micro ou votre caméra, ouvre une barre de commande pour un minuteur, une app, la météo ou une question, se range en un trait en haut quand vous la balayez ou la laissez au repos, et donne la batterie de votre PC et de vos appareils, même celle que Windows ne montre pas. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
+> Sumi est en début de développement. La version 0.9.0 affiche l'heure, ajoute la date quand le curseur se pose dessus, s'ouvre en panneau au clic, se masque quand un jeu ou une vidéo est en plein écran, affiche votre musique avec ses commandes, met un point à côté de l'île quand une app utilise votre micro ou votre caméra, ouvre une barre de commande pour un minuteur, une app, la météo ou une question, se range en un trait en haut quand vous la balayez ou la laissez au repos, donne la batterie de votre PC et de vos appareils, même celle que Windows ne montre pas, ouvre l'historique du presse-papiers dans la barre de commande, et copie une couleur, un texte ou un code QR depuis l'écran. Suivez le dépôt (Watch → Custom → Releases) pour être prévenu des nouvelles versions.
 
 ## Télécharger
 
@@ -36,7 +36,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
 - [x] Une barre de commande (`Win+Alt+S`) : un minuteur, une app, une question pour Claude, ChatGPT, Gemini, Perplexity ou un moteur de recherche ; des minuteurs sur l'île, dès `25m` (0.6.0)
 - [x] Ranger l'île en un fin trait en haut d'un balayage, ou seule au repos ; une icône vivante dans la zone de notification, avec le micro, la caméra et la musique, qui la range ou la fait revenir (0.7.0)
 - [x] La météo depuis la barre de commande, via [Open-Meteo](https://open-meteo.com) ; les batteries du PC et de ses appareils Bluetooth, y compris celles que Windows n'affiche pas, avec un coup d'œil quand vous branchez le PC, quand sa batterie faiblit ou qu'un appareil se connecte (0.8.0)
-- [ ] Presse-papiers et capture : l’historique du presse-papiers dans la barre de commande (`Win+Alt+V`), chaque élément collé là où vous étiez, avec son action. Une capture (`Win+Alt+C`) copie depuis l’écran une couleur, un texte ou un QR code.
+- [x] L'historique du presse-papiers dans la barre de commande (`Win+Alt+V`), chaque élément collé là où vous étiez, avec son action sur Tab ; une capture (`Win+Alt+C`) qui copie une couleur, un texte ou un code QR depuis l'écran (0.9.0)
 - [ ] Les réglages (écran, thème, langue, raccourcis), les mises à jour automatiques et le Microsoft Store
 
 ## Comment c'est fait
@@ -49,7 +49,7 @@ Chaque étape sort dans sa propre version. La 1.0 sera prête quand toutes les c
   <img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white">
 </p>
 
-Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec Windows : il place la fenêtre, laisse passer les clics, lit l'état des médias, du micro, de la caméra et des batteries. Une interface en [Svelte 5](https://svelte.dev) et TypeScript dessine l'île dans WebView2, le moteur de navigateur déjà intégré à Windows : Sumi n'embarque donc pas son propre navigateur, et l'installateur reste léger.
+Sumi est une app [Tauri 2](https://v2.tauri.app). Un cœur en Rust dialogue avec Windows : il place la fenêtre, laisse passer les clics, lit l'état des médias, du micro, de la caméra, des batteries et du presse-papiers, et fige l'écran pour une capture. Une interface en [Svelte 5](https://svelte.dev) et TypeScript dessine l'île dans WebView2, le moteur de navigateur déjà intégré à Windows : Sumi n'embarque donc pas son propre navigateur, et l'installateur reste léger.
 
 ## Confidentialité
 
