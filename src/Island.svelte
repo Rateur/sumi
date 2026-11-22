@@ -1105,7 +1105,10 @@
       return
     }
     if (!inside) press(false)
-    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = inside && !onTag), inside ? hoverTime : LEAVE)
+    // Rust hears the bubble and the tag as the island, but a rest on them grows nothing. While it holds the cursor,
+    // the page's :hover is current.
+    const onIsland = () => inside && !onTag && !document.querySelector('.island.bubble:hover')
+    if (inside !== hovered) hoverTimer = setTimeout(() => (hovered = onIsland()), inside ? hoverTime : LEAVE)
     if (!inside && held) {
       held = false
       beats.push(setTimeout(fold, LEAVE))
