@@ -194,6 +194,7 @@ If another app already holds `Win+Alt+S`, Sumi takes `Alt+Shift+S`. If both are 
 - Only the drawn shape takes the mouse. The rest of the window, and the 8 px above the island, belong to the app underneath.
 - A drag that starts elsewhere, such as a tab, a text selection or a window, passes over the island. It wakes up once every button is up.
 - It grows only after the cursor rests on it for the Windows hover time, and shrinks 300 ms after the cursor leaves. A click opens it at once.
+- It stays above your windows, with no button in the taskbar.
 - It is put on top once and never pushed back up, so menus, tooltips, Start and Alt+Tab can cover it. Only the capture raises it again, over its frozen screen. Moving it never takes focus.
 - It hides while a window fills the main screen, or while Windows reports a fullscreen game or a presentation: it slides up off the screen, then its window hides, so nothing sits over the game. A click on another screen keeps it hidden. It comes back without taking focus.
 - While Windows says you're busy, such as a fullscreen app on another screen, news changes in place with no peek, and a new song doesn't swell. A call still peeks.
@@ -316,5 +317,5 @@ With reduced motion, the island fades in where it is, already the logo, and each
 ## Why these choices
 
 - **Click to expand, not hover.** At the top of a Windows screen the cursor crosses the island on its way to browser tabs and title bars. Hover only gives a hint.
-- **Small at rest, hidden in fullscreen.** Island apps on Windows draw complaints for covering content and for idle CPU use. The target is close to 0 % CPU when nothing happens.
+- **Small at rest, hidden in fullscreen.** Island apps on Windows draw complaints for covering content and for idle CPU use. The target is close to 0 % CPU when nothing happens. On a laptop with an Intel Core i5-9300HF and 8 logical processors, Sumi 0.9 sat at rest for 10 minutes. Together, sumi.exe and its five WebView2 processes used 3.4 s of processor time. Each process's total processor time was read at the start and at the end. That is about half a percent of one core, and under a tenth of a percent of the whole processor.
 - **Compact, expanded and bubble** follow the model people already know from phones. The names, drawings and code are ours.

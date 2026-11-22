@@ -200,6 +200,7 @@ Si une autre app utilise déjà `Win+Alt+S`, Sumi prend `Alt+Maj+S`. Si les deux
 - Seule la forme dessinée réagit à la souris. Le reste de la fenêtre, et les 8 px au-dessus de l'île, appartiennent à l'app en dessous.
 - Un glissement commencé ailleurs, comme un onglet, une sélection de texte ou une fenêtre, passe par-dessus l'île. Elle se réveille une fois tous les boutons relâchés.
 - Elle ne s'agrandit que si le curseur s'y pose pendant le délai de survol de Windows, et rapetisse 300 ms après son départ. Un clic l'ouvre aussitôt.
+- Elle reste devant vos fenêtres, sans bouton dans la barre des tâches.
 - Elle passe au-dessus des fenêtres une seule fois, sans jamais être remontée ensuite : les menus, les info-bulles, Démarrer et Alt+Tab peuvent la couvrir. Seule la capture la remonte, au-dessus de son écran figé. La déplacer ne prend jamais le focus.
 - Elle se masque quand une fenêtre occupe tout l'écran principal, ou quand Windows signale un jeu en plein écran ou une présentation : elle remonte hors de l'écran, puis sa fenêtre se masque, et rien ne reste au-dessus du jeu. Un clic sur un autre écran la garde masquée. Elle revient sans prendre le focus.
 - Quand Windows indique que vous êtes occupé, par exemple avec une app en plein écran sur un autre écran, ce qui change s'affiche sur place, sans coup d'œil, et un nouveau morceau ne fait pas gonfler l'île. Un appel s'affiche quand même en coup d'œil.
@@ -322,5 +323,5 @@ Avec les effets d'animation coupés, l'île apparaît en fondu à sa place, déj
 ## Pourquoi ces choix
 
 - **Un clic pour ouvrir, pas le survol.** En haut d'un écran Windows, le curseur traverse l'île pour rejoindre les onglets du navigateur et les barres de titre. Le survol ne donne qu'un indice.
-- **Petite au repos, masquée en plein écran.** Sous Windows, on reproche aux apps d'île de cacher le contenu et d'occuper le processeur au repos. L'objectif : presque 0 % de processeur quand rien ne se passe.
+- **Petite au repos, masquée en plein écran.** Sous Windows, on reproche aux apps d'île de cacher le contenu et d'occuper le processeur au repos. L'objectif : presque 0 % de processeur quand rien ne se passe. Sur un portable avec un Intel Core i5-9300HF et 8 processeurs logiques, Sumi 0.9 est resté au repos pendant 10 minutes. Ensemble, sumi.exe et ses cinq processus WebView2 ont utilisé 3,4 s de temps processeur. Le temps processeur total de chaque processus a été relevé au début et à la fin. Cela fait environ un demi pour cent d'un cœur, et moins d'un dixième de pour cent du processeur entier.
 - **Compacte, ouverte et bulle** reprennent le modèle que l'on connaît déjà sur les téléphones. Les noms, les dessins et le code sont à nous.
