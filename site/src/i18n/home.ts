@@ -15,7 +15,7 @@ export const home = {
 		releases: 'Releases',
 		h1a: 'An island',
 		h1b: 'for Windows.',
-		steps: ['It shows the time.', 'Your music.', 'Which app uses your microphone or camera.'],
+		steps: ['The time.', 'Your music.', 'Which app uses your microphone or camera.'],
 		clipTitle: 'The clipboard history.',
 		clipLine: 'Win + Alt + V, then Tab.',
 		clipNote: 'Paste a link without its trackers. Turn a color from HEX into RGB.',
@@ -25,7 +25,6 @@ export const home = {
 		askApp: 'open discord',
 		askQuestion: 'claude what does sumi mean',
 		askNote: 'Claude opens in its app if you have it, otherwise in your browser. You send the question yourself.',
-		askDownload: 'Download for Windows',
 		roadmapTitle: 'Roadmap',
 		roadmap: [
 			{ title: 'The time', text: 'Centered at the top of your main screen.', tag: '0.1.0' },
@@ -45,11 +44,11 @@ export const home = {
 		quietTitle: 'Never in the way.',
 		quiet: [
 			{
-				title: 'Tucks itself away.',
+				title: 'Tucks itself away',
 				text: 'The island slides off the screen during games and videos. When it only shows the time, it tucks into a thin line after 10 seconds.',
 			},
 			{
-				title: 'Back in one click.',
+				title: 'Back in one click',
 				text: 'Click the thin line at the top of the screen, or the icon by the clock. Swipe the island in any direction to tuck it yourself.',
 			},
 		],
@@ -81,7 +80,7 @@ export const home = {
 		releases: 'Versions',
 		h1a: 'Une île',
 		h1b: 'pour Windows.',
-		steps: ["Elle donne l'heure.", 'Votre musique.', 'L’app qui utilise votre micro ou votre caméra.'],
+		steps: ['L’heure.', 'Votre musique.', 'L’app qui utilise votre micro ou votre caméra.'],
 		clipTitle: 'L’historique du presse-papiers.',
 		clipLine: 'Win + Alt + V, puis Tab.',
 		clipNote: 'Collez un lien sans ses traqueurs. Passez une couleur du HEX au RGB.',
@@ -91,7 +90,6 @@ export const home = {
 		askApp: 'ouvre discord',
 		askQuestion: 'claude que veut dire sumi',
 		askNote: 'Claude s’ouvre dans son app si vous l’avez, sinon dans votre navigateur. C’est vous qui envoyez la question.',
-		askDownload: 'Télécharger pour Windows',
 		roadmapTitle: 'Feuille de route',
 		roadmap: [
 			{ title: 'L’heure', text: 'Centrée en haut de votre écran principal.', tag: '0.1.0' },
@@ -111,25 +109,25 @@ export const home = {
 		quietTitle: 'Jamais encombrante.',
 		quiet: [
 			{
-				title: 'Rangée toute seule.',
+				title: 'Rangée toute seule',
 				text: 'L’île remonte hors de l’écran pendant les jeux et les vidéos. Quand elle ne montre que l’heure, elle se range en un trait fin après 10 secondes.',
 			},
 			{
-				title: 'De retour d’un clic.',
+				title: 'De retour d’un clic',
 				text: 'Cliquez sur le trait en haut de l’écran, ou sur l’icône près de l’horloge. Glissez l’île dans n’importe quel sens pour la ranger vous-même.',
 			},
 		],
 		quietNote: 'Autour de l’île, les clics passent à travers. Au repos, Sumi n’utilise presque pas le processeur.',
-		inkTitle: "Sumi, l'encre.",
+		inkTitle: 'Sumi, l’encre.',
 		ink: 'Sumi signifie « encre » en japonais. L’île en est une goutte posée sur votre écran. Le code, sous licence MIT, est sur GitHub. Vos idées et vos corrections y sont les bienvenues.',
-		paintingAlt: "L'île de Jinshan et le lac de l'Ouest à l'encre et à l'or : des temples sur un rocher abrupt, des barques sur l'eau",
+		paintingAlt: 'L’île de Jinshan et le lac de l’Ouest à l’encre et à l’or : des temples sur un rocher abrupt, des barques sur l’eau',
 		endTitle: 'Posez-la sur votre écran.',
 		endText: 'Gratuit. Windows 10 et 11.',
 		github: 'GitHub',
 		discussions: 'Discussions',
 		otherLang: 'English',
 		legalLink: 'Mentions légales',
-		credit: "Peinture : Kanō Sanraku, L'île de Jinshan et le lac de l'Ouest, 1630, The Met (CC0).",
+		credit: 'Peinture : Kanō Sanraku, L’île de Jinshan et le lac de l’Ouest, 1630, The Met (CC0).',
 	},
 } as const;
 
