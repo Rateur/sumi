@@ -137,13 +137,6 @@ const island = `${base}island/index.html?lang=${lang}`;
 				<p class="keys" data-reveal style="--d: 1">{t.askLine}</p>
 				<div class="ask-stage fits" data-ui data-reveal style="--d: 2" data-app={t.askApp} data-question={t.askQuestion}>
 					<iframe src={island} title="" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>
-					<a class="ask-download" href={download} hidden>
-						<span class="ask-time" aria-hidden="true" data-time>00:00</span>
-						<span class="ask-cta">
-							<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"></path></svg>
-							{t.askDownload}
-						</span>
-					</a>
 				</div>
 				<p class="ask-note" data-reveal style="--d: 3">{t.askNote}</p>
 			</section>
@@ -154,6 +147,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 					<article class="quiet-row" data-reveal>
 						<div class="quiet-copy"><h3>{t.quiet[0].title}</h3><p>{t.quiet[0].text}</p></div>
 						<div class="scene" data-ui data-scene="away" aria-hidden="true">
+							<Image class="scene-wall" src={painting} alt="" widths={[960, 1600, 2400]} sizes="100vw" />
 							<span class="scene-video"></span>
 							<iframe src={island} title="" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>
 						</div>
@@ -161,6 +155,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 					<article class="quiet-row" data-reveal>
 						<div class="quiet-copy"><h3>{t.quiet[1].title}</h3><p>{t.quiet[1].text}</p></div>
 						<div class="scene" data-ui data-scene="back" aria-hidden="true">
+							<Image class="scene-wall" src={painting} alt="" widths={[960, 1600, 2400]} sizes="100vw" />
 							<iframe src={island} title="" tabindex="-1" aria-hidden="true" loading="lazy"></iframe>
 							<svg class="cursor" width="22" height="22" viewBox="0 0 24 24"><path d="M4 2l7 19 2.6-7.4L21 11z" fill="#fff" stroke="#0B0B0F" stroke-width="1.6" stroke-linejoin="round"></path></svg>
 						</div>
@@ -481,8 +476,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 			// The clipboard history and the tuck, played by the app's own island: once as each comes into view, in under
 			// 5 s, then again on hover or a tap once it's over. Each step is a message for the island, or a change around
 			// it, `ms` after the start. `from` is sent as the frame loads, `end` instead with reduced motion, where nothing
-			// plays and the island rests as its scene ends. `again` takes the island back to the start before a replay,
-			// and `once` is sent on the first play only.
+			// plays and the island rests as its scene ends. `again` takes the island back to the start before a replay.
 			// The scenes cut the 10 s rest short; the text says the real one.
 			type Step = [number, string | ((stage: HTMLElement) => void)];
 			const point = (stage: HTMLElement) => {
@@ -504,12 +498,12 @@ const island = `${base}island/index.html?lang=${lang}`;
 					{ duration: 3200, fill: 'both' },
 				);
 			};
-			const scenes: Record<string, { ms: number; from?: string; end?: string; again?: string; once?: string; steps: Step[] }> = {
-				// The keys, then the list: ↓ to the link with trackers, Tab twice to take them off, and Enter pastes it. The
-				// paste puts the link on top, so a replay starts on it.
+			const scenes: Record<string, { ms: number; from?: string[]; end?: string[]; again?: string; steps: Step[] }> = {
+				// The keys, then the list: ↓ to the link with trackers, and Tab twice takes them off. It rests there, open.
 				clip: {
-					ms: 4800,
-					once: 'down',
+					ms: 2800,
+					end: ['clipboard', 'down', 'tab', 'tab'],
+					again: 'clipboard',
 					steps: [
 						[0, (stage) => stage.classList.add('keyed')],
 						[450, 'clipboard'],
@@ -517,13 +511,12 @@ const island = `${base}island/index.html?lang=${lang}`;
 						[1050, 'down'],
 						[1600, 'tab'],
 						[2150, 'tab'],
-						[2750, 'enter'],
 					],
 				},
 				// A video fills the screen and the island slides off; it ends, the time comes back, then tucks itself.
+				// Reduced motion keeps the time, since the island never comes back on its own.
 				away: {
 					ms: 3800,
-					end: 'tuck',
 					again: 'tuck',
 					steps: [
 						[0, (stage) => stage.classList.add('dark')],
@@ -536,8 +529,8 @@ const island = `${base}island/index.html?lang=${lang}`;
 				// From the line: a click brings the island back, and a drag up tucks it again.
 				back: {
 					ms: 3900,
-					from: 'tuck',
-					end: 'tuck',
+					from: ['tuck'],
+					end: ['tuck'],
 					steps: [
 						[0, point],
 						[1000, 'tuck'],
@@ -552,9 +545,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 				let [ready, seen, played, until] = [false, false, false, 0];
 				const run = (lead = 0) => {
 					until = performance.now() + lead + scene.ms;
-					scene.steps
-						.filter(([, step]) => !played || step !== scene.once)
-						.forEach(([ms, step]) => setTimeout(() => (typeof step === 'string' ? say(step) : step(stage)), lead + ms));
+					scene.steps.forEach(([ms, step]) => setTimeout(() => (typeof step === 'string' ? say(step) : step(stage)), lead + ms));
 				};
 				const start = () => {
 					if (reduce || !ready || !seen || played) return;
@@ -569,8 +560,8 @@ const island = `${base}island/index.html?lang=${lang}`;
 				const greet = () => {
 					if (ready) return;
 					ready = true;
-					const first = reduce ? scene.end : scene.from;
-					if (first) say(first);
+					// A message each 100 ms: the list opens before its keys arrive.
+					(reduce ? scene.end : scene.from)?.forEach((name, i) => setTimeout(() => say(name), i * 100));
 					start();
 				};
 				addEventListener('message', (e) => e.source === frame.contentWindow && e.data === 'sumi:ready' && greet());
@@ -599,16 +590,15 @@ const island = `${base}island/index.html?lang=${lang}`;
 			document.querySelectorAll('.fits').forEach((el) => fits.observe(el));
 
 			// The command bar, played once by the app's own island when it comes into view: an app, a timer, a question.
-			// Then the island folds into the download. It holds still under the pointer, off screen and in a background
-			// tab. With reduced motion, the bar rests on a timer.
+			// It rests on the question and the chip that answers it, as it does with reduced motion. It holds still under
+			// the pointer, off screen and in a background tab.
 			const stage = document.querySelector<HTMLElement>('.ask-stage')!;
 			const askFrame = stage.querySelector('iframe')!;
-			const pill = stage.querySelector<HTMLAnchorElement>('.ask-download')!;
 			const tell = (name: string) => askFrame.contentWindow?.postMessage(name, location.origin);
 			const script: [number, string][] = reduce
 				? [
 						[0, 'bar'],
-						[400, 'type:25m'],
+						[400, `type:${stage.dataset.question ?? ''}`],
 					]
 				: [
 						[900, 'bar'],
@@ -620,16 +610,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 						[2600, 'clear'],
 						[700, 'bar'],
 						...typing(stage.dataset.question ?? '', 400),
-						[1200, 'enter'],
-						[2300, 'fold'],
 					];
-			const fold = () => {
-				pill.hidden = false;
-				pill.style.setProperty('--to', `${pill.querySelector<HTMLElement>('.ask-cta')!.offsetWidth}px`);
-				// Laid out at the island's size first, so the fold starts from it.
-				pill.getBoundingClientRect();
-				stage.classList.add('folded');
-			};
 			let [askReady, askSeen, askHeld, step, wait] = [loaded(askFrame), false, false, 0, 0];
 			const advance = () => {
 				clearTimeout(wait);
@@ -637,8 +618,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 				const [ms, name] = script[step];
 				wait = window.setTimeout(() => {
 					step += 1;
-					if (name === 'fold') fold();
-					else tell(name);
+					tell(name);
 					advance();
 				}, ms);
 			};
@@ -693,7 +673,6 @@ const island = `${base}island/index.html?lang=${lang}`;
 		--accent: #f472b6;
 		--m: clamp(16px, 2.6vw, 40px);
 		--face: 'Bricolage Grotesque Variable', system-ui, sans-serif;
-		--step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
 		--step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
 		--step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
 		--step-head: clamp(2.25rem, 1.3rem + 3.6vw, 4.5rem);
@@ -1131,7 +1110,7 @@ const island = `${base}island/index.html?lang=${lang}`;
 		visibility: hidden;
 	}
 
-	/* The command bar, played by the app's own island at up to 4/3 of its size, then folded into the download. */
+	/* The command bar, played by the app's own island at up to 4/3 of its size. */
 	.ask,
 	.clip {
 		padding-top: 200px;
@@ -1141,11 +1120,11 @@ const island = `${base}island/index.html?lang=${lang}`;
 		font-size: var(--step-lead);
 		color: var(--muted);
 	}
-	/* As wide as the scaled frame, so its middle is the island's; as tall as the bar or the pill, whichever is taller. */
+	/* As wide as the scaled frame, so its middle is the island's; as tall as the bar it rests on. */
 	.ask-stage {
 		position: relative;
 		max-width: 640px;
-		height: max(52px * var(--fit, 1), 8px * var(--fit, 1) + 56px);
+		height: calc(52px * var(--fit, 1));
 		margin-top: 48px;
 	}
 	/* 32 px wider each side than the bar, for its shadow. */
@@ -1194,96 +1173,11 @@ const island = `${base}island/index.html?lang=${lang}`;
 	.ask-note + .ask-note {
 		margin-top: 8px;
 	}
-	.ask-stage.folded iframe {
-		visibility: hidden;
-	}
-	/* It takes the island's place, size, black and shadow, then springs open into the site's ink pill. */
-	.ask-download {
-		position: absolute;
-		top: calc(8px * var(--fit, 1));
-		left: 50%;
-		display: block;
-		width: calc(132px * var(--fit, 1));
-		height: calc(34px * var(--fit, 1));
-		overflow: hidden;
-		border-radius: calc(17px * var(--fit, 1));
-		background: #000;
-		color: var(--paper);
-		box-shadow: 0 6px 18px rgb(0 0 0 / 0.45);
-		translate: -50% 0;
-		text-decoration: none;
-	}
-	.ask-download[hidden] {
-		display: none;
-	}
-	.folded .ask-download {
-		width: var(--to);
-		height: 56px;
-		border-radius: 28px;
-		background: var(--ink);
-		box-shadow: 0 12px 32px rgb(11 11 15 / 0.24);
-		transition:
-			width var(--peek-w),
-			height var(--peek-h),
-			border-radius var(--peek-h),
-			background 0.4s var(--settle),
-			box-shadow 0.4s var(--settle),
-			scale var(--release);
-	}
-	.ask-download:hover {
-		scale: 1.03;
-	}
-	.ask-download:active {
-		scale: var(--press-scale);
-		transition: scale var(--press);
-	}
-	.ask-time,
-	.ask-cta {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		left: 50%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		white-space: nowrap;
-		translate: -50% 0;
-	}
-	/* The time as the island writes it, so the hand-over doesn't show. */
-	.ask-time {
-		color: #fff;
-		font: 600 calc(14px * var(--fit, 1)) / 1 'Segoe UI Variable Text', 'Segoe UI', Inter, system-ui, sans-serif;
-		font-variant-numeric: tabular-nums;
-	}
-	.folded .ask-time {
-		opacity: 0;
-		scale: var(--exit-scale);
-		transition:
-			opacity var(--exit),
-			scale var(--exit);
-	}
-	.ask-cta {
-		gap: 10px;
-		padding: 0 28px;
-		font-weight: 600;
-		opacity: 0;
-		scale: var(--enter-scale);
-		filter: blur(var(--enter-blur));
-	}
-	.folded .ask-cta {
-		opacity: 1;
-		scale: 1;
-		filter: none;
-		transition:
-			opacity var(--enter) var(--enter-delay),
-			scale var(--enter) var(--enter-delay),
-			filter var(--enter) var(--enter-delay);
-	}
+	/* A note under its stage, as the quiet one: body size, secondary. */
 	.ask-note {
 		max-width: 56ch;
-		margin: 32px 0 0;
+		margin: 24px 0 0;
 		color: var(--muted);
-		font-size: var(--step-small);
 		text-wrap: balance;
 	}
 	/* Quiet: statements on one axis, each with its proof at the right margin. */
@@ -1341,6 +1235,15 @@ const island = `${base}island/index.html?lang=${lang}`;
 		translate: -50% 0;
 		color-scheme: normal;
 		pointer-events: none;
+	}
+	/* The screen's wallpaper: a slice of the painting, from the file the band above loaded, with its widths and sizes. */
+	.scene-wall {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: 40% 0;
 	}
 	/* A video in fullscreen, under the island. */
 	.scene-video {
@@ -1879,10 +1782,6 @@ const island = `${base}island/index.html?lang=${lang}`;
 		}
 		.nav:hover:not(.open) {
 			scale: none;
-		}
-		/* The list never opens: the stage keeps only the island's height. */
-		.clip-stage {
-			height: calc(42px * var(--fit, 1));
 		}
 		/* The steps don't play: the three are read as one sentence. */
 		.steps {
