@@ -513,17 +513,17 @@ const island = `${base}island/index.html?lang=${lang}`;
 						[2150, 'tab'],
 					],
 				},
-				// A video fills the screen and the island slides off; it ends, the time comes back, then tucks itself. It
-				// comes back after, so the screen rests on the time.
+				// A video fills the screen and the island slides off; it ends, the time comes back, then tucks itself.
+				// Reduced motion keeps the time, since the island never comes back on its own.
 				away: {
-					ms: 4900,
+					ms: 3800,
+					again: 'tuck',
 					steps: [
 						[0, (stage) => stage.classList.add('dark')],
 						[300, 'fullscreen'],
 						[1500, (stage) => stage.classList.remove('dark')],
 						[1500, 'fullscreen'],
 						[2900, 'tuck'],
-						[4300, 'tuck'],
 					],
 				},
 				// From the line: a click brings the island back, and a drag up tucks it again.
